@@ -60,6 +60,14 @@
         }
       </div>
 
+      <!-- WATCHLIST BUTTON -->
+      <button class="watchlist-btn" (click)="watchlistPainelAberto.set(!watchlistPainelAberto())" title="Abrir Processos Salvos na Watchlist">
+        <span>📋 Watchlist</span>
+        @if (watchlist().length > 0) {
+          <span class="watchlist-counter">{{ watchlist().length }}</span>
+        }
+      </button>
+
       <!-- SPOTLIGHT QUICK BUTTON -->
       <button class="spotlight-trigger-btn" (click)="abrirSpotlight()" title="Atalho global Ctrl+K">
         <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
@@ -93,52 +101,136 @@
         Validação matemática do Módulo 97 do CNJ, sincronização instantânea do <strong>DataJud</strong> e extração de <strong>Decisões e Capa dos Autos no e-SAJ (TJSP)</strong>.
       </p>
 
-      <!-- SEARCH INPUT FORM -->
-      <div class="search-box-wrapper">
-        <div class="search-input-field">
-          <svg class="search-lens" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            [value]="numeroProcessoInput()"
-            (input)="formatarEntrada($event)"
-            (keyup.enter)="buscarProcesso()"
-            placeholder="Digite o número CNJ (ex: 2101760-84.2025.8.26.0000)"
-            class="cnj-input"
-          />
-          <button class="spotlight-hint-pill" (click)="abrirSpotlight()" type="button" title="Abrir Busca Avançada">
-            <span>Spotlight</span>
-            <kbd>Ctrl+K</kbd>
+      <!-- SEARCH MODE SELECTOR TABS -->
+      <div class="search-mode-selector">
+        <button class="mode-tab" [class.active]="modoBusca() === 'cnj'" (click)="modoBusca.set('cnj')" type="button">
+          <span>⚖️ Por Número CNJ</span>
+        </button>
+        <button class="mode-tab" [class.active]="modoBusca() === 'oab'" (click)="modoBusca.set('oab')" type="button">
+          <span>💼 Carteira por OAB (Advogado)</span>
+          <span class="mode-badge-new">Crawler e-SAJ</span>
+        </button>
+      </div>
+
+      <!-- SEARCH INPUT FORM: MODO CNJ -->
+      @if (modoBusca() === 'cnj') {
+        <div class="search-box-wrapper animate-fade-in">
+          <div class="search-input-field">
+            <svg class="search-lens" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              [value]="numeroProcessoInput()"
+              (input)="formatarEntrada($event)"
+              (keyup.enter)="buscarProcesso()"
+              placeholder="Digite o número CNJ (ex: 2101760-84.2025.8.26.0000)"
+              class="cnj-input"
+            />
+            <button class="spotlight-hint-pill" (click)="abrirSpotlight()" type="button" title="Abrir Busca Avançada">
+              <span>Spotlight</span>
+              <kbd>Ctrl+K</kbd>
+            </button>
+          </div>
+
+          <button class="primary-search-button" (click)="buscarProcesso()" [disabled]="carregando()">
+            @if (carregando()) {
+              <span class="button-spinner"></span>
+              <span>Varrendo...</span>
+            } @else {
+              <span>Consultar Autos</span>
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            }
           </button>
         </div>
 
-        <button class="primary-search-button" (click)="buscarProcesso()" [disabled]="carregando()">
-          @if (carregando()) {
-            <span class="button-spinner"></span>
-            <span>Varrendo...</span>
-          } @else {
-            <span>Consultar Autos</span>
-            <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-              <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-          }
-        </button>
-      </div>
+        <!-- PRESET TAGS CNJ -->
+        <div class="preset-chips-row">
+          <span class="preset-label">Casos Paradigmáticos:</span>
+          <button class="preset-tag tjsp" (click)="selecionarDoHistorico('2101760-84.2025.8.26.0000')" type="button">
+            <span class="tag-code">TJSP</span>
+            <span>2101760-84.2025.8.26.0000 (Agravo c/ Acórdão e 74 Movimentações)</span>
+          </button>
+          <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-05.2023.4.03.6100')" type="button">
+            <span class="tag-code">TRF3</span>
+            <span>5000001-05.2023.4.03.6100 (Mandado de Segurança • Justiça Federal)</span>
+          </button>
+        </div>
+      } @else {
+        <!-- SEARCH INPUT FORM: MODO OAB -->
+        <div class="search-box-wrapper oab-mode animate-fade-in">
+          <div class="search-input-field">
+            <span class="oab-prefix-badge">OAB /</span>
+            <input
+              type="text"
+              [value]="termoOabInput()"
+              (input)="termoOabInput.set($any($event.target).value)"
+              (keyup.enter)="buscarCarteiraOab()"
+              placeholder="Digite o número e UF da OAB (ex: 238470SP)"
+              class="cnj-input"
+            />
+          </div>
 
-      <!-- PRESET TAGS (COM O NÚMERO EXATO DO TRF3: 5000001-05) -->
-      <div class="preset-chips-row">
-        <span class="preset-label">Casos Paradigmáticos:</span>
-        <button class="preset-tag tjsp" (click)="selecionarDoHistorico('2101760-84.2025.8.26.0000')" type="button">
-          <span class="tag-code">TJSP</span>
-          <span>2101760-84.2025.8.26.0000 (Agravo c/ Acórdão e 74 Movimentações)</span>
-        </button>
-        <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-05.2023.4.03.6100')" type="button">
-          <span class="tag-code">TRF3</span>
-          <span>5000001-05.2023.4.03.6100 (Mandado de Segurança • Justiça Federal)</span>
-        </button>
-      </div>
+          <button class="primary-search-button oab" (click)="buscarCarteiraOab()" [disabled]="buscandoOab()">
+            @if (buscandoOab()) {
+              <span class="button-spinner"></span>
+              <span>Varrendo e-SAJ...</span>
+            } @else {
+              <span>Extrair Carteira</span>
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            }
+          </button>
+        </div>
+
+        <!-- PRESET TAGS OAB -->
+        <div class="preset-chips-row">
+          <span class="preset-label">OAB Auditada no e-SAJ:</span>
+          <button class="preset-tag oab" (click)="buscarCarteiraOab('238470SP')" type="button">
+            <span class="tag-code">OAB/SP 238.470</span>
+            <span>Dr. João Paulo Paiva Camacho (21 Processos no TJSP 1G/2G)</span>
+          </button>
+        </div>
+
+        <!-- RESULTADOS DA CARTEIRA OAB -->
+        @if (advogadoCarteira(); as cart) {
+          <div class="oab-portfolio-sheet animate-slide-up">
+            <div class="portfolio-header">
+              <div class="portfolio-lawyer-info">
+                <div class="portfolio-avatar">⚖️</div>
+                <div>
+                  <h4 class="lawyer-name">{{ cart.nomeAdvogado || 'Patrono com Inscrição Regular' }}</h4>
+                  <span class="lawyer-meta">Inscrição OAB: <strong>{{ cart.numeroOab }}</strong> • Tribunal: <strong>{{ cart.tribunal }}</strong></span>
+                </div>
+              </div>
+              <div class="portfolio-counter-badge">
+                <strong class="count-num">{{ cart.totalProcessos }}</strong>
+                <span>Processos Ativos Encontrados</span>
+              </div>
+            </div>
+
+            <div class="portfolio-cases-grid">
+              @for (item of cart.processos; track item.numeroCnjLimpo) {
+                <div class="portfolio-case-card">
+                  <div class="case-card-header">
+                    <span class="case-grau-pill" [class.grau2]="item.grau === 2">{{ item.grau === 2 ? '2º Grau (Colegiado)' : '1ª Instância' }}</span>
+                    <span class="case-vara-text">{{ item.vara || 'Vara Cível' }}</span>
+                  </div>
+                  <strong class="case-cnj-title">{{ item.numeroCnjFormatado }}</strong>
+                  <p class="case-classe-desc">{{ item.classe }}</p>
+                  <button class="btn-audit-case" (click)="abrirProcessoDaCarteira(item)">
+                    Auditar este Processo →
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
 
       <!-- RADAR DE CONSULTA EM ETAPAS (FEEDBACK TÉCNICO) -->
       @if (radarAtivo()) {
@@ -227,6 +319,9 @@
 
             <!-- ACTION BUTTONS -->
             <div class="master-actions">
+              <button class="action-btn-watch" (click)="alternarWatchlist()" [class.active]="estaNaWatchlist()" title="Fixar este processo na Watchlist">
+                <span>{{ estaNaWatchlist() ? '★ Monitorado na Watchlist' : '+ Fixar na Watchlist' }}</span>
+              </button>
               <button class="action-btn-print" (click)="imprimirCapa()" title="Imprimir Capa do Processo em PDF">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
                   <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -262,6 +357,32 @@
             </div>
           </div>
         </div>
+
+        <!-- MOTOR HEURÍSTICO DE RISCO FORENSE -->
+        @if (alertaRiscoForense(); as risco) {
+          <div class="risk-forensic-banner animate-fade-in" [class]="risco.nivel">
+            <div class="risk-badge-col">
+              <span class="risk-icon">
+                @if (risco.nivel === 'critico') { 🚨 }
+                @else if (risco.nivel === 'atencao') { ⚠️ }
+                @else if (risco.nivel === 'favoravel') { 🛡️ }
+                @else { ℹ️ }
+              </span>
+              <span class="risk-tag">{{ risco.nivel.toUpperCase() }}</span>
+            </div>
+            <div class="risk-content-col">
+              <div class="risk-header-row">
+                <strong class="risk-title">{{ risco.titulo }}</strong>
+                <span class="risk-time">{{ risco.dataEvento | date:'dd/MM/yyyy às HH:mm' }}</span>
+              </div>
+              <p class="risk-desc">{{ risco.descricao }}</p>
+              <div class="risk-action-box">
+                <span class="action-label">🎯 Recomendação Tática de LegalOps:</span>
+                <span class="action-text">{{ risco.recomendacaoTatica }}</span>
+              </div>
+            </div>
+          </div>
+        }
 
         <!-- TAB NAVIGATION (5 ABAS: INCLUINDO INTELIGÊNCIA FORENSE) -->
         <nav class="tabs-navigation">
@@ -361,7 +482,14 @@
                 </div>
                 <div class="capa-cell">
                   <label>Processo de Origem (1º Grau)</label>
-                  <div class="val">{{ proc.processoOrigem ? proc.processoOrigem + (proc.juizOrigem ? ' • Juiz: ' + proc.juizOrigem : '') : (proc.tribunal === 'TJSP' ? '1006805-85.2025.8.26.0224 • Juiz: Alex Freitas Lima' : 'Autos Originários do Mandado de Segurança') }}</div>
+                  <div class="val">
+                    <span>{{ proc.processoOrigem ? proc.processoOrigem + (proc.juizOrigem ? ' • Juiz: ' + proc.juizOrigem : '') : (proc.tribunal === 'TJSP' ? '1006805-85.2025.8.26.0224 • Juiz: Alex Freitas Lima' : 'Autos Originários do Mandado de Segurança') }}</span>
+                    @if (proc.juizOrigem || proc.tribunal === 'TJSP') {
+                      <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.juizOrigem || 'Alex Freitas Lima')" type="button">
+                        👤 Dossiê do Juiz de 1º Grau
+                      </button>
+                    }
+                  </div>
                 </div>
                 <div class="capa-cell">
                   <label>Data e Hora da Distribuição</label>
@@ -369,7 +497,14 @@
                 </div>
                 <div class="capa-cell">
                   <label>Relator / Magistrado Sorteado</label>
-                  <div class="val highlight-bold">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</div>
+                  <div class="val highlight-bold">
+                    <span>{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</span>
+                    @if (proc.relator || proc.tribunal === 'TJSP') {
+                      <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
+                        👤 Dossiê & Balcão Virtual
+                      </button>
+                    }
+                  </div>
                 </div>
                 <div class="capa-cell">
                   <label>Segredo de Justiça / Publicidade</label>
@@ -459,18 +594,44 @@
         @if (abaAtiva() === 'inteligencia') {
           <div class="inteligencia-tab-content animate-fade-in">
             
-            <!-- RADAR DE PRAZOS PROCESSUAIS EM DIAS ÚTEIS (CPC/2015) -->
+            <!-- CALCULADORA FORENSE DINÂMICA DE TERMO FATAL (CPC/2015) -->
             <div class="legal-card-ai">
               <div class="card-ai-header">
                 <div class="ai-badge-title">
                   <span class="icon">⏱️</span>
                   <div>
-                    <h4>Radar de Prazos Processuais • Art. 219 CPC/2015</h4>
-                    <span class="subtitle">Contagem automática calculada exclusivamente em dias úteis</span>
+                    <h4>Calculadora Forense de Termo Fatal • Art. 219 e 220 CPC/2015</h4>
+                    <span class="subtitle">Contagem dinâmica de dias úteis com base na última publicação no DJE dos autos</span>
                   </div>
                 </div>
-                <span class="prazos-status-tag">Monitoramento Ativo</span>
+                @if (termoFatalCalculado(); as prazo) {
+                  <span class="prazos-status-tag" [class.urgent]="prazo.diasUteisRestantes <= 3 && !prazo.precluso" [class.danger]="prazo.precluso">
+                    {{ prazo.precluso ? 'Precluso / Concluído' : prazo.diasUteisRestantes + ' dias úteis restantes' }}
+                  </span>
+                }
               </div>
+
+              <!-- BANNER DE DATAS DA CALCULADORA -->
+              @if (termoFatalCalculado(); as prazo) {
+                <div class="prazos-calc-dossier">
+                  <div class="prazos-calc-col">
+                    <span class="calc-lbl">Disponibilização DJE:</span>
+                    <strong class="calc-val">{{ prazo.dataPublicacaoDje }}</strong>
+                  </div>
+                  <div class="prazos-calc-col">
+                    <span class="calc-lbl">Início do Prazo Útil (D+1):</span>
+                    <strong class="calc-val">{{ prazo.dataInicioPrazo }}</strong>
+                  </div>
+                  <div class="prazos-calc-col fatal">
+                    <span class="calc-lbl">Termo Fatal Improrrogável:</span>
+                    <strong class="calc-val-fatal">{{ prazo.dataTermoFatal }} (23:59h)</strong>
+                  </div>
+                  <div class="prazos-calc-col">
+                    <span class="calc-lbl">Regra Legal:</span>
+                    <strong class="calc-val">{{ prazo.baseLegal }}</strong>
+                  </div>
+                </div>
+              }
 
               <div class="prazos-grid">
                 <div class="prazo-box urgent">
@@ -547,6 +708,50 @@
                     <p>🎯 <strong>Próximo passo estratégico:</strong><br>
                     Avaliação técnica de providências cabíveis ou arquivamento definitivo.</p>
                   }
+                </div>
+              </div>
+            </div>
+
+            <!-- DOSSIÊ DO MAGISTRADO & BALCÃO VIRTUAL (JUDICIAL PROFILING) -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">🏛️</span>
+                  <div>
+                    <h4>Dossiê do Magistrado & Balcão Virtual • Judicial Profiling</h4>
+                    <span class="subtitle">Análise comportamental do juiz/relator, sala oficial de atendimento e recomendações táticas</span>
+                  </div>
+                </div>
+                <button class="btn-dossie-action" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
+                  <span>Abrir Dossiê Completo →</span>
+                </button>
+              </div>
+
+              <div class="magistrado-quick-preview">
+                <div class="preview-mag-header">
+                  <div class="mag-avatar-mini">⚖️</div>
+                  <div>
+                    <strong class="mag-name">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</strong>
+                    <span class="mag-role">{{ proc.grau === 2 ? 'Relator da 24ª Câmara de Direito Privado' : 'Magistrado Titular da Vara Cível' }}</span>
+                  </div>
+                </div>
+                <div class="preview-mag-body">
+                  <p>
+                    <strong>Tendência em Tutelas de Urgência:</strong> 
+                    Garantista e prudente em matéria possessória. Prefere designar audiência de justificação prévia (Art. 562 CPC) a deferir reintegração de posse inaudita altera parte.
+                  </p>
+                  <p>
+                    <strong>Recomendação de Peticionamento:</strong> 
+                    Memoriais sucintos (máximo 4 laudas). Em despachos urgentes, utilizar o Balcão Virtual oficial do Tribunal.
+                  </p>
+                </div>
+                <div class="preview-mag-actions">
+                  <a href="https://tjsp.jus.br/balcaovirtual" target="_blank" rel="noopener" class="link-balcao-direct">
+                    📞 Acessar Balcão Virtual Oficial
+                  </a>
+                  <button class="btn-open-mag-dossier" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
+                    Ver Padrão de Honorários e Gratuidade
+                  </button>
                 </div>
               </div>
             </div>
@@ -986,6 +1191,130 @@
         </div>
       </div>
     }
+  }
+
+  <!-- MODAL DE JUDICIAL PROFILING (DOSSIÊ DO MAGISTRADO) -->
+  @if (magistradoModalAberto() && magistradoSelecionado(); as mag) {
+    <div class="modal-backdrop animate-fade-in" (click)="fecharDossieMagistrado()">
+      <div class="magistrado-modal-card animate-slide-up" (click)="$event.stopPropagation()">
+        <div class="modal-close-header">
+          <span class="modal-badge-court">🏛️ {{ mag.tribunal }} • JUDICIAL PROFILING</span>
+          <button class="close-btn" (click)="fecharDossieMagistrado()" type="button">✕</button>
+        </div>
+
+        <div class="magistrado-profile-hero">
+          <div class="magistrado-avatar">⚖️</div>
+          <div class="magistrado-title-group">
+            <h3>{{ mag.tituloFormatado || mag.nome }}</h3>
+            <span class="mag-cargo">{{ mag.cargo }} • {{ mag.varaOuCamara }}</span>
+            <span class="mag-comarca">{{ mag.comarcaOuSecao }}</span>
+          </div>
+        </div>
+
+        <!-- BALCÃO VIRTUAL COM 1-CLIQUE -->
+        @if (mag.balcaoVirtualUrl) {
+          <div class="balcao-virtual-action-card">
+            <div class="balcao-info">
+              <strong>📞 Balcão Virtual Oficial de Atendimento</strong>
+              <p>{{ mag.horarioAtendimento || 'Segunda a Sexta das 13h às 18h via Videoconferência' }}</p>
+            </div>
+            <a [href]="mag.balcaoVirtualUrl" target="_blank" rel="noopener" class="btn-balcao-direct">
+              Entrar no Balcão Virtual →
+            </a>
+          </div>
+        }
+
+        <!-- CONTATOS DO GABINETE E CARTÓRIO -->
+        <div class="mag-contacts-grid">
+          <div class="contact-box">
+            <span class="contact-lbl">E-mail Institucional:</span>
+            <strong class="contact-val">{{ mag.emailGabinete || 'cartorio.civel@tjsp.jus.br' }}</strong>
+          </div>
+          <div class="contact-box">
+            <span class="contact-lbl">Telefone do Cartório:</span>
+            <strong class="contact-val">{{ mag.telefoneCartorio || '(11) 3295-5000' }}</strong>
+          </div>
+        </div>
+
+        <!-- TENDÊNCIAS DECISÓRIAS -->
+        <div class="mag-tendencias-section">
+          <h5>⚖️ Padrão Decisório e Rigor Jurisprudencial</h5>
+          <div class="tendencia-item">
+            <strong>Tutelas de Urgência & Liminares:</strong>
+            <p>{{ mag.tendenciaLiminares }}</p>
+          </div>
+          <div class="tendencia-item">
+            <strong>Justiça Gratuita (JG):</strong>
+            <p>{{ mag.tendenciaJusticaGratuita }}</p>
+          </div>
+          <div class="tendencia-item">
+            <strong>Fixação de Honorários Advocatícios:</strong>
+            <p>{{ mag.tendenciaHonorarios }}</p>
+          </div>
+        </div>
+
+        <!-- DICAS PRÁTICAS DE PETICIONAMENTO -->
+        <div class="mag-dicas-section">
+          <h5>🎯 Recomendações Práticas para Memoriais & Sustentação Oral</h5>
+          <ul>
+            @for (dica of mag.dicasPeticionamento; track dica) {
+              <li>{{ dica }}</li>
+            }
+          </ul>
+        </div>
+
+        <div class="modal-footer-actions">
+          <button class="btn-close-modal" (click)="fecharDossieMagistrado()" type="button">Fechar Dossiê</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- DRAWER / PAINEL LATERAL DA WATCHLIST FORENSE -->
+  @if (watchlistPainelAberto()) {
+    <div class="watchlist-backdrop animate-fade-in" (click)="watchlistPainelAberto.set(false)">
+      <div class="watchlist-drawer animate-slide-left" (click)="$event.stopPropagation()">
+        <div class="drawer-header">
+          <div class="drawer-title-group">
+            <span class="icon">📋</span>
+            <div>
+              <h4>Watchlist Forense</h4>
+              <span class="sub">Processos monitorados em tempo real</span>
+            </div>
+          </div>
+          <button class="close-drawer-btn" (click)="watchlistPainelAberto.set(false)" type="button">✕</button>
+        </div>
+
+        <div class="drawer-body">
+          @if (watchlist().length === 0) {
+            <div class="empty-watchlist">
+              <span class="empty-icon">📭</span>
+              <p>Nenhum processo salvo na watchlist ainda.</p>
+              <small>Clique em <strong>+ Fixar na Watchlist</strong> em qualquer processo para acompanhar novas movimentações.</small>
+            </div>
+          } @else {
+            <div class="watchlist-items-list">
+              @for (item of watchlist(); track item.numeroCnjLimpo) {
+                <div class="watchlist-item-card" (click)="abrirItemDaWatchlist(item)">
+                  <div class="item-top">
+                    <span class="badge-tribunal">{{ item.tribunal }}</span>
+                    <span class="item-time">Salvo em {{ item.dataSalvo | date:'dd/MM' }}</span>
+                  </div>
+                  <strong class="item-cnj">{{ item.numeroCnjFormatado }}</strong>
+                  <span class="item-classe">{{ item.classe || 'Processo Judicial' }}</span>
+                  @if (item.ultimoAndamentoTitulo) {
+                    <div class="item-last-mov">
+                      <span class="dot-mov"></span>
+                      <span>{{ item.ultimoAndamentoTitulo }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
   }
 
   <!-- FOOTER COM ASSINATURA DO CRIADOR -->

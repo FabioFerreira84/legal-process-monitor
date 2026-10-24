@@ -2345,22 +2345,916 @@
   }
 }
 
-// MEDIA PRINT (IMPRESSÃO LIMPA DE DOCUMENTO OU CAPA)
+// ==========================================
+// MÓDULOS ESTRATÉGICOS 2026 (LEGALOPS & OAB)
+// ==========================================
+
+// 1. WATCHLIST HEADER BUTTON & BADGE
+.watchlist-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  color: #E2E8F0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(51, 65, 85, 0.9);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #FFF;
+  }
+
+  .watchlist-counter {
+    background: #6366F1;
+    color: #FFF;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+  }
+}
+
+.action-btn-watch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  color: #CBD5E1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(51, 65, 85, 0.8);
+    color: #FFF;
+    border-color: #6366F1;
+  }
+
+  &.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: #6366F1;
+    color: #A5B4FC;
+  }
+}
+
+// 2. SEARCH MODE SELECTOR TABS
+.search-mode-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+
+  .mode-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(30, 41, 59, 0.8);
+      color: #FFF;
+    }
+
+    &.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: #6366F1;
+      color: #FFF;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+    }
+
+    .mode-badge-new {
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 0.15rem 0.45rem;
+      background: #10B981;
+      color: #064E3B;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+  }
+}
+
+.search-box-wrapper.oab-mode {
+  .oab-prefix-badge {
+    padding: 0 0.85rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+  }
+
+  .primary-search-button.oab {
+    background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+
+    &:hover {
+      background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    }
+  }
+}
+
+// 3. OAB PORTFOLIO RESULTS SHEET
+.oab-portfolio-sheet {
+  max-width: 900px;
+  margin: 1.5rem auto 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+
+  .portfolio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 1.25rem;
+
+    .portfolio-lawyer-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+
+      .portfolio-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+      }
+
+      .lawyer-name {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #F8FAFC;
+      }
+
+      .lawyer-meta {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        strong { color: #CBD5E1; }
+      }
+    }
+
+    .portfolio-counter-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+
+      .count-num {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #10B981;
+        line-height: 1;
+      }
+
+      span {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    }
+  }
+
+  .portfolio-cases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+
+    .portfolio-case-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: rgba(99, 102, 241, 0.4);
+        transform: translateY(-2px);
+      }
+
+      .case-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+
+        .case-grau-pill {
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 0.15rem 0.5rem;
+          border-radius: 999px;
+          background: rgba(59, 130, 246, 0.15);
+          color: #60A5FA;
+
+          &.grau2 {
+            background: rgba(139, 92, 246, 0.15);
+            color: #C084FC;
+          }
+        }
+
+        .case-vara-text {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          max-width: 140px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      .case-cnj-title {
+        font-size: 0.95rem;
+        color: #F8FAFC;
+        font-family: var(--font-mono);
+        margin-bottom: 0.35rem;
+      }
+
+      .case-classe-desc {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0 0 1rem;
+        flex: 1;
+        line-height: 1.4;
+      }
+
+      .btn-audit-case {
+        align-self: flex-start;
+        padding: 0.4rem 0.8rem;
+        background: rgba(99, 102, 241, 0.15);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        border-radius: 6px;
+        color: #A5B4FC;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: #6366F1;
+          color: #FFF;
+        }
+      }
+    }
+  }
+}
+
+// 4. MOTOR HEURÍSTICO DE RISCO FORENSE
+.risk-forensic-banner {
+  margin: 1.25rem 0;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  border: 1px solid;
+
+  &.critico {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+
+    .risk-badge-col .risk-tag {
+      background: #EF4444;
+      color: #FFF;
+    }
+    .risk-title { color: #FCA5A5; }
+  }
+
+  &.atencao {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+
+    .risk-badge-col .risk-tag {
+      background: #F59E0B;
+      color: #78350F;
+    }
+    .risk-title { color: #FCD34D; }
+  }
+
+  &.favoravel {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+
+    .risk-badge-col .risk-tag {
+      background: #10B981;
+      color: #064E3B;
+    }
+    .risk-title { color: #6EE7B7; }
+  }
+
+  &.informativo {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+
+    .risk-badge-col .risk-tag {
+      background: #3B82F6;
+      color: #FFF;
+    }
+    .risk-title { color: #93C5FD; }
+  }
+
+  .risk-badge-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+
+    .risk-icon {
+      font-size: 1.85rem;
+    }
+
+    .risk-tag {
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      letter-spacing: 0.05em;
+    }
+  }
+
+  .risk-content-col {
+    flex: 1;
+
+    .risk-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.35rem;
+
+      .risk-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      .risk-time {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+    }
+
+    .risk-desc {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin: 0 0 0.75rem;
+      line-height: 1.45;
+    }
+
+    .risk-action-box {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.82rem;
+
+      .action-label {
+        font-weight: 700;
+        color: var(--accent-gold);
+        margin-right: 0.4rem;
+      }
+
+      .action-text {
+        color: #F8FAFC;
+      }
+    }
+  }
+}
+
+// 5. CALCULADORA DINÂMICA DE TERMO FATAL
+.prazos-calc-dossier {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+
+  .prazos-calc-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    .calc-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .calc-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #F8FAFC;
+    }
+
+    &.fatal {
+      .calc-lbl { color: #EF4444; font-weight: 700; }
+      .calc-val-fatal {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #EF4444;
+      }
+    }
+  }
+}
+
+// 6. DOSSIÊ MINI BUTTONS & JUDICIAL PROFILING
+.btn-dossie-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.55rem;
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 6px;
+  color: #C7D2FE;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #6366F1;
+    color: #FFF;
+  }
+}
+
+.magistrado-quick-preview {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 12px;
+  padding: 1.25rem;
+
+  .preview-mag-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 0.85rem;
+
+    .mag-avatar-mini {
+      font-size: 1.5rem;
+    }
+
+    .mag-name {
+      font-size: 1.05rem;
+      color: #F8FAFC;
+      display: block;
+    }
+
+    .mag-role {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+  }
+
+  .preview-mag-body {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+
+    p { margin: 0 0 0.5rem; }
+    strong { color: #E2E8F0; }
+  }
+
+  .preview-mag-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+
+    .link-balcao-direct {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+      color: #FFF;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s ease;
+
+      &:hover { opacity: 0.9; }
+    }
+
+    .btn-open-mag-dossier {
+      padding: 0.5rem 0.9rem;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      color: #CBD5E1;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(51, 65, 85, 0.9);
+        color: #FFF;
+      }
+    }
+  }
+}
+
+.btn-dossie-action {
+  padding: 0.45rem 0.9rem;
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 8px;
+  color: #C7D2FE;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #6366F1;
+    color: #FFF;
+  }
+}
+
+// 7. MODAL DO MAGISTRADO (JUDICIAL PROFILING)
+.magistrado-modal-card {
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  .modal-close-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+
+    .modal-badge-court {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      letter-spacing: 0.05em;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+
+      &:hover { color: #FFF; }
+    }
+  }
+
+  .magistrado-profile-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+
+    .magistrado-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+    }
+
+    .magistrado-title-group {
+      h3 {
+        margin: 0;
+        font-size: 1.35rem;
+        color: #F8FAFC;
+        font-weight: 700;
+      }
+      .mag-cargo {
+        display: block;
+        font-size: 0.88rem;
+        color: #93C5FD;
+        margin-top: 0.2rem;
+      }
+      .mag-comarca {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+    }
+  }
+
+  .balcao-virtual-action-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(29, 78, 216, 0.25) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 12px;
+    padding: 1.2rem;
+    margin-bottom: 1.5rem;
+
+    .balcao-info {
+      strong { color: #93C5FD; font-size: 0.95rem; display: block; }
+      p { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--text-secondary); }
+    }
+
+    .btn-balcao-direct {
+      padding: 0.6rem 1.1rem;
+      background: #2563EB;
+      color: #FFF;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.2s ease;
+
+      &:hover { background: #1D4ED8; }
+    }
+  }
+
+  .mag-contacts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+
+    .contact-box {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 10px;
+      padding: 0.85rem;
+
+      .contact-lbl {
+        display: block;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+
+      .contact-val {
+        font-size: 0.88rem;
+        color: #F8FAFC;
+        word-break: break-all;
+      }
+    }
+  }
+
+  .mag-tendencias-section,
+  .mag-dicas-section {
+    margin-bottom: 1.5rem;
+
+    h5 {
+      margin: 0 0 0.85rem;
+      font-size: 0.95rem;
+      color: var(--accent-gold);
+      font-weight: 700;
+    }
+
+    .tendencia-item {
+      margin-bottom: 0.75rem;
+
+      strong {
+        display: block;
+        font-size: 0.82rem;
+        color: #E2E8F0;
+      }
+
+      p {
+        margin: 0.2rem 0 0;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        line-height: 1.45;
+      }
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+
+      li { margin-bottom: 0.4rem; }
+    }
+  }
+
+  .modal-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+
+    .btn-close-modal {
+      padding: 0.6rem 1.5rem;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      color: #F8FAFC;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover { background: #334155; }
+    }
+  }
+}
+
+// 8. WATCHLIST DRAWER
+.watchlist-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.watchlist-drawer {
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  background: #0B1120;
+  border-left: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+
+  .drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+
+    .drawer-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+
+      .icon { font-size: 1.5rem; }
+      h4 { margin: 0; font-size: 1.15rem; color: #F8FAFC; }
+      .sub { font-size: 0.75rem; color: var(--text-muted); }
+    }
+
+    .close-drawer-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+
+      &:hover { color: #FFF; }
+    }
+  }
+
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding-top: 1rem;
+
+    .empty-watchlist {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+
+      .empty-icon { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; }
+      p { margin: 0 0 0.5rem; color: #CBD5E1; }
+      small { font-size: 0.75rem; }
+    }
+
+    .watchlist-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+
+      .watchlist-item-card {
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 10px;
+        padding: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          border-color: #6366F1;
+          transform: translateX(-3px);
+        }
+
+        .item-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 0.35rem;
+
+          .badge-tribunal {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 0.1rem 0.4rem;
+            border-radius: 999px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #A5B4FC;
+          }
+
+          .item-time {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+          }
+        }
+
+        .item-cnj {
+          font-family: var(--font-mono);
+          font-size: 0.88rem;
+          color: #F8FAFC;
+          display: block;
+        }
+
+        .item-classe {
+          font-size: 0.78rem;
+          color: var(--text-secondary);
+          display: block;
+          margin-bottom: 0.4rem;
+        }
+
+        .item-last-mov {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.75rem;
+          color: #94A3B8;
+
+          .dot-mov {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10B981;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 9. HIGH FIDELITY MEDIA PRINT A4
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
   .app-header,
   .search-hero,
+  .search-mode-selector,
   .tabs-navigation,
   .master-actions,
   .timeline-search-bar,
   .app-footer,
   .spotlight-backdrop,
-  .visualizador-toolbar {
+  .visualizador-toolbar,
+  .risk-forensic-banner,
+  .watchlist-btn,
+  .watchlist-backdrop,
+  .btn-dossie-mini,
+  .btn-dossie-action {
     display: none !important;
   }
 
   body {
     background: #FFF !important;
     color: #000 !important;
+    font-size: 11pt !important;
   }
 
   .capa-processo-sheet,
@@ -2370,5 +3264,6 @@
     padding: 0 !important;
     background: #FFF !important;
     color: #000 !important;
+    page-break-after: always;
   }
 }
