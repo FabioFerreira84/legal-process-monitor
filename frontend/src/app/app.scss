@@ -325,6 +325,91 @@ body {
   }
 }
 
+.decisions-card {
+  border-left: 4px solid #10b981;
+
+  .decisions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.25rem;
+
+    .counter-badge {
+      font-size: 0.8rem;
+      color: #34d399;
+      background-color: rgba(16, 185, 129, 0.1);
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+  }
+
+  .decision-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    .decision-item {
+      background-color: #0b1120;
+      border: 1px solid $card-border;
+      border-radius: 10px;
+      padding: 1.25rem;
+
+      .decision-top {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.5rem;
+
+        .decision-badge {
+          background-color: #2563eb;
+          color: white;
+          font-weight: 600;
+          font-size: 0.75rem;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+        }
+
+        .decision-status {
+          background-color: rgba(16, 185, 129, 0.2);
+          color: #34d399;
+          font-size: 0.75rem;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+        }
+
+        .decision-date {
+          font-size: 0.8rem;
+          color: $text-muted;
+          margin-left: auto;
+        }
+      }
+
+      .decision-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .decision-quote {
+        background-color: #1e293b;
+        border-left: 3px solid #38bdf8;
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        color: #f1f5f9;
+        font-style: italic;
+        margin-bottom: 0.5rem;
+      }
+
+      .decision-footer {
+        font-size: 0.85rem;
+        color: $text-muted;
+      }
+    }
+  }
+}
+
 .timeline-card {
   .timeline-header {
     display: flex;

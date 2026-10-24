@@ -94,6 +94,34 @@
         </div>
       </div>
 
+      <!-- Public Decisions & Judgments Card -->
+      <div class="card decisions-card" *ngIf="proc.documentosPublicos && proc.documentosPublicos.length > 0">
+        <div class="decisions-header">
+          <div>
+            <h3 class="card-title">⚖️ Decisões & Julgamentos Públicos (e-SAJ Scraper)</h3>
+            <p class="card-subtitle">Teor das decisões de mérito e acórdãos capturados diretamente do tribunal de origem.</p>
+          </div>
+          <span class="counter-badge">{{ proc.documentosPublicos.length }} decisão(ões) capturada(s)</span>
+        </div>
+
+        <div class="decision-list">
+          <div class="decision-item" *ngFor="let doc of proc.documentosPublicos">
+            <div class="decision-top">
+              <span class="decision-badge">{{ doc.tipo }}</span>
+              <span class="decision-status" *ngIf="doc.situacao">{{ doc.situacao }}</span>
+              <span class="decision-date">{{ doc.data | date:'dd/MM/yyyy' }}</span>
+            </div>
+            <h4 class="decision-title">{{ doc.titulo }}</h4>
+            <div class="decision-quote">
+              "{{ doc.conteudoTexto }}"
+            </div>
+            <div class="decision-footer" *ngIf="doc.magistradoRelator">
+              <span>👤 Relator: <strong>{{ doc.magistradoRelator }}</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Movements Timeline -->
       <div class="card timeline-card">
         <div class="timeline-header">

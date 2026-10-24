@@ -12,6 +12,17 @@ export interface Envolvido {
   documento?: string;
 }
 
+export interface DocumentoProcessual {
+  id: string;
+  tipo: string;
+  data: string;
+  titulo: string;
+  conteudoTexto: string;
+  situacao?: string;
+  magistradoRelator?: string;
+  urlOrigem?: string;
+}
+
 export interface Processo {
   id: string;
   numeroCnjFormatado: string;
@@ -26,4 +37,5 @@ export interface Processo {
   ultimaAtualizacao: string;
   movimentacoes: Movimentacao[];
   envolvidos: Envolvido[];
+  documentosPublicos?: DocumentoProcessual[];
 }

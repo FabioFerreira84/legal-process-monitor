@@ -20,6 +20,7 @@ public class Processo
 
     public List<Movimentacao> Movimentacoes { get; set; } = new();
     public List<Envolvido> Envolvidos { get; set; } = new();
+    public List<DocumentoProcessual> DocumentosPublicos { get; set; } = new();
 
     public static Processo Criar(NumeroProcessoCnj cnj, string? classe = null, string? assunto = null)
     {

@@ -26,3 +26,9 @@
   - [x] Implementar tela de busca com máscara CNJ e validação em tempo real
   - [x] Implementar componente de Linha do Tempo (Timeline) para renderizar os andamentos
   - [x] Validar compilação de produção (`ng build`) com sucesso
+
+- [x] **Fase 6: Crawler e-SAJ para Documentos e Decisões Públicas**
+  - [x] Implementar `ITribunalDocumentScraper` e `EsajDocumentScraper` (TJSP 2º Grau)
+  - [x] Extrair acórdãos, decisões de mérito, situação do julgamento e desembargador relator
+  - [x] Endpoint REST: `GET /api/processos/{numeroProcesso}/documentos`
+  - [x] Interface Angular atualizada com card visual de decisões públicas capturadas
