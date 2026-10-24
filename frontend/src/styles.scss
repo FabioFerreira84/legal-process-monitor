@@ -1,1 +1,73 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --bg-app: #080C14;
+  --bg-surface: #0E1422;
+  --bg-surface-elevated: #141C30;
+  --bg-surface-hover: #1A253E;
+  
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-glow: rgba(99, 102, 241, 0.35);
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  --accent-gold: #F59E0B;
+  --accent-gold-soft: rgba(245, 158, 11, 0.12);
+  --accent-indigo: #6366F1;
+  --accent-indigo-soft: rgba(99, 102, 241, 0.12);
+  --accent-emerald: #10B981;
+  --accent-emerald-soft: rgba(16, 185, 129, 0.12);
+  --accent-rose: #F43F5E;
+
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(245, 158, 11, 0.05), transparent);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface-elevated);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+button {
+  font-family: var(--font-main);
+}

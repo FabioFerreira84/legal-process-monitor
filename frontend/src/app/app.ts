@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProcessoService } from './services/processo.service';
@@ -14,22 +14,36 @@ import { Processo } from './models/processo.model';
 export class App {
   private readonly processoService = inject(ProcessoService);
 
-  numeroProcessoInput = signal('');
+  numeroProcessoInput = signal('2101760-84.2025.8.26.0000');
   carregando = signal(false);
   erro = signal<string | null>(null);
   processoAtual = signal<Processo | null>(null);
   processosRecentes = signal<Processo[]>([]);
+  abaAtiva = signal<'decisoes' | 'timeline' | 'detalhes'>('decisoes');
+  filtroTextoTimeline = signal('');
+  copiado = signal(false);
+
+  // Computa movimentações filtradas com busca textual
+  movimentacoesFiltradas = computed(() => {
+    const proc = this.processoAtual();
+    if (!proc) return [];
+    const filtro = this.filtroTextoTimeline().toLowerCase().trim();
+    if (!filtro) return proc.movimentacoes;
+
+    return proc.movimentacoes.filter(m =>
+      m.titulo.toLowerCase().includes(filtro) ||
+      m.descricao?.toLowerCase().includes(filtro)
+    );
+  });
 
   constructor() {
     this.carregarRecentes();
   }
 
   carregarRecentes() {
-    this.processoService.listarRecentes(10).subscribe({
+    this.processoService.listarRecentes(6).subscribe({
       next: (dados) => this.processosRecentes.set(dados),
-      error: () => {
-        // Silencioso na inicialização caso a API ainda não esteja de pé
-      }
+      error: () => {}
     });
   }
 
@@ -46,26 +60,23 @@ export class App {
       valor = valor.substring(0, 20);
     }
 
-    // Aplica máscara NNNNNNN-DD.AAAA.J.TR.OOOO
     let formatado = valor;
-    if (valor.length > 7) {
-      formatado = `${valor.substring(0, 7)}-${valor.substring(7)}`;
-    }
-    if (valor.length > 9) {
-      formatado = `${formatado.substring(0, 10)}.${valor.substring(9)}`;
-    }
-    if (valor.length > 13) {
-      formatado = `${formatado.substring(0, 15)}.${valor.substring(13)}`;
-    }
-    if (valor.length > 14) {
-      formatado = `${formatado.substring(0, 17)}.${valor.substring(14)}`;
-    }
-    if (valor.length > 16) {
-      formatado = `${formatado.substring(0, 20)}.${valor.substring(16)}`;
-    }
+    if (valor.length > 7) formatado = `${valor.substring(0, 7)}-${valor.substring(7)}`;
+    if (valor.length > 9) formatado = `${formatado.substring(0, 10)}.${valor.substring(9)}`;
+    if (valor.length > 13) formatado = `${formatado.substring(0, 15)}.${valor.substring(13)}`;
+    if (valor.length > 14) formatado = `${formatado.substring(0, 17)}.${valor.substring(14)}`;
+    if (valor.length > 16) formatado = `${formatado.substring(0, 20)}.${valor.substring(16)}`;
 
     this.numeroProcessoInput.set(formatado);
     input.value = formatado;
+  }
+
+  copiarNumero() {
+    const proc = this.processoAtual();
+    if (!proc) return;
+    navigator.clipboard.writeText(proc.numeroCnjFormatado);
+    this.copiado.set(true);
+    setTimeout(() => this.copiado.set(false), 2000);
   }
 
   buscarProcesso(forcar = false) {
@@ -82,6 +93,7 @@ export class App {
       next: (processo) => {
         this.processoAtual.set(processo);
         this.carregando.set(false);
+        this.abaAtiva.set(processo.documentosPublicos && processo.documentosPublicos.length > 0 ? 'decisoes' : 'timeline');
         this.carregarRecentes();
       },
       error: (err) => {
@@ -91,7 +103,7 @@ export class App {
         } else if (err.error?.mensagem) {
           this.erro.set(err.error.mensagem);
         } else {
-          this.erro.set('Não foi possível se comunicar com o servidor da API. Verifique se o backend está em execução.');
+          this.erro.set('Não foi possível se comunicar com o backend na nuvem. A instância pode estar aquecendo no Render, tente novamente em alguns instantes.');
         }
       }
     });

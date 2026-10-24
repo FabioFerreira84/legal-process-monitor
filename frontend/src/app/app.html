@@ -1,166 +1,308 @@
-<div class="app-layout">
-  <!-- Top Navigation Header -->
-  <header class="header">
-    <div class="brand">
-      <div class="logo-icon">⚖️</div>
-      <div>
-        <h1 class="logo-title">LegalProcess Monitor</h1>
-        <p class="logo-subtitle">Captura e Monitoramento Resiliente de Andamentos • CNJ DataJud & Tribunais</p>
+<div class="app-container">
+  <!-- Top Glass Header -->
+  <header class="top-nav">
+    <div class="nav-content">
+      <div class="brand-group">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3v18M3 9l9-6 9 6M3 9c0 3 2.5 5 5 5s5-2 5-5M15 9c0 3 2.5 5 5 5s5-2 5-5M3 9l3 9h4l-3-9M15 9l3 9h4l-3-9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">LegalProcess <span class="gradient-text">Monitor</span></h1>
+          <p class="brand-tagline">Inteligência Judicial &bull; CNJ DataJud &amp; Crawler e-SAJ</p>
+        </div>
       </div>
-    </div>
-    <div class="badge-status">
-      <span class="status-dot"></span>
-      .NET 9 + Angular + MongoDB
+
+      <div class="nav-meta">
+        <div class="status-pill">
+          <span class="live-dot"></span>
+          <span>API .NET 9 &bull; Live Cloud</span>
+        </div>
+        <a href="https://github.com/FabioFerreira84/legal-process-monitor" target="_blank" rel="noopener" class="btn-github">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </div>
     </div>
   </header>
 
-  <main class="main-content">
-    <!-- Search Box Card -->
-    <section class="card search-card">
-      <h2 class="card-title">Consultar Processo Unificado</h2>
-      <p class="card-subtitle">Digite o número no padrão CNJ (20 dígitos). O sistema valida o dígito verificador módulo 97 e consulta a fonte oficial.</p>
-      
-      <div class="search-form">
-        <div class="input-wrapper">
+  <!-- Main Container -->
+  <main class="page-body">
+    <!-- Hero Search Section -->
+    <section class="hero-search-card">
+      <div class="search-hero-content">
+        <div class="hero-badge">
+          <span class="sparkle">✦</span>
+          <span>Pesquisa Unificada de Tribunais Brasileiros</span>
+        </div>
+        <h2 class="hero-headline">Consulte qualquer processo em tempo real</h2>
+        <p class="hero-subtext">Validação matemática do dígito verificador via <strong>Módulo 97 do CNJ</strong> com sincronização automática do DataJud e raspagem de decisões no e-SAJ.</p>
+
+        <div class="search-input-box">
+          <div class="input-prefix-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
           <input
             type="text"
-            class="search-input"
+            class="cnj-input"
             placeholder="0000000-00.0000.0.00.0000"
             [value]="numeroProcessoInput()"
             (input)="formatarEntrada($event)"
             (keyup.enter)="buscarProcesso()"
           />
-          <button class="btn-clear" *ngIf="numeroProcessoInput()" (click)="numeroProcessoInput.set('')">✕</button>
+          <button class="input-clear-btn" *ngIf="numeroProcessoInput()" (click)="numeroProcessoInput.set('')" title="Limpar">
+            &times;
+          </button>
+          <button class="btn-search-glow" [disabled]="carregando()" (click)="buscarProcesso()">
+            <span *ngIf="!carregando()" class="btn-inner">
+              <span>Consultar</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span *ngIf="carregando()" class="btn-inner">
+              <span class="btn-spinner"></span>
+              <span>Sincronizando...</span>
+            </span>
+          </button>
         </div>
 
-        <button class="btn-primary" [disabled]="carregando()" (click)="buscarProcesso()">
-          <span *ngIf="!carregando()">🔍 Consultar</span>
-          <span *ngIf="carregando()">⏳ Consultando...</span>
-        </button>
-      </div>
+        <!-- Sample presets -->
+        <div class="samples-row">
+          <span class="samples-label">Consultas em destaque:</span>
+          <button class="sample-tag active" (click)="usarExemplo('2101760-84.2025.8.26.0000')">
+            <span class="tag-badge">TJSP</span>
+            <span>2101760-84.2025.8.26.0000 (Julgado com Acórdão)</span>
+          </button>
+          <button class="sample-tag" (click)="usarExemplo('5000001-80.2023.4.03.6100')">
+            <span class="tag-badge">TRF3</span>
+            <span>5000001-80.2023.4.03.6100</span>
+          </button>
+        </div>
 
-      <!-- Quick sample actions -->
-      <div class="quick-samples">
-        <span class="sample-label">Exemplos rápidos:</span>
-        <button class="btn-pill" (click)="usarExemplo('2101760-84.2025.8.26.0000')">TJSP (Processo Real Ativo)</button>
-        <button class="btn-pill" (click)="usarExemplo('5000001-80.2023.4.03.6100')">TRF3 (Justiça Federal)</button>
-      </div>
-
-      <!-- Error alert -->
-      <div class="alert-error" *ngIf="erro()">
-        ⚠️ {{ erro() }}
+        <!-- Error Banner -->
+        <div class="error-banner" *ngIf="erro()">
+          <div class="error-icon">!</div>
+          <div class="error-text">{{ erro() }}</div>
+        </div>
       </div>
     </section>
 
     <!-- Loading State -->
-    <div class="loading-state" *ngIf="carregando()">
-      <div class="spinner"></div>
-      <p>Sincronizando com a API do Tribunal via políticas resilientes Polly...</p>
-    </div>
+    <section class="loading-panel" *ngIf="carregando()">
+      <div class="pulse-ring">
+        <div class="pulse-core">⚖️</div>
+      </div>
+      <h3 class="loading-title">Varrendo Tribunais &amp; Bases Oficiais</h3>
+      <p class="loading-sub">Executando handshake com o e-SAJ e normalizando histórico do CNJ DataJud...</p>
+    </section>
 
-    <!-- Process Details & Timeline -->
-    <section class="process-details" *ngIf="processoAtual() as proc">
-      <!-- Overview Card -->
-      <div class="card meta-card">
-        <div class="meta-header">
-          <div>
-            <span class="tribunal-badge">{{ proc.tribunal }}</span>
-            <span class="grau-badge">{{ proc.grau }}º Grau</span>
-            <span class="status-badge">{{ proc.status }}</span>
-            <h2 class="process-number">{{ proc.numeroCnjFormatado }}</h2>
+    <!-- Process Detail View -->
+    <section class="process-view" *ngIf="processoAtual() as proc">
+      <!-- Master Process Card -->
+      <div class="master-card">
+        <div class="master-header">
+          <div class="master-badges">
+            <span class="badge-tribunal">{{ proc.tribunal }}</span>
+            <span class="badge-grau">{{ proc.grau }}º Grau</span>
+            <span class="badge-status" [class.status-julgado]="proc.status === 'Julgado'">
+              {{ proc.status }}
+            </span>
           </div>
-          <button class="btn-secondary" (click)="buscarProcesso(true)" [disabled]="carregando()">
-            🔄 Forçar Atualização no Tribunal
+          <button class="btn-action-refresh" (click)="buscarProcesso(true)" [disabled]="carregando()" title="Forçar nova varredura no tribunal">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Sincronizar Novamente</span>
           </button>
         </div>
 
+        <div class="process-number-display">
+          <span class="proc-number">{{ proc.numeroCnjFormatado }}</span>
+          <button class="btn-copy" (click)="copiarNumero()" [title]="copiado() ? 'Copiado!' : 'Copiar Número'">
+            <svg *ngIf="!copiado()" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span *ngIf="!copiado()">Copiar</span>
+            <span *ngIf="copiado()" class="copied-text">✓ Copiado!</span>
+          </button>
+        </div>
+
+        <!-- Meta Grid -->
         <div class="meta-grid">
-          <div class="meta-item">
-            <span class="meta-label">Órgão Julgador</span>
-            <span class="meta-value">{{ proc.orgaoJulgador || 'Não informado' }}</span>
+          <div class="meta-card-item">
+            <span class="meta-k">Órgão Julgador</span>
+            <span class="meta-v highlight">{{ proc.orgaoJulgador || 'Não informado na autuação' }}</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Classe Processual</span>
-            <span class="meta-value">{{ proc.classe || 'Não informado' }}</span>
+          <div class="meta-card-item">
+            <span class="meta-k">Classe Processual</span>
+            <span class="meta-v">{{ proc.classe || 'Não especificada' }}</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Assunto Principal</span>
-            <span class="meta-value">{{ proc.assunto || 'Não informado' }}</span>
+          <div class="meta-card-item">
+            <span class="meta-k">Assunto Principal</span>
+            <span class="meta-v">{{ proc.assunto || proc.classe || 'Geral' }}</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Última Sincronização</span>
-            <span class="meta-value">{{ proc.ultimaAtualizacao | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+          <div class="meta-card-item">
+            <span class="meta-k">Última Sincronização</span>
+            <span class="meta-v mono">{{ proc.ultimaAtualizacao | date:'dd/MM/yyyy HH:mm:ss' }}</span>
           </div>
+        </div>
+
+        <!-- Segmented Tab Switcher -->
+        <div class="tabs-nav">
+          <button
+            class="tab-btn"
+            [class.active]="abaAtiva() === 'decisoes'"
+            (click)="abaAtiva.set('decisoes')"
+          >
+            <span class="tab-icon">⚖️</span>
+            <span>Decisões &amp; Acórdãos</span>
+            <span class="tab-count" *ngIf="proc.documentosPublicos?.length">{{ proc.documentosPublicos?.length }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            [class.active]="abaAtiva() === 'timeline'"
+            (click)="abaAtiva.set('timeline')"
+          >
+            <span class="tab-icon">⏱️</span>
+            <span>Linha do Tempo</span>
+            <span class="tab-count">{{ proc.movimentacoes.length }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            [class.active]="abaAtiva() === 'detalhes'"
+            (click)="abaAtiva.set('detalhes')"
+          >
+            <span class="tab-icon">📋</span>
+            <span>Dados Estruturados</span>
+          </button>
         </div>
       </div>
 
-      <!-- Public Decisions & Judgments Card -->
-      <div class="card decisions-card" *ngIf="proc.documentosPublicos && proc.documentosPublicos.length > 0">
-        <div class="decisions-header">
-          <div>
-            <h3 class="card-title">⚖️ Decisões & Julgamentos Públicos (e-SAJ Scraper)</h3>
-            <p class="card-subtitle">Teor das decisões de mérito e acórdãos capturados diretamente do tribunal de origem.</p>
-          </div>
-          <span class="counter-badge">{{ proc.documentosPublicos.length }} decisão(ões) capturada(s)</span>
+      <!-- Tab Content 1: Decisões e Acórdãos (Experiência Premium) -->
+      <div class="tab-pane" *ngIf="abaAtiva() === 'decisoes'">
+        <div class="empty-docs-banner" *ngIf="!proc.documentosPublicos || proc.documentosPublicos.length === 0">
+          <div class="empty-docs-icon">📄</div>
+          <h4>Nenhum acórdão ou decisão pública indexado para esta instância</h4>
+          <p>Consulte a aba Linha do Tempo para visualizar as movimentações e despachos de rotina.</p>
         </div>
 
-        <div class="decision-list">
-          <div class="decision-item" *ngFor="let doc of proc.documentosPublicos">
-            <div class="decision-top">
-              <span class="decision-badge">{{ doc.tipo }}</span>
-              <span class="decision-status" *ngIf="doc.situacao">{{ doc.situacao }}</span>
-              <span class="decision-date">{{ doc.data | date:'dd/MM/yyyy' }}</span>
-            </div>
-            <h4 class="decision-title">{{ doc.titulo }}</h4>
-            <div class="decision-quote">
-              "{{ doc.conteudoTexto }}"
-            </div>
-            <div class="decision-footer" *ngIf="doc.magistradoRelator">
-              <span>👤 Relator: <strong>{{ doc.magistradoRelator }}</strong></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Movements Timeline -->
-      <div class="card timeline-card">
-        <div class="timeline-header">
-          <h3 class="card-title">Linha do Tempo de Movimentações</h3>
-          <span class="counter-badge">{{ proc.movimentacoes.length }} eventos capturados</span>
-        </div>
-
-        <div class="empty-timeline" *ngIf="proc.movimentacoes.length === 0">
-          Nenhuma movimentação pública registrada no tribunal até o momento.
-        </div>
-
-        <div class="timeline-list" *ngIf="proc.movimentacoes.length > 0">
-          <div class="timeline-item" *ngFor="let mov of proc.movimentacoes; let first = first">
-            <div class="timeline-marker" [class.latest]="first"></div>
-            <div class="timeline-content">
-              <div class="timeline-time">
-                {{ mov.dataHora | date:'dd/MM/yyyy HH:mm' }}
-                <span class="badge-code" *ngIf="mov.codigoNacional">Cód. CNJ: {{ mov.codigoNacional }}</span>
+        <div class="decisions-container" *ngIf="proc.documentosPublicos && proc.documentosPublicos.length > 0">
+          <div class="decision-card" *ngFor="let doc of proc.documentosPublicos">
+            <div class="decision-card-top">
+              <div class="decision-type-group">
+                <span class="doc-stamp-icon">⚖️</span>
+                <div>
+                  <h3 class="doc-card-title">{{ doc.titulo }}</h3>
+                  <p class="doc-card-date">Sessão / Julgamento realizado em {{ doc.data | date:'dd/MM/yyyy' }}</p>
+                </div>
               </div>
-              <h4 class="timeline-title">{{ mov.titulo }}</h4>
-              <p class="timeline-desc" *ngIf="mov.descricao && mov.descricao !== mov.titulo">
-                {{ mov.descricao }}
-              </p>
+              <div class="decision-verdict-badge" [class.verdict-provido]="doc.conteudoTexto.includes('provimento')">
+                {{ doc.situacao || 'Publicado' }}
+              </div>
             </div>
+
+            <div class="decision-body-highlight">
+              <div class="quote-symbol">&ldquo;</div>
+              <p class="verdict-statement">{{ doc.conteudoTexto }}</p>
+            </div>
+
+            <div class="decision-card-footer">
+              <div class="judge-info" *ngIf="doc.magistradoRelator">
+                <span class="judge-label">Magistrado Relator:</span>
+                <span class="judge-name">Des. {{ doc.magistradoRelator }}</span>
+              </div>
+              <a *ngIf="doc.urlOrigem" [href]="doc.urlOrigem" target="_blank" rel="noopener" class="btn-tribunal-link">
+                <span>Ver no e-SAJ Oficial</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content 2: Linha do Tempo Reativa -->
+      <div class="tab-pane" *ngIf="abaAtiva() === 'timeline'">
+        <div class="timeline-wrapper">
+          <div class="timeline-controls">
+            <div class="timeline-search-box">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                placeholder="Filtrar andamentos (ex: acórdão, remessa, petição)..."
+                [ngModel]="filtroTextoTimeline()"
+                (ngModelChange)="filtroTextoTimeline.set($event)"
+              />
+            </div>
+            <span class="timeline-counter">{{ movimentacoesFiltradas().length }} de {{ proc.movimentacoes.length }} eventos</span>
+          </div>
+
+          <div class="timeline-flow">
+            <div class="timeline-step" *ngFor="let m of movimentacoesFiltradas(); let i = index; let first = first">
+              <div class="timeline-line"></div>
+              <div class="timeline-bullet" [class.current]="first">
+                <div class="bullet-inner"></div>
+              </div>
+              <div class="timeline-card-content">
+                <div class="event-header">
+                  <span class="event-time">{{ m.dataHora | date:'dd/MM/yyyy &bull; HH:mm' }}</span>
+                  <span class="event-tpu-code" *ngIf="m.codigoNacional">Código TPU: {{ m.codigoNacional }}</span>
+                </div>
+                <h4 class="event-title">{{ m.titulo }}</h4>
+                <p class="event-body" *ngIf="m.descricao && m.descricao !== m.titulo">
+                  {{ m.descricao }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content 3: Dados Cadastrais -->
+      <div class="tab-pane" *ngIf="abaAtiva() === 'detalhes'">
+        <div class="info-blocks-grid">
+          <div class="info-block">
+            <h4 class="block-title">Identificação Canônica</h4>
+            <div class="kv-row"><span class="k">Número CNJ</span><span class="v mono">{{ proc.numeroCnjFormatado }}</span></div>
+            <div class="kv-row"><span class="k">Dígitos Únicos</span><span class="v mono">{{ proc.numeroCnjLimpo }}</span></div>
+            <div class="kv-row"><span class="k">Tribunal de Origem</span><span class="v">{{ proc.tribunal }}</span></div>
+            <div class="kv-row"><span class="k">Instância / Grau</span><span class="v">{{ proc.grau }}º Grau</span></div>
+          </div>
+
+          <div class="info-block">
+            <h4 class="block-title">Dados Processuais</h4>
+            <div class="kv-row"><span class="k">Classe</span><span class="v">{{ proc.classe || 'Não informada' }}</span></div>
+            <div class="kv-row"><span class="k">Assunto</span><span class="v">{{ proc.assunto || 'Não informado' }}</span></div>
+            <div class="kv-row"><span class="k">Órgão Julgador</span><span class="v">{{ proc.orgaoJulgador || 'Não informado' }}</span></div>
+            <div class="kv-row"><span class="k">Status do Registro</span><span class="v highlight">{{ proc.status }}</span></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Recent queries sidebar / list -->
-    <section class="card recent-card" *ngIf="processosRecentes().length > 0 && !processoAtual()">
-      <h3 class="card-title">Processos Consultados Recentemente</h3>
-      <div class="recent-list">
-        <div class="recent-item" *ngFor="let item of processosRecentes()" (click)="usarExemplo(item.numeroCnjFormatado)">
-          <div>
-            <strong>{{ item.numeroCnjFormatado }}</strong>
-            <span class="recent-sub">{{ item.tribunal }} • {{ item.classe || 'Geral' }}</span>
+    <!-- Recent Queries History -->
+    <section class="recents-card" *ngIf="processosRecentes().length > 0 && !processoAtual()">
+      <h3 class="recents-title">Consultas Recentes na Memória</h3>
+      <div class="recents-grid">
+        <div class="recent-tile" *ngFor="let item of processosRecentes()" (click)="usarExemplo(item.numeroCnjFormatado)">
+          <div class="tile-top">
+            <span class="tile-tribunal">{{ item.tribunal }}</span>
+            <span class="tile-date">{{ item.ultimaAtualizacao | date:'dd/MM HH:mm' }}</span>
           </div>
-          <span class="recent-date">{{ item.ultimaAtualizacao | date:'dd/MM HH:mm' }}</span>
+          <div class="tile-cnj mono">{{ item.numeroCnjFormatado }}</div>
+          <div class="tile-class">{{ item.classe || 'Processo Judicial' }}</div>
         </div>
       </div>
     </section>
