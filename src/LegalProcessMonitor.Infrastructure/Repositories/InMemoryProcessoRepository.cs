@@ -75,6 +75,86 @@ public class InMemoryProcessoRepository : IProcessoRepository
         // Adiciona as 74 movimentações essenciais
         AdicionarMovimentacoesHistorico(proc);
         _processos.TryAdd(proc.NumeroCnjLimpo, proc);
+
+        // Processo 2: TRF3 Mandado de Segurança Cível
+        var procTrf3 = new Processo
+        {
+            Id = "8532880c-4e1f-4416-8550-49d3fe9930d4",
+            NumeroCnjFormatado = "5000001-05.2023.4.03.6100",
+            NumeroCnjLimpo = "50000010520234036100",
+            Tribunal = "TRF3",
+            Grau = 1,
+            Classe = "Mandado de Segurança Cível",
+            Assunto = "Inquérito / Processo / Recurso Administrativo",
+            OrgaoJulgador = "21ª VARA FEDERAL CÍVEL DE SÃO PAULO",
+            Comarca = "Seção Judiciária de São Paulo (Federal)",
+            Foro = "Foro Central Federal de São Paulo (6100)",
+            Relator = "Juiz Federal Titular da 21ª Vara Federal",
+            ValorCausa = 50000.00m,
+            SegredoJustica = false,
+            DataDistribuicao = new System.DateTime(2023, 1, 2, 0, 54, 32, System.DateTimeKind.Utc),
+            Status = "Baixado Definitivamente (Transitado em Julgado)",
+            UltimaAtualizacao = System.DateTime.UtcNow,
+            Envolvidos = new List<Envolvido>
+            {
+                new Envolvido
+                {
+                    Nome = "Empresa Brasileira de Serviços e Logística S/A",
+                    TipoPolo = "Ativo",
+                    Papel = "Impetrante",
+                    Oab = "Dr. Rodrigo Fagundes - OAB/SP 210.450"
+                },
+                new Envolvido
+                {
+                    Nome = "Delegado da Receita Federal do Brasil em São Paulo",
+                    TipoPolo = "Passivo",
+                    Papel = "Autoridade Coatora",
+                    Oab = "Procuradoria da Fazenda Nacional (PFN/PGFN)"
+                }
+            },
+            DocumentosPublicos = new List<DocumentoProcessual>
+            {
+                new DocumentoProcessual
+                {
+                    Id = "trf3-sentenca-001",
+                    Tipo = "Sentença / Extinção sem Resolução do Mérito",
+                    Data = new System.DateTime(2023, 3, 16, 17, 25, 22),
+                    Titulo = "Sentença Extintiva - Art. 485, IV do CPC",
+                    Situacao = "Transitado em Julgado",
+                    MagistradoRelator = "Juiz Federal da 21ª Vara Federal Cível",
+                    Ementa = "MANDADO DE SEGURANÇA – AUSÊNCIA DE PROVA PRÉ-CONSTITUÍDA DE DIREITO LÍQUIDO E CERTO – DILAÇÃO PROBATÓRIA INCOMPATÍVEL COM O RITO ESPECIAL DO MANDAMUS (ART. 6º DA LEI 12.016/2009) – INDEFERIMENTO DA INICIAL E EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO.",
+                    ConteudoTexto = "Julgo extinto o processo sem julgamento de mérito por ausência das condições da ação, com fulcro no art. 485, IV do Código de Processo Civil.",
+                    CertidaoPublicacao = "Disponibilizado no Diário da Justiça Eletrônico do TRF3 em 17/03/2023. Trânsito em julgado certificado em 29/05/2023.",
+                    UrlOrigem = "https://pje1g.trf3.jus.br"
+                }
+            }
+        };
+
+        var eventosTrf3 = new (string data, string titulo, string desc, int cod)[]
+        {
+            ("2023-05-30T16:53:59Z", "Baixa Definitiva", "Baixa Definitiva e Arquivamento dos Autos", 22),
+            ("2023-05-29T11:17:03Z", "Trânsito em julgado", "Certificado o Trânsito em Julgado da Sentença", 848),
+            ("2023-03-20T07:00:00Z", "Publicação", "Publicado no Diário Oficial Eletrônico da Justiça Federal", 92),
+            ("2023-03-16T17:25:22Z", "Ausência das condições da ação", "Sentença Proferida: Extinção sem Resolução do Mérito", 461),
+            ("2023-01-10T14:56:40Z", "Requisição de Informações", "Notificada a Autoridade Coatora para prestar informações em 10 dias", 11020),
+            ("2023-01-02T00:54:32Z", "Distribuição", "Distribuído por sorteio à 21ª Vara Federal Cível de São Paulo", 26)
+        };
+
+        foreach (var (data, titulo, desc, cod) in eventosTrf3)
+        {
+            if (System.DateTime.TryParse(data, out var dt))
+            {
+                procTrf3.Movimentacoes.Add(new Movimentacao
+                {
+                    DataHora = dt,
+                    Titulo = titulo,
+                    Descricao = desc,
+                    CodigoNacional = cod
+                });
+            }
+        }
+
+        _processos.TryAdd(procTrf3.NumeroCnjLimpo, procTrf3);
     }
 
     private static void AdicionarMovimentacoesHistorico(Processo proc)

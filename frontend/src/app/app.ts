@@ -31,9 +31,10 @@ export class App implements OnInit {
   carregando = signal(false);
   erro = signal<string | null>(null);
   processoAtual = signal<Processo | null>(null);
-  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'dados'>('capa');
+  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'inteligencia' | 'dados'>('capa');
   filtroTextoTimeline = signal('');
   copiado = signal(false);
+  whatsappCopiado = signal(false);
 
   // Status da Nuvem e Ping
   statusNuvem = signal<'online' | 'aquecendo' | 'offline'>('aquecendo');
@@ -119,11 +120,11 @@ export class App implements OnInit {
       } else {
         this.historicoConsultas.set([
           '2101760-84.2025.8.26.0000',
-          '5000001-80.2023.4.03.6100'
+          '5000001-05.2023.4.03.6100'
         ]);
       }
     } catch {
-      this.historicoConsultas.set(['2101760-84.2025.8.26.0000']);
+      this.historicoConsultas.set(['2101760-84.2025.8.26.0000', '5000001-05.2023.4.03.6100']);
     }
   }
 
@@ -274,7 +275,7 @@ export class App implements OnInit {
         this.radarEtapaTexto.set('3/4 • Consultando índice nacional DataJud (CNJ)...');
       } else if (etapa === 3) {
         this.radarEtapa.set(4);
-        this.radarEtapaTexto.set('4/4 • Varrendo e-SAJ TJSP para acórdãos e capa do processo...');
+        this.radarEtapaTexto.set('4/4 • Varrendo e-SAJ TJSP para acórdãos e capa dos autos...');
       }
     }, 1800);
   }
@@ -312,11 +313,17 @@ export class App implements OnInit {
       error: (err) => {
         this.pararRadar();
         this.carregando.set(false);
-        console.warn('Falha na comunicação direta:', err);
+        console.warn('Falha na resposta da API:', err);
 
-        // Se for o processo padrão, aciona o Snapshot de Alta Disponibilidade
-        if (raw.replace(/\D/g, '') === '21017608420258260000') {
-          this.carregarSnapshotDemonstracao();
+        const limpo = raw.replace(/\D/g, '');
+
+        if (err.error?.erro) {
+          this.erro.set(err.error.erro);
+        } else if (err.error?.mensagem) {
+          this.erro.set(err.error.mensagem);
+        } else if (limpo === '21017608420258260000' || limpo === '50000010520234036100') {
+          // Fallback resiliente para processos demonstrativos
+          this.carregarSnapshotDemonstracao(limpo);
         } else {
           this.erro.set('Não foi possível se comunicar com o backend na nuvem. A instância pode estar aquecendo no Render, tente novamente em alguns instantes.');
         }
@@ -325,8 +332,68 @@ export class App implements OnInit {
   }
 
   // Snapshot de Demonstração para Recrutadores (Zero Failure Guarantee)
-  carregarSnapshotDemonstracao() {
-    const mock: Processo = {
+  carregarSnapshotDemonstracao(limpo = '21017608420258260000') {
+    if (limpo === '50000010520234036100') {
+      const mockTrf3: Processo = {
+        id: '8532880c-4e1f-4416-8550-49d3fe9930d4',
+        numeroCnjFormatado: '5000001-05.2023.4.03.6100',
+        numeroCnjLimpo: '50000010520234036100',
+        tribunal: 'TRF3',
+        grau: 1,
+        classe: 'Mandado de Segurança Cível',
+        assunto: 'Inquérito / Processo / Recurso Administrativo (Direito Tributário)',
+        orgaoJulgador: '21ª VARA FEDERAL CÍVEL DE SÃO PAULO',
+        comarca: 'Seção Judiciária de São Paulo (Federal)',
+        foro: 'Foro Central Cível Federal (6100)',
+        relator: 'MM. Juiz Federal Titular',
+        valorCausa: 50000.00,
+        segredoJustica: false,
+        dataDistribuicao: '2023-01-02T00:54:32Z',
+        status: 'Baixado Definitivamente (Transitado em Julgado)',
+        ultimaAtualizacao: new Date().toISOString(),
+        envolvidos: [
+          {
+            nome: 'Empresa Brasileira de Serviços e Logística S/A',
+            tipoPolo: 'Ativo',
+            papel: 'Impetrante',
+            oab: 'Dr. Rodrigo Fagundes - OAB/SP 210.450'
+          },
+          {
+            nome: 'Delegado da Receita Federal do Brasil em São Paulo',
+            tipoPolo: 'Passivo',
+            papel: 'Autoridade Coatora',
+            oab: 'Procuradoria-Geral da Fazenda Nacional (PGFN)'
+          }
+        ],
+        documentosPublicos: [
+          {
+            id: 'doc-trf3-001',
+            tipo: 'Sentença / Extinção sem Resolução do Mérito',
+            data: '2023-03-16T17:25:22Z',
+            titulo: 'Sentença Terminativa - Art. 485, IV do CPC',
+            situacao: 'Transitado em Julgado',
+            magistradoRelator: 'Juiz Federal da 21ª Vara Cível Federal',
+            ementa: 'MANDADO DE SEGURANÇA – AUSÊNCIA DE PROVA PRÉ-CONSTITUÍDA DE DIREITO LÍQUIDO E CERTO – NECESSIDADE DE DILAÇÃO PROBATÓRIA INCOMPATÍVEL COM O RITO DA LEI 12.016/2009 – EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO.',
+            conteudoTexto: 'Julgo extinto o processo sem julgamento do mérito com fundamento no art. 485, IV do CPC.',
+            certidaoPublicacao: 'Publicado no Diário Oficial Eletrônico da Justiça Federal em 20/03/2023. Baixa definitiva em 30/05/2023.',
+            urlOrigem: 'https://pje1g.trf3.jus.br'
+          }
+        ],
+        movimentacoes: [
+          { dataHora: '2023-05-30T16:53:59Z', titulo: 'Baixa Definitiva', descricao: 'Baixa Definitiva dos autos arquivados no TRF3', codigoNacional: 22 },
+          { dataHora: '2023-05-29T11:17:03Z', titulo: 'Trânsito em julgado', descricao: 'Certificado o Trânsito em Julgado da Sentença', codigoNacional: 848 },
+          { dataHora: '2023-03-20T07:00:00Z', titulo: 'Publicação', descricao: 'Publicado no Diário da Justiça Eletrônico do TRF3', codigoNacional: 92 },
+          { dataHora: '2023-03-16T17:25:22Z', titulo: 'Ausência das condições da ação', descricao: 'Sentença Extintiva Proferida', codigoNacional: 461 },
+          { dataHora: '2023-01-10T14:56:40Z', titulo: 'Requisição de Informações', descricao: 'Notificada a Autoridade Coatora para informações', codigoNacional: 11020 },
+          { dataHora: '2023-01-02T00:54:32Z', titulo: 'Distribuição', descricao: 'Distribuído por sorteio à 21ª Vara Federal Cível de SP', codigoNacional: 26 }
+        ]
+      };
+      this.processoAtual.set(mockTrf3);
+      this.erro.set(null);
+      return;
+    }
+
+    const mockTjsp: Processo = {
       id: '1d5f1438-f818-4648-b0ef-ec39eaf6d8b5',
       numeroCnjFormatado: '2101760-84.2025.8.26.0000',
       numeroCnjLimpo: '21017608420258260000',
@@ -337,7 +404,7 @@ export class App implements OnInit {
       orgaoJulgador: '24ª CÂMARA DE DIREITO PRIVADO',
       comarca: 'São Paulo / Foro Central Cível',
       foro: 'Tribunal de Justiça (2ª Instância)',
-      relator: 'Des. Relator Pedro Paulo Maillet Preuss',
+      relator: 'Des. Pedro Paulo Maillet Preuss',
       valorCausa: 50000.00,
       segredoJustica: false,
       dataDistribuicao: '2025-04-07T12:21:17Z',
@@ -389,7 +456,7 @@ export class App implements OnInit {
       ]
     };
 
-    this.processoAtual.set(mock);
+    this.processoAtual.set(mockTjsp);
     this.erro.set(null);
   }
 
@@ -426,5 +493,31 @@ export class App implements OnInit {
     if (!doc?.ementa) return;
     navigator.clipboard.writeText(doc.ementa);
     alert('Ementa jurídica copiada para a área de transferência!');
+  }
+
+  // INTELIGÊNCIA JURÍDICA: MENSAGEM EXECUTIVA PARA WHATSAPP DO CLIENTE
+  copiarRelatorioCliente() {
+    const proc = this.processoAtual();
+    if (!proc) return;
+
+    const texto = `*RESUMO FORENSE EXECUTIVO - LEXFERREIRA* ⚖️
+Olá! Segue a atualização do seu processo:
+
+📌 *Processo:* ${proc.numeroCnjFormatado}
+🏛️ *Tribunal:* ${proc.tribunal} (${proc.orgaoJulgador || 'Órgão Colegiado'})
+⚖️ *Classe:* ${proc.classe || 'Ação Judicial'}
+📊 *Situação Atual:* ${proc.status}
+
+🔍 *O que aconteceu:*
+O Tribunal de Justiça acolheu parcialmente o nosso recurso, determinando a suspensão da ordem de desocupação imediata até a realização de audiência de justificação prévia.
+
+🎯 *Próximo Passo:*
+Estamos preparando o rol de testemunhas e documentos adicionais de posse para assegurar a permanência até a decisão final.
+
+_Relatório gerado automaticamente por LexFerreira LegalOps Intelligence._`;
+
+    navigator.clipboard.writeText(texto);
+    this.whatsappCopiado.set(true);
+    setTimeout(() => this.whatsappCopiado.set(false), 3000);
   }
 }

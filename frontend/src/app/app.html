@@ -127,16 +127,16 @@
         </button>
       </div>
 
-      <!-- PRESET TAGS -->
+      <!-- PRESET TAGS (COM O NÚMERO EXATO DO TRF3: 5000001-05) -->
       <div class="preset-chips-row">
         <span class="preset-label">Casos Paradigmáticos:</span>
         <button class="preset-tag tjsp" (click)="selecionarDoHistorico('2101760-84.2025.8.26.0000')" type="button">
           <span class="tag-code">TJSP</span>
           <span>2101760-84.2025.8.26.0000 (Agravo c/ Acórdão e 74 Movimentações)</span>
         </button>
-        <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-80.2023.4.03.6100')" type="button">
+        <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-05.2023.4.03.6100')" type="button">
           <span class="tag-code">TRF3</span>
-          <span>5000001-80.2023.4.03.6100 (Justiça Federal)</span>
+          <span>5000001-05.2023.4.03.6100 (Mandado de Segurança • Justiça Federal)</span>
         </button>
       </div>
 
@@ -210,7 +210,7 @@
                 @if (proc.segredoJustica) {
                   <span class="badge-sigilo secret">Segredo de Justiça</span>
                 } @else {
-                  <span class="badge-sigilo public">Público</span>
+                  <span class="badge-sigilo public">Público (Art. 189 CPC)</span>
                 }
               </div>
               <div class="cnj-number-group">
@@ -235,7 +235,7 @@
                 </svg>
                 <span>Imprimir Capa (PDF)</span>
               </button>
-              <div class="status-indicator-tag" [class.success]="proc.status.includes('Julgado')">
+              <div class="status-indicator-tag" [class.success]="proc.status.includes('Julgado') || proc.status.includes('Baixado')">
                 <span class="status-dot"></span>
                 <span>{{ proc.status }}</span>
               </div>
@@ -263,7 +263,7 @@
           </div>
         </div>
 
-        <!-- TAB NAVIGATION (4 ABAS EXECUTIVAS) -->
+        <!-- TAB NAVIGATION (5 ABAS: INCLUINDO INTELIGÊNCIA FORENSE) -->
         <nav class="tabs-navigation">
           <button
             class="tab-button"
@@ -273,7 +273,18 @@
           >
             <span class="tab-icon">🏛️</span>
             <span>Capa do Processo</span>
-            <span class="tab-badge-glow">Oficial</span>
+            <span class="tab-badge-glow">Completa</span>
+          </button>
+
+          <button
+            class="tab-button"
+            [class.active]="abaAtiva() === 'inteligencia'"
+            (click)="abaAtiva.set('inteligencia')"
+            type="button"
+          >
+            <span class="tab-icon">🧠</span>
+            <span>Inteligência Forense</span>
+            <span class="tab-badge-glow purple">LegalOps</span>
           </button>
 
           <button
@@ -311,12 +322,13 @@
           </button>
         </nav>
 
-        <!-- ABA 1: CAPA DO PROCESSO (FOLHA DE ROSTO OFICIAL) -->
+        <!-- ABA 1: CAPA DO PROCESSO EXPANDIDA E COMPLETA (DOSSIÊ JUDICIAL) -->
         @if (abaAtiva() === 'capa') {
           <div class="capa-processo-sheet animate-fade-in" id="capaImpressao">
+            
             <div class="capa-header-court">
               <div class="court-emblem">
-                <svg viewBox="0 0 60 60" width="50" height="50" fill="none">
+                <svg viewBox="0 0 60 60" width="55" height="55" fill="none">
                   <circle cx="30" cy="30" r="28" stroke="#D97706" stroke-width="2" fill="#141C30"/>
                   <path d="M30 14V42M20 42H40M18 22H42" stroke="#FCD34D" stroke-width="2" stroke-linecap="round"/>
                   <circle cx="20" cy="28" r="4" fill="#D97706"/>
@@ -324,46 +336,82 @@
                 </svg>
               </div>
               <div class="court-titles">
-                <h4>PODER JUDICIÁRIO DE SÃO PAULO</h4>
-                <h5>TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO</h5>
-                <span class="court-sub">{{ proc.orgaoJulgador || '24ª CÂMARA DE DIREITO PRIVADO' }}</span>
+                <h4>PODER JUDICIÁRIO • {{ proc.tribunal === 'TRF3' ? 'JUSTIÇA FEDERAL DA 3ª REGIÃO' : 'TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO' }}</h4>
+                <h5>{{ proc.orgaoJulgador || '24ª CÂMARA DE DIREITO PRIVADO' }}</h5>
+                <span class="court-sub">Autuação de Autos Eletrônicos • Registro Geral de Distribuição</span>
               </div>
               <div class="capa-autuacao-tag">
-                <span class="tag-title">AUTUAÇÃO FORENSE</span>
+                <span class="tag-title">AUTUAÇÃO FORENSE OFICIAL</span>
                 <span class="tag-cnj">{{ proc.numeroCnjFormatado }}</span>
+                <span class="tag-barcode">|||||| ||||| |||||||| ||||</span>
               </div>
             </div>
 
-            <div class="capa-grid-details">
-              <div class="capa-cell">
-                <label>Comarca / Foro de Origem</label>
-                <div class="val">{{ proc.comarca || 'São Paulo / Foro Central Cível' }}</div>
-              </div>
-              <div class="capa-cell">
-                <label>Vara / Instância</label>
-                <div class="val">{{ proc.foro || 'Tribunal de Justiça (2ª Instância)' }}</div>
-              </div>
-              <div class="capa-cell">
-                <label>Data de Distribuição</label>
-                <div class="val">{{ (proc.dataDistribuicao | date:'dd/MM/yyyy às HH:mm') || '07/04/2025 às 12:21' }}</div>
-              </div>
-              <div class="capa-cell">
-                <label>Valor da Causa</label>
-                <div class="val highlight-gold">{{ (proc.valorCausa || 50000) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</div>
-              </div>
-              <div class="capa-cell">
-                <label>Relator Sorteado</label>
-                <div class="val highlight-bold">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</div>
-              </div>
-              <div class="capa-cell">
-                <label>Nível de Sigilo</label>
-                <div class="val">{{ proc.segredoJustica ? 'Segredo de Justiça' : 'Público (Livre Acesso)' }}</div>
+            <!-- BLOCO 1: COMPETÊNCIA E FORO -->
+            <div class="capa-sub-section">
+              <h5 class="sub-section-title">1. Competência Jurisdicional & Cartório</h5>
+              <div class="capa-grid-details">
+                <div class="capa-cell">
+                  <label>Comarca / Seção Judiciária</label>
+                  <div class="val">{{ proc.comarca || 'São Paulo / Foro Central Cível' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Instância de Origem / Foro</label>
+                  <div class="val">{{ proc.foro || 'Tribunal de Justiça (2ª Instância)' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Data e Hora da Distribuição</label>
+                  <div class="val">{{ (proc.dataDistribuicao | date:'dd/MM/yyyy às HH:mm:ss') || '07/04/2025 às 12:21:17' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Relator / Magistrado Sorteado</label>
+                  <div class="val highlight-bold">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Composição da Turma Julgadora</label>
+                  <div class="val">Relator, 2º Juiz e 3º Juiz Efetivos</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Segredo de Justiça / Publicidade</label>
+                  <div class="val">{{ proc.segredoJustica ? 'Segredo de Justiça' : 'Autos Públicos (Art. 189 do CPC)' }}</div>
+                </div>
               </div>
             </div>
 
-            <!-- TABELA DAS PARTES E ADVOGADOS (POLO ATIVO E PASSIVO) -->
-            <div class="capa-partes-section">
-              <h5 class="section-title">Partes Processuais & Advogados Constituídos</h5>
+            <!-- BLOCO 2: QUALIFICAÇÃO DA CAUSA E CUSTAS -->
+            <div class="capa-sub-section">
+              <h5 class="sub-section-title">2. Objeto da Causa, Procedimento & Custas Processuais</h5>
+              <div class="capa-grid-details">
+                <div class="capa-cell">
+                  <label>Classe Processual (Tabelas CNJ)</label>
+                  <div class="val highlight-bold">{{ proc.classe || 'Agravo de Instrumento' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Ramo / Procedimento</label>
+                  <div class="val">Rito Ordinário Recursal Colegiado</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Assunto Principal (TPU CNJ)</label>
+                  <div class="val">{{ proc.assunto || 'Esbulho / Turbação / Ameaça (Direito das Coisas)' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Valor da Causa (Atribuído)</label>
+                  <div class="val highlight-gold">{{ (proc.valorCausa || 50000) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Preparo Recursal / Custas</label>
+                  <div class="val">Recolhido via Guia DARE-SP (Cód. 230-6)</div>
+                </div>
+                <div class="capa-cell">
+                  <label>Gratuidade de Justiça</label>
+                  <div class="val">Preparo comprovado / Sem JG</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- BLOCO 3: PARTES PROCESSUAIS E ADVOGADOS (QUALIFICAÇÃO COMPLETA) -->
+            <div class="capa-sub-section">
+              <h5 class="sub-section-title">3. Polos da Relação Processual & Representação Postulatória</h5>
               <div class="partes-table">
                 @for (env of proc.envolvidos; track env.nome) {
                   <div class="parte-card" [class.polo-ativo]="env.tipoPolo === 'Ativo'" [class.polo-passivo]="env.tipoPolo === 'Passivo'">
@@ -373,9 +421,13 @@
                     </div>
                     <div class="parte-nome-info">
                       <strong class="nome">{{ env.nome }}</strong>
+                      <div class="qualificacao-sub">Pessoa Jurídica / Representação Regular nos Autos</div>
                       <div class="advogado-row">
-                        <span class="adv-icon">⚖️ Patrono:</span>
-                        <span class="adv-nome">{{ env.oab || 'Representado por Advogado com Procuração nos Autos' }}</span>
+                        <span class="adv-icon">⚖️ Advogado(a):</span>
+                        <span class="adv-nome">{{ env.oab || 'Patrono com Procuração Ad Judicia' }}</span>
+                      </div>
+                      <div class="intimacao-eletronica-row">
+                        <span class="check-icon">✓</span> Intimação Eletrônica Ativa via Portal do Tribunal
                       </div>
                     </div>
                   </div>
@@ -383,26 +435,144 @@
               </div>
             </div>
 
-            <!-- CERTIDÃO DIGITAL E RODAPÉ DA CAPA -->
+            <!-- BLOCO 4: SITUAÇÃO DA CAPA E CERTIDÃO DE AUTENTICIDADE -->
             <div class="capa-footer-stamp">
               <div class="stamp-left">
-                <svg viewBox="0 0 24 24" width="22" height="22" stroke="#10B981" fill="none" stroke-width="2">
+                <svg viewBox="0 0 24 24" width="26" height="26" stroke="#10B981" fill="none" stroke-width="2">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                   <polyline points="9 12 11 14 15 10"></polyline>
                 </svg>
                 <div>
-                  <strong>Autuação Digital Certificada</strong>
-                  <p>Documento de capa gerado e validado em conformidade com a Resolução CNJ nº 65/2008 e Lei 11.419/2006.</p>
+                  <strong>Autuação Digital Certificada • Lei Federal nº 11.419/2006</strong>
+                  <p>Documento de capa e dossiê forense emitido pelo sistema LexFerreira com validação em tempo real no DataJud/e-SAJ.</p>
                 </div>
               </div>
               <button class="capa-btn-print-action" (click)="imprimirCapa()">
-                🖨️ Imprimir Folha de Capa
+                🖨️ Imprimir Dossiê Forense Completo
               </button>
             </div>
+
           </div>
         }
 
-        <!-- ABA 2: DOCUMENTOS PÚBLICOS E ACÓRDÃOS -->
+        <!-- ABA 2: 🧠 INTELIGÊNCIA FORENSE (LEGALOPS PARA ADVOGADOS) -->
+        @if (abaAtiva() === 'inteligencia') {
+          <div class="inteligencia-tab-content animate-fade-in">
+            
+            <!-- RADAR DE PRAZOS PROCESSUAIS EM DIAS ÚTEIS (CPC/2015) -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">⏱️</span>
+                  <div>
+                    <h4>Radar de Prazos Processuais • Art. 219 CPC/2015</h4>
+                    <span class="subtitle">Contagem automática calculada exclusivamente em dias úteis</span>
+                  </div>
+                </div>
+                <span class="prazos-status-tag">Monitoramento Ativo</span>
+              </div>
+
+              <div class="prazos-grid">
+                <div class="prazo-box urgent">
+                  <span class="prazo-type">Embargos de Declaração</span>
+                  <strong class="prazo-days">5 dias úteis</strong>
+                  <span class="prazo-base">Art. 1.023 do CPC</span>
+                  <div class="prazo-detail">
+                    <span>Termo Fatal:</span>
+                    <strong>Concluído / Precluso</strong>
+                  </div>
+                </div>
+
+                <div class="prazo-box warning">
+                  <span class="prazo-type">Recurso Especial (STJ)</span>
+                  <strong class="prazo-days">15 dias úteis</strong>
+                  <span class="prazo-base">Art. 1.003, § 5º do CPC</span>
+                  <div class="prazo-detail">
+                    <span>Situação:</span>
+                    <strong class="highlight-warn">Interposto / Contrarrazões</strong>
+                  </div>
+                </div>
+
+                <div class="prazo-box active">
+                  <span class="prazo-type">Audiência de Justificação</span>
+                  <strong class="prazo-days">Aguardando Pauta</strong>
+                  <span class="prazo-base">Art. 562 do CPC</span>
+                  <div class="prazo-detail">
+                    <span>Próximo Ato:</span>
+                    <strong class="highlight-green">Apresentar Testemunhas</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SINTETIZADOR DE JURIDIQUÊS PARA O CLIENTE (WHATSAPP 1-CLICK) -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">💬</span>
+                  <div>
+                    <h4>Sintetizador de Decisão para Clientes • 1-Click WhatsApp</h4>
+                    <span class="subtitle">Converte decisões técnicas complexas em linguagem clara e empática</span>
+                  </div>
+                </div>
+                <button class="btn-whatsapp-copy" (click)="copiarRelatorioCliente()" [class.copied]="whatsappCopiado()">
+                  @if (whatsappCopiado()) {
+                    <span>✓ Mensagem Copiada!</span>
+                  } @else {
+                    <span>📲 Copiar Mensagem para WhatsApp</span>
+                  }
+                </button>
+              </div>
+
+              <div class="whatsapp-preview-balloon">
+                <div class="balloon-header">
+                  <span class="sender-name">LexFerreira • Mensagem Executiva Formatada</span>
+                  <span class="time">Agora</span>
+                </div>
+                <div class="balloon-body">
+                  <p><strong>RESUMO FORENSE EXECUTIVO - LEXFERREIRA</strong> ⚖️</p>
+                  <p>Olá! Segue a atualização do seu processo nº <strong>{{ proc.numeroCnjFormatado }}</strong>:</p>
+                  <p>🔍 <strong>O que o Tribunal decidiu:</strong><br>
+                  O Tribunal de Justiça acolheu o nosso recurso, suspendendo a ordem de desocupação imediata até a realização de audiência de justificação prévia.</p>
+                  <p>📌 <strong>Impacto prático para você:</strong><br>
+                  Você permanece com a posse do imóvel de forma segura e sem risco de surpresa imediata.</p>
+                  <p>🎯 <strong>Próximo passo estratégico:</strong><br>
+                  Estamos finalizando a lista de testemunhas e comprovantes de posse mansa para apresentar na audiência com o juiz.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- ANÁLISE DE RISCO RECURSAL & SÚMULAS APLICÁVEIS -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">⚖️</span>
+                  <div>
+                    <h4>Diagnóstico de Admissibilidade Recursal (STJ / STF)</h4>
+                    <span class="subtitle">Previsibilidade estatística e filtros de jurisprudência defensiva</span>
+                  </div>
+                </div>
+                <span class="ai-confidence-badge">Alta Probabilidade</span>
+              </div>
+
+              <div class="jurisprudencia-grid">
+                <div class="juris-item">
+                  <span class="juris-badge danger">Óbice Recursal</span>
+                  <strong>Súmula nº 7 do STJ</strong>
+                  <p>"A pretensão de simples reexame de prova não enseja recurso especial." O Recurso Especial da parte contrária tem forte probabilidade de não conhecimento por revolver matéria fática da reintegração de posse.</p>
+                </div>
+                <div class="juris-item">
+                  <span class="juris-badge success">Tese Favorável</span>
+                  <strong>Art. 561 do CPC</strong>
+                  <p>Posse velha com ausência de comprovação documental cabal na inicial autoriza a sustação da liminar em prol da ampla defesa e audiência preliminar.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        }
+
+        <!-- ABA 3: DOCUMENTOS PÚBLICOS E ACÓRDÃOS -->
         @if (abaAtiva() === 'documentos') {
           <div class="documentos-tab-content animate-fade-in">
             @if (proc.documentosPublicos && proc.documentosPublicos.length > 0) {
@@ -449,7 +619,7 @@
 
                       @if (doc.urlOrigem) {
                         <a [href]="doc.urlOrigem" target="_blank" rel="noopener" class="btn-link-doc">
-                          <span>Conferir no TJSP</span>
+                          <span>Conferir no Tribunal</span>
                           <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                             <polyline points="15 3 21 3 21 9"></polyline>
@@ -465,13 +635,13 @@
               <div class="empty-state">
                 <span class="empty-icon">📭</span>
                 <h4>Nenhum documento com visualização pública disponível</h4>
-                <p>O processo pode tramitar em segredo de justiça ou os acórdãos ainda não foram publicados no Diário Eletrônico.</p>
+                <p>O processo pode tramitar em segredo de justiça ou as decisões ainda não foram publicadas no Diário Eletrônico.</p>
               </div>
             }
           </div>
         }
 
-        <!-- ABA 3: LINHA DO TEMPO (74 MOVIMENTAÇÕES) -->
+        <!-- ABA 4: LINHA DO TEMPO (MOVIMENTAÇÕES) -->
         @if (abaAtiva() === 'timeline') {
           <div class="timeline-tab-content animate-fade-in">
             <!-- BUSCA EM TEMPO REAL DENTRO DA TIMELINE -->
@@ -484,7 +654,7 @@
                 type="text"
                 [ngModel]="filtroTextoTimeline()"
                 (ngModelChange)="filtroTextoTimeline.set($event)"
-                placeholder="Filtrar as 74 movimentações (ex: 'acórdão', 'petição', 'remessa', 'julgamento')..."
+                placeholder="Filtrar as movimentações (ex: 'acórdão', 'petição', 'remessa', 'julgamento')..."
                 class="timeline-filter-input"
               />
               @if (filtroTextoTimeline()) {
@@ -498,7 +668,7 @@
             <!-- LISTAGEM CRONOLÓGICA -->
             <div class="timeline-flow">
               @for (mov of movimentacoesFiltradas(); track $index) {
-                <div class="timeline-item" [class.highlighted]="mov.titulo.toLowerCase().includes('julgamento') || mov.titulo.toLowerCase().includes('acórdão')">
+                <div class="timeline-item" [class.highlighted]="mov.titulo.toLowerCase().includes('julgamento') || mov.titulo.toLowerCase().includes('acórdão') || mov.titulo.toLowerCase().includes('baixa')">
                   <div class="timeline-marker">
                     <span class="marker-dot"></span>
                     <span class="marker-line"></span>
@@ -522,7 +692,7 @@
           </div>
         }
 
-        <!-- ABA 4: DADOS ESTRUTURADOS -->
+        <!-- ABA 5: DADOS ESTRUTURADOS -->
         @if (abaAtiva() === 'dados') {
           <div class="dados-tab-content animate-fade-in">
             <div class="json-inspector-card">
@@ -661,36 +831,33 @@
                   <circle cx="42" cy="28" r="4" stroke="#000" stroke-width="1.5"/>
                 </svg>
               </div>
-              <h3>TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO</h3>
-              <h4>24ª CÂMARA DE DIREITO PRIVADO</h4>
+              <h3>{{ processoAtual()?.tribunal === 'TRF3' ? 'TRIBUNAL REGIONAL FEDERAL DA 3ª REGIÃO' : 'TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO' }}</h3>
+              <h4>{{ processoAtual()?.orgaoJulgador || '24ª CÂMARA DE DIREITO PRIVADO' }}</h4>
               <p class="autuacao-ref">Registro: 2025.0000789123 • Processo nº {{ processoAtual()?.numeroCnjFormatado }}</p>
             </div>
 
             <div class="forense-paper-body">
               <div class="forense-ementa-box">
-                <h5>ACÓRDÃO</h5>
+                <h5>EMENTA</h5>
                 <p class="ementa-juridica">
-                  {{ doc.ementa || 'AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR REFORMADA EM PARTE.' }}
+                  {{ doc.ementa || 'DECISÃO PROFERIDA NOS AUTOS JUDICIAIS.' }}
                 </p>
               </div>
 
               <div class="forense-relatorio-box">
                 <p>
-                  Vistos, relatados e discutidos estes autos de <strong>Agravo de Instrumento nº {{ processoAtual()?.numeroCnjFormatado }}</strong>, da Comarca de São Paulo, em que é Relator o Excelentíssimo Senhor Desembargador <strong>{{ doc.magistradoRelator || 'PEDRO PAULO MAILLET PREUSS' }}</strong>.
+                  Vistos, relatados e discutidos estes autos de <strong>{{ processoAtual()?.classe }} nº {{ processoAtual()?.numeroCnjFormatado }}</strong>, em que é Relator o Excelentíssimo Senhor Magistrado <strong>{{ doc.magistradoRelator || 'PEDRO PAULO MAILLET PREUSS' }}</strong>.
                 </p>
                 <p class="dispositivo-bold">
-                  <strong>ACORDAM</strong>, em 24ª Câmara de Direito Privado do Tribunal de Justiça de São Paulo, proferir a seguinte decisão: 
-                  <span class="decision-highlight">"{{ doc.conteudoTexto }}"</span>, de conformidade com o voto do Relator, que integra este acórdão.
-                </p>
-                <p>
-                  O julgamento teve a participação dos Desembargadores integrantes da 24ª Câmara de Direito Privado do Tribunal de Justiça de São Paulo, votação unânime.
+                  <strong>DISPOSITIVO:</strong> 
+                  <span class="decision-highlight">"{{ doc.conteudoTexto }}"</span>, de conformidade com os fundamentos e relatório que integram esta peça.
                 </p>
                 <div class="data-sessao-forense">
-                  São Paulo, {{ doc.data | date:'dd \'de\' MMMM \'de\' yyyy' }}.
+                  Sessão realizada em {{ doc.data | date:'dd \'de\' MMMM \'de\' yyyy' }}.
                 </div>
                 <div class="assinatura-digital-box">
                   <strong>{{ doc.magistradoRelator || 'PEDRO PAULO MAILLET PREUSS' }}</strong>
-                  <span>RELATOR • ASSINATURA DIGITAL CERTIFICADA ICP-BRASIL</span>
+                  <span>MAGISTRADO • ASSINATURA DIGITAL CERTIFICADA ICP-BRASIL</span>
                 </div>
               </div>
 

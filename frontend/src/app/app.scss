@@ -1846,6 +1846,295 @@
   to { transform: rotate(360deg); }
 }
 
+// ESTILOS EXCLUSIVOS DA CAPA EXPANDIDA & INTELIGÊNCIA JURÍDICA
+.tab-badge-glow.purple {
+  background: rgba(168, 85, 247, 0.2) !important;
+  color: #C084FC !important;
+}
+
+.capa-processo-sheet {
+  .tag-barcode {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.25em;
+    color: var(--text-muted);
+    opacity: 0.7;
+    margin-top: 0.2rem;
+  }
+
+  .capa-sub-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+
+    .sub-section-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #F8FAFC;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+  }
+
+  .qualificacao-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .intimacao-eletronica-row {
+    font-size: 0.75rem;
+    color: #34D399;
+    font-weight: 600;
+    margin-top: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+
+    .check-icon {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+// ABA DE INTELIGÊNCIA FORENSE (LEGALOPS)
+.inteligencia-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+
+  .legal-card-ai {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+
+    .card-ai-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border-subtle);
+
+      .ai-badge-title {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+
+        .icon {
+          font-size: 1.6rem;
+        }
+
+        h4 {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #F8FAFC;
+          margin-bottom: 0.15rem;
+        }
+
+        .subtitle {
+          font-size: 0.8rem;
+          color: var(--text-muted);
+        }
+      }
+
+      .prazos-status-tag {
+        padding: 0.35rem 0.85rem;
+        background: rgba(99, 102, 241, 0.15);
+        color: #A5B4FC;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+
+      .ai-confidence-badge {
+        padding: 0.35rem 0.85rem;
+        background: rgba(16, 185, 129, 0.15);
+        color: #34D399;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+
+      .btn-whatsapp-copy {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.65rem 1.25rem;
+        background: linear-gradient(135deg, #059669, #047857);
+        border: none;
+        border-radius: 8px;
+        color: #FFF;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+
+        &:hover {
+          background: linear-gradient(135deg, #10B981, #059669);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        &.copied {
+          background: #3B82F6;
+        }
+      }
+    }
+
+    .prazos-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+
+      .prazo-box {
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+
+        .prazo-type {
+          font-size: 0.82rem;
+          color: var(--text-muted);
+          font-weight: 600;
+        }
+
+        .prazo-days {
+          font-size: 1.45rem;
+          font-weight: 800;
+          color: #F8FAFC;
+          font-family: var(--font-mono);
+        }
+
+        .prazo-base {
+          font-size: 0.72rem;
+          color: var(--text-secondary);
+        }
+
+        .prazo-detail {
+          margin-top: 0.65rem;
+          padding-top: 0.65rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 0.78rem;
+          color: var(--text-muted);
+
+          .highlight-warn {
+            color: #FBBF24;
+          }
+
+          .highlight-green {
+            color: #34D399;
+          }
+        }
+
+        &.urgent {
+          border-left: 4px solid #64748B;
+        }
+
+        &.warning {
+          border-left: 4px solid #F59E0B;
+        }
+
+        &.active {
+          border-left: 4px solid #10B981;
+        }
+      }
+    }
+
+    .whatsapp-preview-balloon {
+      background: #0B1E17;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      max-width: 650px;
+
+      .balloon-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #34D399;
+        font-weight: 600;
+        margin-bottom: 0.85rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+      }
+
+      .balloon-body {
+        font-size: 0.92rem;
+        color: #E2E8F0;
+        line-height: 1.6;
+
+        p {
+          margin-bottom: 0.75rem;
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+      }
+    }
+
+    .jurisprudencia-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+
+      .juris-item {
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 1.25rem;
+
+        .juris-badge {
+          display: inline-block;
+          padding: 0.15rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.7rem;
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+
+          &.danger {
+            background: rgba(244, 63, 94, 0.15);
+            color: #FDA4AF;
+          }
+
+          &.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+          }
+        }
+
+        strong {
+          display: block;
+          font-size: 0.95rem;
+          color: #F8FAFC;
+          margin-bottom: 0.4rem;
+        }
+
+        p {
+          font-size: 0.82rem;
+          color: var(--text-secondary);
+          line-height: 1.5;
+          margin: 0;
+        }
+      }
+    }
+  }
+}
+
 // MEDIA PRINT (IMPRESSÃO LIMPA DE DOCUMENTO OU CAPA)
 @media print {
   .app-header,
