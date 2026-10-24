@@ -21,6 +21,8 @@ public class Processo
     public string? Foro { get; set; }
     public decimal? ValorCausa { get; set; }
     public string? Relator { get; set; }
+    public string? ProcessoOrigem { get; set; }
+    public string? JuizOrigem { get; set; }
     public bool SegredoJustica { get; set; } = false;
 
     public List<Movimentacao> Movimentacoes { get; set; } = new();

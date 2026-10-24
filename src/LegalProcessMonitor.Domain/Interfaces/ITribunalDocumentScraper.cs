@@ -11,4 +11,5 @@ public interface ITribunalDocumentScraper
     string NomeTribunal { get; }
     bool SuportaTribunal(NumeroProcessoCnj numeroProcesso);
     Task<IReadOnlyList<DocumentoProcessual>> ObterDocumentosPublicosAsync(NumeroProcessoCnj numeroProcesso, CancellationToken ct = default);
+    Task EnriquecerProcessoAsync(Processo processo, NumeroProcessoCnj numeroProcesso, CancellationToken ct = default);
 }

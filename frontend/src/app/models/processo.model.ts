@@ -43,6 +43,8 @@ export interface Processo {
   foro?: string;
   valorCausa?: number;
   relator?: string;
+  processoOrigem?: string;
+  juizOrigem?: string;
   segredoJustica?: boolean;
   movimentacoes: Movimentacao[];
   envolvidos: Envolvido[];

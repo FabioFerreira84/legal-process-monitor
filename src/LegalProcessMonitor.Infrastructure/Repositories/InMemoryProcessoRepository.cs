@@ -29,10 +29,12 @@ public class InMemoryProcessoRepository : IProcessoRepository
             Classe = "Agravo de Instrumento",
             Assunto = "Esbulho / Turbação / Ameaça (Posse)",
             OrgaoJulgador = "24ª CÂMARA DE DIREITO PRIVADO",
-            Comarca = "São Paulo / Foro Central Cível",
-            Foro = "Tribunal de Justiça (2ª Instância)",
+            Comarca = "Comarca de Guarulhos / Foro de Guarulhos / 1ª Vara Cível",
+            Foro = "1ª Vara Cível do Foro de Guarulhos (Proc. 1º Grau: 1006805-85.2025.8.26.0224 - Juiz: Alex Freitas Lima)",
+            ProcessoOrigem = "1006805-85.2025.8.26.0224",
+            JuizOrigem = "Alex Freitas Lima",
             Relator = "PEDRO PAULO MAILLET PREUSS",
-            ValorCausa = 50000.00m,
+            ValorCausa = 10000.00m,
             SegredoJustica = false,
             DataDistribuicao = new System.DateTime(2025, 4, 7, 12, 21, 17, System.DateTimeKind.Utc),
             Status = "Julgado com Acórdão Proferido",
@@ -41,17 +43,38 @@ public class InMemoryProcessoRepository : IProcessoRepository
             {
                 new Envolvido
                 {
-                    Nome = "Comercial e Construtora Leste Ltda.",
+                    Nome = "Espólio de Paschoal Thomeu",
                     TipoPolo = "Ativo",
                     Papel = "Agravante",
-                    Oab = "Dr. Marcelo Ribeiro - OAB/SP 184.920"
+                    Oab = "João Paulo Paiva Camacho - OAB 238470SP"
                 },
                 new Envolvido
                 {
-                    Nome = "Espólio de Antonio Carlos da Silva",
+                    Nome = "Roseli Thomeu",
+                    TipoPolo = "Ativo",
+                    Papel = "Agravante",
+                    Oab = "João Paulo Paiva Camacho - OAB 238470SP"
+                },
+                new Envolvido
+                {
+                    Nome = "Maria Aparecida da Silva Batista",
+                    TipoPolo = "Passivo",
+                    Papel = "Agravada",
+                    Oab = "Regina Celia do Carmo de Luca - OAB 84842RJ; Jose Gabriel Meritello do Carmo de Andrade Araujo - OAB 510501SP"
+                },
+                new Envolvido
+                {
+                    Nome = "Arão Batista Antônio",
                     TipoPolo = "Passivo",
                     Papel = "Agravado",
-                    Oab = "Dra. Renata Albuquerque - OAB/SP 241.803"
+                    Oab = "Regina Celia do Carmo de Luca - OAB 84842RJ; Jose Gabriel Meritello do Carmo de Andrade Araujo - OAB 510501SP"
+                },
+                new Envolvido
+                {
+                    Nome = "Life Empreendimentos Ltda.",
+                    TipoPolo = "Passivo",
+                    Papel = "Agravada",
+                    Oab = "Marcio Rogerio dos Santos Dias - OAB 131627SP; Marcelo Oliveira dos Santos - OAB 278202SP; Rafael Almeida Freire - OAB 529240SP"
                 }
             },
             DocumentosPublicos = new List<DocumentoProcessual>
@@ -90,7 +113,7 @@ public class InMemoryProcessoRepository : IProcessoRepository
             Comarca = "Seção Judiciária de São Paulo (Federal)",
             Foro = "Foro Central Federal de São Paulo (6100)",
             Relator = "Juiz Federal Titular da 21ª Vara Federal",
-            ValorCausa = 50000.00m,
+            ValorCausa = 1000.00m,
             SegredoJustica = false,
             DataDistribuicao = new System.DateTime(2023, 1, 2, 0, 54, 32, System.DateTimeKind.Utc),
             Status = "Baixado Definitivamente (Transitado em Julgado)",
@@ -99,17 +122,17 @@ public class InMemoryProcessoRepository : IProcessoRepository
             {
                 new Envolvido
                 {
-                    Nome = "Empresa Brasileira de Serviços e Logística S/A",
+                    Nome = "Polo Ativo (Impetrante sob Proteção LGPD - Resolução CNJ nº 334/2020)",
                     TipoPolo = "Ativo",
                     Papel = "Impetrante",
-                    Oab = "Dr. Rodrigo Fagundes - OAB/SP 210.450"
+                    Oab = "Patrono Habilitado no PJe TRF3"
                 },
                 new Envolvido
                 {
                     Nome = "Delegado da Receita Federal do Brasil em São Paulo",
                     TipoPolo = "Passivo",
                     Papel = "Autoridade Coatora",
-                    Oab = "Procuradoria da Fazenda Nacional (PFN/PGFN)"
+                    Oab = "Procuradoria-Geral da Fazenda Nacional (PGFN)"
                 }
             },
             DocumentosPublicos = new List<DocumentoProcessual>
