@@ -1,3 +1,4 @@
+using System;
 using LegalProcessMonitor.Domain.Interfaces;
 using LegalProcessMonitor.Infrastructure.Configuration;
 using LegalProcessMonitor.Infrastructure.Connectors.DataJud;
@@ -40,17 +41,22 @@ builder.Services.AddSingleton<IProcessoRepository>(sp =>
     var logger = sp.GetRequiredService<ILogger<MongoProcessoRepository>>();
     try
     {
-        var client = new MongoClient(mongoSettings.ConnectionString);
-        // Ping rápido para verificar conectividade
+        var settings = MongoClientSettings.FromConnectionString(mongoSettings.ConnectionString);
+        settings.ServerSelectionTimeout = TimeSpan.FromMilliseconds(1000);
+        settings.ConnectTimeout = TimeSpan.FromMilliseconds(1000);
+
+        var client = new MongoClient(settings);
         var db = client.GetDatabase(mongoSettings.DatabaseName);
-        db.RunCommandAsync((Command<MongoDB.Bson.BsonDocument>)"{ping:1}").Wait(1500);
+
+        // Ping síncrono rápido para validar conectividade imediata
+        db.RunCommand<MongoDB.Bson.BsonDocument>(new MongoDB.Bson.BsonDocument("ping", 1));
 
         logger.LogInformation("Conectado ao MongoDB com sucesso em {DatabaseName}", mongoSettings.DatabaseName);
         return new MongoProcessoRepository(db, sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MongoSettings>>(), logger);
     }
     catch (System.Exception ex)
     {
-        logger.LogWarning("MongoDB não está acessível no momento ({Msg}). Utilizando repositório In-Memory para desenvolvimento e testes.", ex.Message);
+        logger.LogWarning("MongoDB offline no endereço configurado ({Msg}). Ativando repositório In-Memory para desenvolvimento.", ex.Message);
         return new InMemoryProcessoRepository();
     }
 });

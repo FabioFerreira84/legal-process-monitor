@@ -89,7 +89,7 @@ Acesse a aplicação no seu navegador em: `http://localhost:4200`.
 ## 🧪 Casos de Teste Válidos no Padrão CNJ
 
 Você pode testar a consulta com números no formato oficial:
-* **TJSP (1ª Vara Cível da Capital):** `0000001-32.2023.8.26.0100`
+* **TJSP (Processo Real Ativo):** `2101760-84.2025.8.26.0000`
 * **TRF3 (Justiça Federal de SP/MS):** `5000001-80.2023.4.03.6100`
 
 ---

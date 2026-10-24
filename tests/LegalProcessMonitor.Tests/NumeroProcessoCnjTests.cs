@@ -8,23 +8,20 @@ namespace LegalProcessMonitor.Tests;
 public class NumeroProcessoCnjTests
 {
     [Fact]
-    public void CalcularDigitoVerificador_DeveCalcularEValidar()
+    public void Criar_ComNumeroValido_DeveRetornarInstanciaCorreta()
     {
-        var seq = "0000001";
-        var ano = 2023;
-        var justica = 8;
-        var tribunal = 26;
-        var foro = "0100";
-
-        var dv = NumeroProcessoCnj.CalcularDigitoVerificador(seq, ano, justica, tribunal, foro);
-        var numeroCompleto = $"{seq}-{dv}.{ano}.{justica}.{tribunal:D2}.{foro}";
-
-        var cnj = NumeroProcessoCnj.Criar(numeroCompleto);
+        var rawCnj = "0000001-73.2023.8.26.0100";
+        var cnj = NumeroProcessoCnj.Criar(rawCnj);
 
         cnj.Should().NotBeNull();
-        cnj.DigitoVerificador.Should().Be(dv);
+        cnj.NumeroFormatado.Should().Be(rawCnj);
+        cnj.Sequencial.Should().Be("0000001");
+        cnj.DigitoVerificador.Should().Be("73");
+        cnj.AnoAjuizamento.Should().Be(2023);
+        cnj.OrgaoJustica.Should().Be(8);
+        cnj.TribunalId.Should().Be(26);
+        cnj.ForoOrigem.Should().Be("0100");
         cnj.SiglaTribunal.Should().Be("TJSP");
-        cnj.NumeroFormatado.Should().Be(numeroCompleto);
     }
 
     [Theory]
