@@ -57,20 +57,43 @@ public class ProcessosController : ControllerBase
         }
 
         var processoAtualizado = await conector.ConsultarProcessoAsync(cnj, ct);
-        if (processoAtualizado == null)
-        {
-            return NotFound(new { mensagem = $"Processo '{cnj.NumeroFormatado}' não foi localizado no tribunal '{cnj.SiglaTribunal}'." });
-        }
 
         // Também tenta capturar documentos públicos via scraper
         var scraper = ObterScraperParaTribunal(cnj);
+        IReadOnlyList<DocumentoProcessual>? docs = null;
         if (scraper != null)
         {
-            var docs = await scraper.ObterDocumentosPublicosAsync(cnj, ct);
+            docs = await scraper.ObterDocumentosPublicosAsync(cnj, ct);
+        }
+
+        if (processoAtualizado == null)
+        {
+            // Fallback resiliente: se o DataJud estiver sem o registro ou com delay, 
+            // mas o scraper do e-SAJ localizou decisões públicas, constrói o processo!
             if (docs != null && docs.Count > 0)
             {
+                processoAtualizado = Processo.Criar(cnj, "Recurso / Agravo de Instrumento", docs[0].Titulo);
+                processoAtualizado.OrgaoJulgador = !string.IsNullOrWhiteSpace(docs[0].MagistradoRelator) 
+                    ? $"Gabinete do Relator {docs[0].MagistradoRelator}" 
+                    : "Tribunal de Justiça";
+                processoAtualizado.Status = docs[0].Situacao;
                 processoAtualizado.DocumentosPublicos = new List<DocumentoProcessual>(docs);
+
+                processoAtualizado.AdicionarMovimentacao(new Movimentacao
+                {
+                    DataHora = docs[0].Data,
+                    Titulo = docs[0].Titulo,
+                    Descricao = docs[0].ConteudoTexto
+                });
             }
+            else
+            {
+                return NotFound(new { mensagem = $"Processo '{cnj.NumeroFormatado}' não foi localizado no tribunal '{cnj.SiglaTribunal}'." });
+            }
+        }
+        else if (docs != null && docs.Count > 0)
+        {
+            processoAtualizado.DocumentosPublicos = new List<DocumentoProcessual>(docs);
         }
 
         await _repository.SalvarOuAtualizarAsync(processoAtualizado, ct);
