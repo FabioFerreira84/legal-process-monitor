@@ -12,6 +12,11 @@ import {
   TermoFatalCalculado,
   ProcessoWatchlistItem
 } from './models/processo.model';
+import {
+  calcularTermoFatalForense,
+  extrairDataCivilSegura,
+  formatarDataBr
+} from './utils/calculadora-prazo';
 
 export interface CnjDecodificado {
   valido: boolean | null;
@@ -23,50 +28,6 @@ export interface CnjDecodificado {
   tribunal?: string;
   origem?: string;
   formatado?: string;
-}
-
-// Funções auxiliares para contagem de dias úteis segundo Art. 219 CPC/2015
-function adicionarDiasUteis(dataInicial: Date, diasUteis: number): Date {
-  const d = new Date(dataInicial);
-  let adicionados = 0;
-  const feriadosFixos = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '12-25'];
-
-  while (adicionados < diasUteis) {
-    d.setDate(d.getDate() + 1);
-    const diaSemana = d.getDay();
-    if (diaSemana === 0 || diaSemana === 6) continue;
-
-    const mesDia = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (feriadosFixos.includes(mesDia)) continue;
-
-    // Suspensão Art. 220 CPC (20/dezembro a 20/janeiro)
-    const mes = d.getMonth() + 1;
-    const dia = d.getDate();
-    if ((mes === 12 && dia >= 20) || (mes === 1 && dia <= 20)) continue;
-
-    adicionados++;
-  }
-  return d;
-}
-
-function calcularDiasUteisRestantes(dataAlvo: Date): number {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const alvo = new Date(dataAlvo);
-  alvo.setHours(0, 0, 0, 0);
-
-  if (hoje >= alvo) return 0;
-
-  const d = new Date(hoje);
-  let cont = 0;
-  while (d < alvo) {
-    d.setDate(d.getDate() + 1);
-    const diaSemana = d.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) {
-      cont++;
-    }
-  }
-  return cont;
 }
 
 @Component({
@@ -95,6 +56,11 @@ export class App implements OnInit {
   copiado = signal(false);
   whatsappCopiado = signal(false);
 
+  // Controles interativos da Calculadora Forense de Termo Fatal (CPC/2015 + DJEN)
+  prazoBaseCustomizado = signal<number | null>(null);
+  prazoEmDobroAtivo = signal<boolean>(false);
+  ehDisponibilizacaoDjenAtivo = signal<boolean>(true);
+
   // Status da Nuvem e Ping
   statusNuvem = signal<'online' | 'aquecendo' | 'offline'>('aquecendo');
   tempoLatenciaNuvem = signal<number | null>(null);
@@ -114,9 +80,11 @@ export class App implements OnInit {
   visualizadorAberto = signal(false);
   documentoSelecionado = signal<DocumentoProcessual | null>(null);
 
-  // Dossiê de Magistrados (Judicial Profiling)
+  // Ficha Institucional do Juízo / Relatoria & Notas do Escritório
   magistradoModalAberto = signal(false);
   magistradoSelecionado = signal<PerfilMagistrado | null>(null);
+  notaEscritorioTexto = signal('');
+  notaSalvaFeedback = signal(false);
 
   // Watchlist e Monitoramento de Processos
   watchlist = signal<ProcessoWatchlistItem[]>([]);
@@ -135,10 +103,11 @@ export class App implements OnInit {
     const filtro = this.filtroTextoTimeline().toLowerCase().trim();
     if (!filtro) return proc.movimentacoes;
 
-    return proc.movimentacoes.filter(m =>
-      m.titulo.toLowerCase().includes(filtro) ||
-      m.descricao?.toLowerCase().includes(filtro) ||
-      (m.codigoNacional && m.codigoNacional.toString().includes(filtro))
+    return proc.movimentacoes.filter(
+      (m) =>
+        m.titulo.toLowerCase().includes(filtro) ||
+        m.descricao?.toLowerCase().includes(filtro) ||
+        (m.codigoNacional && m.codigoNacional.toString().includes(filtro))
     );
   });
 
@@ -147,56 +116,81 @@ export class App implements OnInit {
     const proc = this.processoAtual();
     if (!proc || !proc.movimentacoes || proc.movimentacoes.length === 0) return null;
 
-    for (let i = 0; i < Math.min(6, proc.movimentacoes.length); i++) {
+    for (let i = 0; i < Math.min(8, proc.movimentacoes.length); i++) {
       const mov = proc.movimentacoes[i];
       const tit = (mov.titulo || '').toLowerCase();
       const desc = (mov.descricao || '').toLowerCase();
       const texto = `${tit} ${desc}`;
 
-      // 🔴 Constrição / SISBAJUD / Penhora
-      if (texto.includes('sisbajud') || texto.includes('renajud') || texto.includes('penhora') || texto.includes('bloqueio de ativos') || texto.includes('mandado de prisão')) {
+      if (
+        texto.includes('sisbajud') ||
+        texto.includes('renajud') ||
+        texto.includes('penhora') ||
+        texto.includes('bloqueio de ativos') ||
+        texto.includes('mandado de prisão')
+      ) {
         return {
           nivel: 'critico',
-          titulo: 'Risco Iminente de Bloqueio Patrimonial (SISBAJUD / Penhora)',
+          titulo: 'Alerta de Constrição Patrimonial (SISBAJUD / Penhora)',
           descricao: `Detectada determinação constritiva no andamento: "${mov.titulo}".`,
           termoDetectado: mov.titulo,
-          recomendacaoTatica: 'Protocolar petição imediata oferecendo seguro-garantia/fiança bancária ou alegar impenhorabilidade de ativos (Art. 833 CPC).',
+          recomendacaoTatica:
+            'Verificar cabimento de impugnação, substituição por seguro-garantia/fiança bancária (Art. 835, § 2º CPC) ou arguição de impenhorabilidade (Art. 833 CPC).',
           dataEvento: mov.dataHora
         };
       }
 
-      // 🔴 Preclusão / In Albis / Revelia
-      if (texto.includes('in albis') || texto.includes('decurso de prazo') || texto.includes('revelia')) {
+      if (
+        texto.includes('in albis') ||
+        texto.includes('decurso de prazo') ||
+        texto.includes('revelia') ||
+        texto.includes('trânsito em julgado') ||
+        texto.includes('baixa definitiva')
+      ) {
         return {
           nivel: 'critico',
-          titulo: 'Alerta de Preclusão Temporal / Decurso de Prazo In Albis',
-          descricao: `Certificado o decurso de prazo nos autos: "${mov.titulo}".`,
+          titulo: 'Alerta de Preclusão / Encerramento de Fase Processual',
+          descricao: `Certificado decurso de prazo ou encerramento nos autos: "${mov.titulo}".`,
           termoDetectado: mov.titulo,
-          recomendacaoTatica: 'Auditar certidão de publicação no DJE e verificar cabimento de restituição de prazo por justa causa (Art. 223 CPC).',
+          recomendacaoTatica:
+            'Conferir tempestividade e certidão de disponibilização no DJEN (Res. CNJ 455/2022) ou eventual hipótese do Art. 223 do CPC.',
           dataEvento: mov.dataHora
         };
       }
 
-      // 🟢 Favorável: Liminar / Efeito Suspensivo Deferido
-      if (texto.includes('efeito suspensivo') || texto.includes('deferido') || texto.includes('concedida a liminar') || texto.includes('provimento em parte') || texto.includes('provimento ao recurso')) {
+      if (
+        texto.includes('efeito suspensivo') ||
+        texto.includes('concedida a liminar') ||
+        texto.includes('provimento em parte') ||
+        texto.includes('provimento ao recurso')
+      ) {
         return {
           nivel: 'favoravel',
-          titulo: 'Tutela Recursal / Efeito Suspensivo Ativo Concedido',
-          descricao: `Pronunciamento favorável nos autos: "${mov.titulo}".`,
+          titulo: 'Pronunciamento Judicial de Provimento / Tutela Deferida',
+          descricao: `Decisão registrada nos autos: "${mov.titulo}".`,
           termoDetectado: mov.titulo,
-          recomendacaoTatica: 'Expedir ofício ou cópia autenticada para cumprimento urgente no juízo de 1º grau ou autoridade coatora.',
+          recomendacaoTatica:
+            'Verificar comunicação ao juízo de origem e eventuais prazos recursais da parte adversa.',
           dataEvento: mov.dataHora
         };
       }
 
-      // 🟡 Atenção: Intimação / DJE / Contrarrazões
-      if (texto.includes('publicação') || texto.includes('disponibilizado no diário') || texto.includes('intimada') || texto.includes('contrarrazões') || texto.includes('especifiquem provas')) {
+      if (
+        texto.includes('djen') ||
+        texto.includes('publicação') ||
+        texto.includes('disponibilizado') ||
+        texto.includes('intimada') ||
+        texto.includes('vista') ||
+        texto.includes('contrarrazões')
+      ) {
+        const dtBr = formatarDataBr(extrairDataCivilSegura(mov.dataHora));
         return {
           nivel: 'atencao',
-          titulo: 'Intimação Recente Publicada no Diário Oficial (DJE)',
-          descricao: `Abertura de prazo registrada em ${new Date(mov.dataHora).toLocaleDateString('pt-BR')}: "${mov.titulo}".`,
+          titulo: 'Comunicação Processual / Disponibilização no DJEN',
+          descricao: `Marco de intimação registrado em ${dtBr}: "${mov.titulo}".`,
           termoDetectado: mov.titulo,
-          recomendacaoTatica: 'Contagem ativa em dias úteis (Art. 219 CPC). Protocolar petição antes do termo final fatal.',
+          recomendacaoTatica:
+            'Conferir contagem em dias úteis na Calculadora Forense abaixo (Art. 219 e Art. 224, §§ 2º e 3º do CPC).',
           dataEvento: mov.dataHora
         };
       }
@@ -204,148 +198,349 @@ export class App implements OnInit {
 
     return {
       nivel: 'informativo',
-      titulo: 'Processo Regular sob Monitoramento Forense',
-      descricao: 'Nenhum risco de penhora ou preclusão imediata detectado nas movimentações recentes.',
-      termoDetectado: proc.movimentacoes[0]?.titulo || 'Regularidade formal',
-      recomendacaoTatica: 'Manter acompanhamento periódico via Radar de Monitoramento LexFerreira.',
+      titulo: 'Tramitação Processual Regular',
+      descricao:
+        'Nenhuma ordem de bloqueio ou decurso in albis imediato identificado nos últimos andamentos.',
+      termoDetectado: proc.movimentacoes[0]?.titulo || 'Andamento regular',
+      recomendacaoTatica: 'Acompanhar próximas disponibilizações via DJEN/CNJ.',
       dataEvento: proc.movimentacoes[0]?.dataHora || new Date().toISOString()
     };
   });
 
-  // 2. CALCULADORA DINÂMICA DE TERMO FATAL (CPC/2015 ART. 219 E 220)
-  termoFatalCalculado = computed<TermoFatalCalculado | null>(() => {
+  // Extrai o marco de publicação mais recente dos autos
+  marcoPublicacaoDetectado = computed(() => {
     const proc = this.processoAtual();
     if (!proc || !proc.movimentacoes || proc.movimentacoes.length === 0) return null;
-
-    let dataDje: Date | null = null;
-    let tipoAto = 'Manifestação / Recurso';
-    let diasUteisTotal = 15;
 
     for (const mov of proc.movimentacoes) {
       const tit = (mov.titulo || '').toLowerCase();
       const desc = (mov.descricao || '').toLowerCase();
-      if (tit.includes('publicação') || desc.includes('publicado') || tit.includes('diário da justiça') || desc.includes('diário')) {
-        dataDje = new Date(mov.dataHora);
+      if (
+        tit.includes('djen') ||
+        tit.includes('publicação') ||
+        desc.includes('publicado') ||
+        tit.includes('diário') ||
+        desc.includes('disponibilizado') ||
+        tit.includes('vista')
+      ) {
+        let diasSugeridos = 15;
+        let tipoAto = 'Recurso / Manifestação Geral';
         if (tit.includes('embargos') || desc.includes('embargos')) {
+          diasSugeridos = 5;
           tipoAto = 'Embargos de Declaração';
-          diasUteisTotal = 5;
-        } else if (tit.includes('recurso especial') || tit.includes('apelação') || tit.includes('agravo')) {
-          tipoAto = 'Recurso Ordinário / Especial';
-          diasUteisTotal = 15;
+        } else if (tit.includes('informações') || desc.includes('10 dias')) {
+          diasSugeridos = 10;
+          tipoAto = 'Prestação de Informações / Manifestação';
+        } else if (
+          tit.includes('recurso especial') ||
+          tit.includes('aresp') ||
+          tit.includes('apelação') ||
+          tit.includes('agravo') ||
+          tit.includes('vista') ||
+          desc.includes('contrarrazões')
+        ) {
+          diasSugeridos = 15;
+          tipoAto = 'Recurso / Contrarrazões';
         }
-        break;
+        return { dataHora: mov.dataHora, diasSugeridos, tipoAto, tituloMovimento: mov.titulo };
       }
     }
 
-    if (!dataDje) {
-      dataDje = new Date(proc.movimentacoes[0].dataHora);
-    }
-
-    const dataInicio = adicionarDiasUteis(dataDje, 1);
-    const dataTermoFatal = adicionarDiasUteis(dataInicio, diasUteisTotal - 1);
-    const diasRestantes = calcularDiasUteisRestantes(dataTermoFatal);
-
     return {
-      dataPublicacaoDje: dataDje.toLocaleDateString('pt-BR'),
-      dataInicioPrazo: dataInicio.toLocaleDateString('pt-BR'),
-      dataTermoFatal: dataTermoFatal.toLocaleDateString('pt-BR'),
-      diasUteisTotal,
-      diasUteisRestantes: diasRestantes,
-      precluso: diasRestantes <= 0,
-      baseLegal: diasUteisTotal === 5 ? 'Art. 1.023 do CPC/2015 (5 dias úteis)' : 'Art. 1.003, § 5º c/c Art. 219 CPC/2015 (15 dias úteis)',
-      tipoAto
+      dataHora: proc.movimentacoes[0].dataHora,
+      diasSugeridos: 15,
+      tipoAto: 'Manifestação sobre Último Andamento',
+      tituloMovimento: proc.movimentacoes[0].titulo
     };
   });
 
-  // 3. JURIMETRIA ANALÍTICA CALCULADA EM TEMPO REAL
+  // 2. CALCULADORA DINÂMICA DE TERMO FATAL (CPC/2015 + LEI 14.759/2023 + DJEN RES. CNJ 455/2022)
+  termoFatalCalculado = computed<TermoFatalCalculado | null>(() => {
+    const proc = this.processoAtual();
+    const marco = this.marcoPublicacaoDetectado();
+    if (!proc || !marco) return null;
+
+    const diasBase = this.prazoBaseCustomizado() ?? marco.diasSugeridos;
+    return calcularTermoFatalForense({
+      dataMarco: marco.dataHora,
+      diasPrazoBase: diasBase,
+      ehDisponibilizacaoDjen: this.ehDisponibilizacaoDjenAtivo(),
+      prazoEmDobro: this.prazoEmDobroAtivo(),
+      siglaTribunal: proc.tribunal || 'TJSP',
+      tipoAto:
+        diasBase === 5
+          ? 'Embargos de Declaração (5d)'
+          : diasBase === 10
+            ? 'Manifestação / Informações (10d)'
+            : marco.tipoAto
+    });
+  });
+
+  // Simulações comparativas reais (5d, 15d e 30d em dobro) para o mesmo marco processual
+  simulacoesPrazo = computed(() => {
+    const proc = this.processoAtual();
+    const marco = this.marcoPublicacaoDetectado();
+    if (!proc || !marco) return null;
+
+    const trib = proc.tribunal || 'TJSP';
+    const isDjen = this.ehDisponibilizacaoDjenAtivo();
+
+    return {
+      embargos5d: calcularTermoFatalForense({
+        dataMarco: marco.dataHora,
+        diasPrazoBase: 5,
+        ehDisponibilizacaoDjen: isDjen,
+        prazoEmDobro: false,
+        siglaTribunal: trib,
+        tipoAto: 'Embargos de Declaração'
+      }),
+      recurso15d: calcularTermoFatalForense({
+        dataMarco: marco.dataHora,
+        diasPrazoBase: 15,
+        ehDisponibilizacaoDjen: isDjen,
+        prazoEmDobro: false,
+        siglaTribunal: trib,
+        tipoAto: 'Recurso / Contrarrazões'
+      }),
+      dobro30d: calcularTermoFatalForense({
+        dataMarco: marco.dataHora,
+        diasPrazoBase: 15,
+        ehDisponibilizacaoDjen: isDjen,
+        prazoEmDobro: true,
+        siglaTribunal: trib,
+        tipoAto: 'Fazenda / Defensoria / MP (Dobro)'
+      })
+    };
+  });
+
+  selecionarPrazoBase(dias: number) {
+    this.prazoBaseCustomizado.set(dias);
+  }
+
+  alternarPrazoEmDobro() {
+    this.prazoEmDobroAtivo.set(!this.prazoEmDobroAtivo());
+  }
+
+  alternarModoDjen() {
+    this.ehDisponibilizacaoDjenAtivo.set(!this.ehDisponibilizacaoDjenAtivo());
+  }
+
+  // 3. JURIMETRIA EMPÍRICA DOS AUTOS (100% CALCULADA SOBRE OS MOVIMENTOS E DOCUMENTOS REAIS)
   jurimetriaDinamica = computed(() => {
     const proc = this.processoAtual();
     if (!proc) return null;
 
-    const totalMovs = proc.movimentacoes?.length || 0;
-    let dataInicial: Date | null = proc.dataDistribuicao ? new Date(proc.dataDistribuicao) : null;
+    const movs = proc.movimentacoes || [];
+    const docs = proc.documentosPublicos || [];
+    const totalMovs = movs.length;
+
+    const movsAsc = [...movs].sort(
+      (a, b) =>
+        extrairDataCivilSegura(a.dataHora).getTime() - extrairDataCivilSegura(b.dataHora).getTime()
+    );
+
+    const dataInicial: Date | null = proc.dataDistribuicao
+      ? extrairDataCivilSegura(proc.dataDistribuicao)
+      : movsAsc.length > 0
+        ? extrairDataCivilSegura(movsAsc[0].dataHora)
+        : null;
+
     let dataDecisao: Date | null = null;
+    let tituloDecisao: string | null = null;
     let dataLiminar: Date | null = null;
 
-    if (proc.movimentacoes && proc.movimentacoes.length > 0) {
-      const movsAsc = [...proc.movimentacoes].sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime());
-      if (!dataInicial && movsAsc.length > 0) {
-        dataInicial = new Date(movsAsc[0].dataHora);
+    // Contadores reais de classificação de atos nos autos
+    let qtdPublicacoes = 0;
+    let qtdDecisoes = 0;
+    let qtdPeticoesRecursos = 0;
+    let qtdCartorioOutros = 0;
+
+    for (const m of movsAsc) {
+      const tit = (m.titulo || '').toLowerCase();
+      const desc = (m.descricao || '').toLowerCase();
+      const d = extrairDataCivilSegura(m.dataHora);
+
+      if (
+        !dataLiminar &&
+        (tit.includes('outras decisões') ||
+          tit.includes('liminar') ||
+          tit.includes('tutela') ||
+          desc.includes('efeito suspensivo') ||
+          desc.includes('liminar'))
+      ) {
+        dataLiminar = d;
       }
 
-      for (const m of movsAsc) {
-        const tit = (m.titulo || '').toLowerCase();
-        const desc = (m.descricao || '').toLowerCase();
-        const d = new Date(m.dataHora);
+      if (
+        !dataDecisao &&
+        (tit.includes('julgamento') ||
+          tit.includes('acórdão') ||
+          tit.includes('sentença') ||
+          tit.includes('ausência das condições') ||
+          desc.includes('deram provimento') ||
+          desc.includes('sentença proferida'))
+      ) {
+        dataDecisao = d;
+        tituloDecisao = m.titulo;
+      }
 
-        if (!dataLiminar && (tit.includes('outras decisões') || tit.includes('liminar') || tit.includes('tutela') || desc.includes('efeito suspensivo') || desc.includes('liminar'))) {
-          dataLiminar = d;
-        }
+      if (
+        tit.includes('djen') ||
+        tit.includes('publicação') ||
+        tit.includes('expedição') ||
+        tit.includes('intimação') ||
+        tit.includes('vista') ||
+        desc.includes('disponibilizado')
+      ) {
+        qtdPublicacoes++;
+      } else if (
+        tit.includes('julgamento') ||
+        tit.includes('decis') ||
+        tit.includes('despacho') ||
+        tit.includes('sentença') ||
+        tit.includes('acórdão') ||
+        tit.includes('conclusão')
+      ) {
+        qtdDecisoes++;
+      } else if (
+        tit.includes('petição') ||
+        tit.includes('recurso') ||
+        tit.includes('agravo') ||
+        tit.includes('embargos') ||
+        tit.includes('pauta')
+      ) {
+        qtdPeticoesRecursos++;
+      } else {
+        qtdCartorioOutros++;
+      }
+    }
 
-        if (!dataDecisao && (tit.includes('julgamento') || tit.includes('acórdão') || tit.includes('sentença') || tit.includes('ausência das condições') || desc.includes('acórdão') || desc.includes('sentença'))) {
-          dataDecisao = d;
+    const diasAteDecisao =
+      dataInicial && dataDecisao
+        ? Math.max(
+            1,
+            Math.round((dataDecisao.getTime() - dataInicial.getTime()) / (1000 * 3600 * 24))
+          )
+        : null;
+
+    const diasAteLiminar =
+      dataInicial && dataLiminar
+        ? Math.max(
+            0,
+            Math.round((dataLiminar.getTime() - dataInicial.getTime()) / (1000 * 3600 * 24))
+          )
+        : null;
+
+    let ritmoMedioDias = 0;
+    let diasTramitacaoTotal = 0;
+    let maiorHiatoDias = 0;
+    let maiorHiatoPeriodo = 'Sem hiato relevante';
+
+    if (movsAsc.length > 1) {
+      const primeira = extrairDataCivilSegura(movsAsc[0].dataHora).getTime();
+      const ultima = extrairDataCivilSegura(movsAsc[movsAsc.length - 1].dataHora).getTime();
+      diasTramitacaoTotal = Math.max(1, Math.round((ultima - primeira) / (1000 * 3600 * 24)));
+      ritmoMedioDias = +(diasTramitacaoTotal / (movsAsc.length - 1)).toFixed(1);
+
+      for (let i = 1; i < movsAsc.length; i++) {
+        const dAnt = extrairDataCivilSegura(movsAsc[i - 1].dataHora);
+        const dAtu = extrairDataCivilSegura(movsAsc[i].dataHora);
+        const diff = Math.round((dAtu.getTime() - dAnt.getTime()) / (1000 * 3600 * 24));
+        if (diff > maiorHiatoDias) {
+          maiorHiatoDias = diff;
+          maiorHiatoPeriodo = `${formatarDataBr(dAnt)} a ${formatarDataBr(dAtu)}`;
         }
       }
     }
 
-    let diasAteDecisao = 0;
-    if (dataInicial && dataDecisao) {
-      diasAteDecisao = Math.max(1, Math.round((dataDecisao.getTime() - dataInicial.getTime()) / (1000 * 3600 * 24)));
-    } else {
-      diasAteDecisao = proc.tribunal === 'TJSP' ? 142 : 73;
-    }
-
-    let diasAteLiminar = 0;
-    if (dataInicial && dataLiminar) {
-      diasAteLiminar = Math.max(0, Math.round((dataLiminar.getTime() - dataInicial.getTime()) / (1000 * 3600 * 24)));
-    }
-
-    let ritmoMedioDias = 6.1;
-    if (proc.movimentacoes && proc.movimentacoes.length > 1) {
-      const movsAsc = [...proc.movimentacoes].sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime());
-      const primeira = new Date(movsAsc[0].dataHora).getTime();
-      const ultima = new Date(movsAsc[movsAsc.length - 1].dataHora).getTime();
-      const totalDias = Math.max(1, (ultima - primeira) / (1000 * 3600 * 24));
-      ritmoMedioDias = +(totalDias / proc.movimentacoes.length).toFixed(1);
-    }
-
-    const isTjsp = proc.tribunal === 'TJSP';
-
-    const taxaCeleridade = isTjsp
-      ? { percentual: '23% mais ágil', mediaTribunal: '185 dias (Média 2º Grau TJSP)' }
-      : { percentual: '38% mais célere', mediaTribunal: '118 dias (Média Varas Federais TRF3)' };
+    const divisor = Math.max(1, totalMovs);
+    const pPub = Math.round((qtdPublicacoes / divisor) * 100);
+    const pDec = Math.round((qtdDecisoes / divisor) * 100);
+    const pPet = Math.round((qtdPeticoesRecursos / divisor) * 100);
+    const pCart = Math.max(0, 100 - (pPub + pDec + pPet));
 
     return {
       totalMovimentacoes: totalMovs,
+      totalDocumentosDjen: docs.length,
+      diasTramitacaoTotal,
       diasAteDecisao,
+      tituloDecisao: tituloDecisao || 'Julgamento / Decisão',
       diasAteLiminar,
       ritmoMedioDias,
-      taxaCeleridade,
-      desfechoReal: isTjsp ? 'Provimento Parcial (Acórdão Unânime)' : 'Extinção sem Resolução do Mérito (Art. 485, IV CPC)',
-      tipoDecisao: isTjsp ? 'Acórdão Colegiado' : 'Sentença Terminativa',
-      amostra: isTjsp ? '1.240 Acórdãos analisados' : '890 Sentenças da Seção Judiciária Federal',
-      perfilJulgador: isTjsp
-        ? { tendencia: 'Garantista / Cautelar', foco: 'Privilegia audiência de justificação prévia (Art. 562 CPC)' }
-        : { tendencia: 'Rigor Formal / Rito Especial', foco: 'Exigência de Prova Pré-Constituída em MS' },
-      distribuicao: isTjsp ? [
-        { label: 'Improvimento', percent: 42, color: 'improvido' },
-        { label: 'Provimento Parcial (Caso Concreto)', percent: 34, color: 'parcial', highlight: true },
-        { label: 'Provimento Total', percent: 18, color: 'provido' },
-        { label: 'Não Conhecido', percent: 6, color: 'nao-conhecido' }
-      ] : [
-        { label: 'Extinção sem Mérito (Art. 485)', percent: 48, color: 'parcial', highlight: true },
-        { label: 'Denegação da Segurança', percent: 32, color: 'improvido' },
-        { label: 'Concessão da Segurança', percent: 15, color: 'provido' },
-        { label: 'Não Conhecido / Desistência', percent: 5, color: 'nao-conhecido' }
-      ]
+      maiorHiatoDias,
+      maiorHiatoPeriodo,
+      amostra: `Amostra Real: n = ${totalMovs} movimentações e ${docs.length} publicações DJEN nestes autos`,
+      distribuicao: [
+        {
+          label: `Publicações DJEN & Intimações (${qtdPublicacoes})`,
+          percent: pPub,
+          color: 'parcial',
+          highlight: pPub >= pDec
+        },
+        {
+          label: `Decisões, Conclusões & Julgamentos (${qtdDecisoes})`,
+          percent: pDec,
+          color: 'provido',
+          highlight: pDec > pPub
+        },
+        {
+          label: `Petições, Recursos & Pauta (${qtdPeticoesRecursos})`,
+          percent: pPet,
+          color: 'improvido',
+          highlight: false
+        },
+        {
+          label: `Atos Ordinatórios & Remessas (${qtdCartorioOutros})`,
+          percent: pCart,
+          color: 'nao-conhecido',
+          highlight: false
+        }
+      ].filter((item) => item.percent > 0)
     };
+  });
+
+  // Síntese dinâmica para o cliente (baseada nos dados reais do processo aberto)
+  resumoExecutivoCliente = computed(() => {
+    const proc = this.processoAtual();
+    if (!proc) return null;
+
+    const ultMov = proc.movimentacoes?.[0];
+    const ultDoc = proc.documentosPublicos?.[0];
+    const dataUltMov = ultMov ? formatarDataBr(extrairDataCivilSegura(ultMov.dataHora)) : 'recente';
+
+    const oQueDecidiu = ultDoc
+      ? `Publicação oficial registrada (${ultDoc.titulo}): "${ultDoc.ementa || ultDoc.conteudoTexto}".`
+      : ultMov
+        ? `Último andamento registrado em ${dataUltMov}: "${ultMov.titulo} — ${ultMov.descricao || ''}".`
+        : `Processo em acompanhamento perante o ${proc.tribunal}.`;
+
+    const impactoPratico = proc.status
+      ? `Status processual atual: ${proc.status} perante ${proc.orgaoJulgador || proc.tribunal}.`
+      : `Autos ativos na unidade ${proc.orgaoJulgador || proc.tribunal}.`;
+
+    const prazo = this.termoFatalCalculado();
+    const proximoPasso =
+      prazo && !prazo.precluso
+        ? `Acompanhamento de prazo em curso (${prazo.tipoAto}) com vencimento calculado para ${prazo.dataTermoFatal} (${prazo.diasUteisRestantes} dias úteis restantes).`
+        : `Monitoramento contínuo de novas disponibilizações no Diário de Justiça Eletrônico Nacional (DJEN/CNJ).`;
+
+    return { oQueDecidiu, impactoPratico, proximoPasso };
+  });
+
+  // Links oficiais de pesquisa de jurisprudência nos tribunais
+  urlPesquisaJurisprudenciaOficial = computed(() => {
+    const proc = this.processoAtual();
+    if (!proc) return 'https://scon.stj.jus.br/SCON/';
+    if (proc.tribunal === 'TJSP') return 'https://esaj.tjsp.jus.br/cjsg/consultaCompleta.do';
+    if (proc.tribunal === 'TRF3') return 'https://web.trf3.jus.br/base-textual';
+    return 'https://scon.stj.jus.br/SCON/';
   });
 
   // 4. WATCHLIST STATUS
   estaNaWatchlist = computed(() => {
     const proc = this.processoAtual();
     if (!proc) return false;
-    return this.watchlist().some(w => w.numeroCnjLimpo === proc.numeroCnjLimpo);
+    return this.watchlist().some((w) => w.numeroCnjLimpo === proc.numeroCnjLimpo);
   });
 
   // Atalhos Globais de Teclado
@@ -371,11 +566,9 @@ export class App implements OnInit {
     this.carregarHistorico();
     this.carregarWatchlist();
     this.executarSilentPing();
-    // Consulta inicial para exibir o processo ao usuário imediatamente
     this.buscarProcesso(false, true);
   }
 
-  // Silent Ping para acordar o container do Render em background
   executarSilentPing() {
     const inicio = performance.now();
     this.processoService.ping().subscribe({
@@ -396,10 +589,7 @@ export class App implements OnInit {
       if (salvo) {
         this.historicoConsultas.set(JSON.parse(salvo));
       } else {
-        this.historicoConsultas.set([
-          '2101760-84.2025.8.26.0000',
-          '5000001-05.2023.4.03.6100'
-        ]);
+        this.historicoConsultas.set(['2101760-84.2025.8.26.0000', '5000001-05.2023.4.03.6100']);
       }
     } catch {
       this.historicoConsultas.set(['2101760-84.2025.8.26.0000', '5000001-05.2023.4.03.6100']);
@@ -408,7 +598,7 @@ export class App implements OnInit {
 
   salvarNoHistorico(numero: string) {
     try {
-      const atual = this.historicoConsultas().filter(n => n !== numero);
+      const atual = this.historicoConsultas().filter((n) => n !== numero);
       const novo = [numero, ...atual].slice(0, 6);
       this.historicoConsultas.set(novo);
       localStorage.setItem('ferreira_legal_historico', JSON.stringify(novo));
@@ -438,7 +628,7 @@ export class App implements OnInit {
 
     const atual = this.watchlist();
     if (this.estaNaWatchlist()) {
-      const novo = atual.filter(w => w.numeroCnjLimpo !== proc.numeroCnjLimpo);
+      const novo = atual.filter((w) => w.numeroCnjLimpo !== proc.numeroCnjLimpo);
       this.salvarWatchlist(novo);
     } else {
       const item: ProcessoWatchlistItem = {
@@ -471,98 +661,78 @@ export class App implements OnInit {
     this.buscarProcesso();
   }
 
-  // Dossiê de Magistrados
+  // Ficha Institucional do Juízo / Magistrado + Notas Internas do Escritório
   abrirDossieMagistrado(nome: string) {
-    if (!nome) return;
+    const proc = this.processoAtual();
+    const nomeLimpo = (nome || proc?.relator || proc?.orgaoJulgador || 'Juízo Competente').trim();
+    this.carregarNotaEscritorio(nomeLimpo);
 
-    const norm = nome.toLowerCase();
-    if (norm.includes('preuss')) {
-      this.magistradoSelecionado.set({
-        id: 'mag-preuss',
-        nome: 'Pedro Paulo Maillet Preuss',
-        tituloFormatado: 'Des. Pedro Paulo Maillet Preuss',
-        cargo: 'Desembargador do Tribunal de Justiça',
-        tribunal: 'TJSP',
-        comarcaOuSecao: 'São Paulo / Tribunal de Justiça',
-        varaOuCamara: '24ª Câmara de Direito Privado',
-        emailGabinete: 'gabinete.des.preuss@tjsp.jus.br',
-        telefoneCartorio: '(11) 3295-5600',
-        balcaoVirtualUrl: 'https://tjsp.jus.br/balcaovirtual',
-        horarioAtendimento: 'Segunda a Sexta, das 13h às 18h (mediante agendamento no Balcão Virtual)',
-        perfilGeral: 'Garantista / Cautelar / Racionalidade Econômica',
-        tendenciaLiminares: 'Elevada cautela em medidas desocupatórias. Em reintegração de posse e tutela possessória, costuma suspender desocupação compulsória liminar para prévia justificação (Art. 562 CPC).',
-        tendenciaJusticaGratuita: 'Exige comprovação documental objetiva quando impugnada ou se houver indícios de capacidade patrimonial declarada.',
-        tendenciaHonorarios: 'Aplica estritamente as balizas do Art. 85, § 2º do CPC (10% a 20%), evitando arbitramento por equidade fora das hipóteses estritas do § 8º.',
-        dicasPeticionamento: [
-          'Memoriais recursais devem ser sucintos (máximo 4 a 5 laudas), destacando trechos da decisão agravada.',
-          'Sustentação oral presencial ou telepresencial é bem acolhida mediante inscrição tempestiva até 48h antes da sessão da 24ª Câmara.',
-          'Valoriza precedentes consolidados das Turmas de Direito Privado e súmulas do STJ.'
-        ],
-        precedenteMarcante: 'AI 2101760-84.2025.8.26.0000 (Provimento Parcial unânime para suspender desocupação até audiência de justificação prévia).'
-      });
-      this.magistradoModalAberto.set(true);
-      return;
-    }
-
-    if (norm.includes('alex') || norm.includes('freitas')) {
-      this.magistradoSelecionado.set({
-        id: 'mag-alex',
-        nome: 'Alex Freitas Lima',
-        tituloFormatado: 'Dr. Alex Freitas Lima',
-        cargo: 'Juiz de Direito Titular',
-        tribunal: 'TJSP',
-        comarcaOuSecao: 'Comarca de Guarulhos',
-        varaOuCamara: '1ª Vara Cível de Guarulhos',
-        emailGabinete: 'guarulhos1cv@tjsp.jus.br',
-        telefoneCartorio: '(11) 2463-5401',
-        balcaoVirtualUrl: 'https://tjsp.jus.br/balcaovirtual',
-        horarioAtendimento: 'Segunda a Sexta, das 13h às 17h via Balcão Virtual da 1ª Vara Cível',
-        perfilGeral: 'Pragmático / Gestão Ativa de Autos e Eficiência Forense',
-        tendenciaLiminares: 'Analisa detalhadamente a plausibilidade inicial do direito (fumus boni iuris). Em ações possessórias, exige demonstração cabal do início do esbulho.',
-        tendenciaJusticaGratuita: 'Determina juntada de IRPF e holerite/extrato bancário antes de apreciar pedido de gratuidade se houver contratação de patrono particular.',
-        tendenciaHonorarios: 'Segue parametrização padrão do tribunal.',
-        dicasPeticionamento: [
-          'Priorizar pedidos pontuais e capítulos de sentença bem destacados na petição inicial.',
-          'Para despacho urgente de tutela, entrar no Balcão Virtual da 1ª Vara Cível no início da tarde com o número dos autos.',
-          'Gabinete célere: despachos costumam ser proferidos em menos de 10 dias úteis.'
-        ],
-        precedenteMarcante: 'Autos de Origem nº 1006805-85.2025.8.26.0224 (1ª Vara Cível de Guarulhos).'
-      });
-      this.magistradoModalAberto.set(true);
-      return;
-    }
-
-    // Consulta API
-    this.processoService.obterMagistradoPorNome(nome).subscribe({
+    this.processoService.obterMagistradoPorNome(nomeLimpo).subscribe({
       next: (mag) => {
         this.magistradoSelecionado.set(mag);
         this.magistradoModalAberto.set(true);
       },
       error: () => {
+        // Sem perfilamento inventado: exibe apenas os dados institucionais objetivos do órgão/tribunal e abre espaço para notas do escritório
+        const trib = proc?.tribunal || 'TJSP';
+        const balcaoUrl =
+          trib === 'TRF3'
+            ? 'https://www.trf3.jus.br/balcao-virtual'
+            : trib === 'STJ'
+              ? 'https://www.stj.jus.br/sites/portalp/Processos/Balcao-Virtual'
+              : 'https://www.tjsp.jus.br/BalcaoVirtual';
+
         this.magistradoSelecionado.set({
-          id: 'mag-gen',
-          nome,
-          tituloFormatado: `Magistrado(a) ${nome}`,
-          cargo: 'Juiz(a) de Direito / Relator(a)',
-          tribunal: this.processoAtual()?.tribunal || 'TJSP',
-          comarcaOuSecao: this.processoAtual()?.comarca || 'Comarca do Tribunal',
-          varaOuCamara: this.processoAtual()?.orgaoJulgador || 'Órgão Colegiado Competente',
-          emailGabinete: 'atendimento.gabinete@tjsp.jus.br',
-          telefoneCartorio: '(11) 3295-5000',
-          balcaoVirtualUrl: 'https://tjsp.jus.br/balcaovirtual',
-          horarioAtendimento: 'Segunda a Sexta, das 13h às 18h via Balcão Virtual oficial',
-          perfilGeral: 'Legalista / Garantia do Devido Processo Legal',
-          tendenciaLiminares: 'Apreciação conforme preenchimento concomitante do periculum in mora e fumus boni iuris (Art. 300 CPC).',
-          tendenciaJusticaGratuita: 'Apreciação vinculada à declaração de hipossuficiência com documentação comprobatória.',
-          tendenciaHonorarios: 'Aplicação das balizas do Art. 85 do CPC.',
+          id: `unid-${nomeLimpo.toLowerCase().replace(/\s+/g, '-')}`,
+          nome: nomeLimpo,
+          tituloFormatado: nomeLimpo,
+          cargo: `Órgão Julgador / Relatoria (${trib})`,
+          tribunal: trib,
+          comarcaOuSecao: proc?.comarca || proc?.foro || `Jurisdição ${trib}`,
+          varaOuCamara: proc?.orgaoJulgador || 'Unidade Judicial Competente',
+          emailGabinete: 'Consultar Catálogo Oficial do Tribunal',
+          telefoneCartorio: 'Consultar Lista Telefônica Oficial do Tribunal',
+          balcaoVirtualUrl: balcaoUrl,
+          horarioAtendimento: 'Atendimento telepresencial conforme expediente forense oficial do Tribunal',
+          perfilGeral: 'Ficha Institucional da Unidade Judicial (Sem histórico estatístico pré-cadastrado)',
+          tendenciaLiminares:
+            'Sem amostragem estatística pré-calculada para este magistrado/órgão. Consulte as publicações do DJEN nestes autos ou registre abaixo as anotações do seu escritório.',
+          tendenciaJusticaGratuita: 'Observância do Art. 99 do CPC/2015.',
+          tendenciaHonorarios: 'Observância do Art. 85 do CPC/2015.',
           dicasPeticionamento: [
-            'Memoriais objetivos e fundamentados na jurisprudência predominante.',
-            'Uso do Balcão Virtual oficial do tribunal para despachos urgentes de tutela.'
-          ]
+            'Utilizar o link oficial do Balcão Virtual do Tribunal acima para atendimento direto com o cartório ou gabinete.',
+            'Registrar abaixo nas Notas Internas do Escritório os contatos verificados e observações práticas de audiências/despachos nesta unidade.'
+          ],
+          precedenteMarcante: proc?.documentosPublicos?.[0]?.ementa
         });
         this.magistradoModalAberto.set(true);
       }
     });
+  }
+
+  private obterChaveNotaMagistrado(nome: string): string {
+    return `ferreira_nota_juizo_${nome.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+  }
+
+  carregarNotaEscritorio(nome: string) {
+    try {
+      const chave = this.obterChaveNotaMagistrado(nome);
+      this.notaEscritorioTexto.set(localStorage.getItem(chave) || '');
+      this.notaSalvaFeedback.set(false);
+    } catch {
+      this.notaEscritorioTexto.set('');
+    }
+  }
+
+  salvarNotaEscritorio() {
+    const mag = this.magistradoSelecionado();
+    if (!mag) return;
+    try {
+      const chave = this.obterChaveNotaMagistrado(mag.nome);
+      localStorage.setItem(chave, this.notaEscritorioTexto());
+      this.notaSalvaFeedback.set(true);
+      setTimeout(() => this.notaSalvaFeedback.set(false), 2500);
+    } catch {}
   }
 
   fecharDossieMagistrado() {
@@ -570,7 +740,7 @@ export class App implements OnInit {
     this.magistradoSelecionado.set(null);
   }
 
-  // Crawler de Carteira por OAB
+  // Consulta Real de Carteira por OAB (DJEN/CNJ + e-SAJ, sem fallback hardcoded enganoso)
   buscarCarteiraOab(oab?: string) {
     const alvo = (oab || this.termoOabInput()).trim();
     if (!alvo) return;
@@ -582,54 +752,19 @@ export class App implements OnInit {
       next: (cart) => {
         this.buscandoOab.set(false);
         this.advogadoCarteira.set(cart);
-      },
-      error: () => {
-        this.buscandoOab.set(false);
-        // Fallback de contingência para a OAB canônica testada ao vivo
-        const norm = alvo.replace(/\D/g, '');
-        if (norm.startsWith('238470') || alvo.toUpperCase().includes('238470')) {
-          this.advogadoCarteira.set({
-            numeroOab: '238470SP',
-            nomeAdvogado: 'Dr. João Paulo Paiva Camacho',
-            tribunal: 'TJSP',
-            totalProcessos: 3,
-            dataConsulta: new Date().toISOString(),
-            processos: [
-              {
-                numeroCnjFormatado: '2101760-84.2025.8.26.0000',
-                numeroCnjLimpo: '21017608420258260000',
-                tribunal: 'TJSP',
-                grau: 2,
-                classe: 'Agravo de Instrumento (Esbulho / Posse)',
-                vara: '24ª Câmara de Direito Privado',
-                papel: 'Patrono dos Agravantes',
-                dataRecebimento: '07/04/2025'
-              },
-              {
-                numeroCnjFormatado: '1006805-85.2025.8.26.0224',
-                numeroCnjLimpo: '10068058520258260224',
-                tribunal: 'TJSP',
-                grau: 1,
-                classe: 'Reintegração / Manutenção de Posse',
-                vara: '1ª Vara Cível de Guarulhos',
-                papel: 'Patrono dos Autores',
-                dataRecebimento: '01/04/2025'
-              },
-              {
-                numeroCnjFormatado: '1130342-15.2026.8.26.0053',
-                numeroCnjLimpo: '11303421520268260053',
-                tribunal: 'TJSP',
-                grau: 1,
-                classe: 'Mandado de Segurança Cível (Suspensão da Exigibilidade)',
-                vara: '15ª Vara da Fazenda Pública - Capital',
-                papel: 'Impetrante',
-                dataRecebimento: '20/08/2026'
-              }
-            ]
-          });
-        } else {
-          this.erro.set(`Nenhum processo localizado para a OAB '${alvo}' no e-SAJ.`);
+        if (cart.processos.length === 0) {
+          this.erro.set(
+            cart.avisosOuErros?.join(' ') ||
+              `Nenhum processo público localizado para a OAB '${alvo}' nas bases DJEN/CNJ e e-SAJ.`
+          );
         }
+      },
+      error: (err) => {
+        this.buscandoOab.set(false);
+        const msg =
+          err?.error?.erro ||
+          `Não foi possível consultar a carteira para a OAB '${alvo}' no momento. Verifique a conexão com a API ou tente novamente em instantes.`;
+        this.erro.set(msg);
       }
     });
   }
@@ -724,18 +859,22 @@ export class App implements OnInit {
 
     return {
       valido,
-      motivoErro: valido ? undefined : `Dígito verificador inválido (${dd}). O algoritmo Módulo 97 do CNJ calculou que deveria ser ${dvEsperado.toString().padStart(2, '0')}.`,
+      motivoErro: valido
+        ? undefined
+        : `Dígito verificador inválido (${dd}). O algoritmo Módulo 97 do CNJ calculou que deveria ser ${dvEsperado.toString().padStart(2, '0')}.`,
       sequencial: nnnnnnn,
       dv: dd,
       ano: aaaa,
       ramoJustica: ramos[j] || `Ramo ${j}`,
       tribunal: tribunalNome,
-      origem: oooo === '0000' ? 'Tribunal (2ª Instância / Colegiado)' : `Unidade de Origem / Foro ${oooo}`,
+      origem:
+        oooo === '0000'
+          ? 'Tribunal (2ª Instância / Colegiado)'
+          : `Unidade de Origem / Foro ${oooo}`,
       formatado
     };
   }
 
-  // Radar de Consulta Forense (Animação de Carregamento por Etapas)
   iniciarRadar() {
     this.radarAtivo.set(true);
     this.radarEtapa.set(1);
@@ -749,10 +888,10 @@ export class App implements OnInit {
         this.radarEtapaTexto.set('2/4: Consultando cluster em nuvem .NET 9 & MongoDB...');
       } else if (etapa === 3) {
         this.radarEtapa.set(3);
-        this.radarEtapaTexto.set('3/4: Conectando à API Pública DataJud CNJ...');
+        this.radarEtapaTexto.set('3/4: Conectando às APIs Oficiais DataJud & DJEN/CNJ...');
       } else if (etapa === 4) {
         this.radarEtapa.set(4);
-        this.radarEtapaTexto.set('4/4: Varrendo e-SAJ para extração de acórdãos e peças...');
+        this.radarEtapaTexto.set('4/4: Extraindo publicações, ementas e partes dos autos...');
       }
     }, 900);
   }
@@ -765,7 +904,6 @@ export class App implements OnInit {
     this.radarAtivo.set(false);
   }
 
-  // Busca do Processo com Suporte a Fallback Resiliente
   buscarProcesso(forcar = false, silencioso = false) {
     const raw = this.numeroProcessoInput().trim();
     if (!raw) return;
@@ -778,6 +916,7 @@ export class App implements OnInit {
 
     this.carregando.set(true);
     this.erro.set(null);
+    this.prazoBaseCustomizado.set(null);
     if (!silencioso) {
       this.iniciarRadar();
     }
@@ -789,6 +928,20 @@ export class App implements OnInit {
         this.carregando.set(false);
         this.statusNuvem.set('online');
         this.salvarNoHistorico(processo.numeroCnjFormatado);
+
+        // Ativa prazo em dobro automaticamente se Fazenda Pública / União constar no polo
+        const temFazenda = (processo.envolvidos || []).some((e) => {
+          const n = `${e.nome} ${e.oab || ''}`.toLowerCase();
+          return (
+            n.includes('fazenda') ||
+            n.includes('união') ||
+            n.includes('receita federal') ||
+            n.includes('estado de') ||
+            n.includes('município') ||
+            n.includes('defensoria')
+          );
+        });
+        this.prazoEmDobroAtivo.set(temFazenda);
       },
       error: (err) => {
         this.pararRadar();
@@ -802,18 +955,22 @@ export class App implements OnInit {
         } else if (err.error?.mensagem) {
           this.erro.set(err.error.mensagem);
         } else if (limpo === '21017608420258260000' || limpo === '50000010520234036100') {
+          this.statusNuvem.set('offline');
           this.carregarSnapshotDemonstracao(limpo);
         } else {
-          this.erro.set('Não foi possível se comunicar com o backend na nuvem. A instância pode estar aquecendo no Render, tente novamente em alguns instantes.');
+          this.statusNuvem.set('offline');
+          this.erro.set(
+            'Não foi possível se comunicar com o backend na nuvem. A instância no Render pode estar iniciando (Cold Start). Tente novamente em alguns segundos.'
+          );
         }
       }
     });
   }
 
-  // Snapshot de Demonstração para Recrutadores (Zero Failure Guarantee com Dados 100% Reais dos Autos)
+  // Snapshot Offline fiel aos registros oficiais do DJEN/CNJ e DataJud (acionado apenas se o container Render estiver em cold start)
   carregarSnapshotDemonstracao(limpo = '21017608420258260000') {
     if (limpo === '50000010520234036100') {
-      const mockTrf3: Processo = {
+      const snapTrf3: Processo = {
         id: '8532880c-4e1f-4416-8550-49d3fe9930d4',
         numeroCnjFormatado: '5000001-05.2023.4.03.6100',
         numeroCnjLimpo: '50000010520234036100',
@@ -824,10 +981,10 @@ export class App implements OnInit {
         orgaoJulgador: '21ª VARA FEDERAL CÍVEL DE SÃO PAULO',
         comarca: 'Seção Judiciária de São Paulo (Federal)',
         foro: '21ª Vara Federal Cível de São Paulo (6100)',
-        relator: 'MM. Juiz Federal da 21ª Vara Cível Federal',
-        valorCausa: 1000.00,
+        relator: 'Juízo Federal da 21ª Vara Cível de SP',
+        valorCausa: 1000.0,
         segredoJustica: false,
-        dataDistribuicao: '2023-01-02T00:54:32Z',
+        dataDistribuicao: '2023-01-02T12:00:00Z',
         status: 'Baixado Definitivamente (Transitado em Julgado)',
         ultimaAtualizacao: new Date().toISOString(),
         envolvidos: [
@@ -848,48 +1005,82 @@ export class App implements OnInit {
           {
             id: 'doc-trf3-001',
             tipo: 'Sentença / Extinção sem Resolução do Mérito',
-            data: '2023-03-16T17:25:22Z',
-            titulo: 'Sentença Terminativa - Art. 485, IV do CPC',
+            data: '2023-03-16T12:00:00Z',
+            titulo: 'Sentença Terminativa — Art. 485, IV do CPC',
             situacao: 'Transitado em Julgado',
-            magistradoRelator: 'Juiz Federal da 21ª Vara Cível Federal',
-            ementa: 'MANDADO DE SEGURANÇA – AUSÊNCIA DE PROVA PRÉ-CONSTITUÍDA DE DIREITO LÍQUIDO E CERTO – NECESSIDADE DE DILAÇÃO PROBATÓRIA INCOMPATÍVEL COM O RITO DA LEI 12.016/2009 – EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO.',
-            conteudoTexto: 'Julgo extinto o processo sem julgamento do mérito com fundamento no art. 485, IV do CPC.',
-            certidaoPublicacao: 'Publicado no Diário Oficial Eletrônico da Justiça Federal em 20/03/2023. Baixa definitiva em 30/05/2023.',
+            magistradoRelator: 'Juízo Federal da 21ª Vara Cível de SP',
+            ementa:
+              'MANDADO DE SEGURANÇA – AUSÊNCIA DE PROVA PRÉ-CONSTITUÍDA DE DIREITO LÍQUIDO E CERTO – NECESSIDADE DE DILAÇÃO PROBATÓRIA INCOMPATÍVEL COM O RITO DA LEI 12.016/2009 – EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO.',
+            conteudoTexto:
+              'Julgo extinto o processo sem julgamento do mérito com fundamento no art. 485, IV do CPC.',
+            certidaoPublicacao:
+              'Disponibilizado no Diário da Justiça Eletrônico da 3ª Região em 17/03/2023. Baixa definitiva em 30/05/2023.',
             urlOrigem: 'https://pje1g.trf3.jus.br'
           }
         ],
         movimentacoes: [
-          { dataHora: '2023-05-30T16:53:59Z', titulo: 'Baixa Definitiva', descricao: 'Baixa Definitiva dos autos arquivados no TRF3', codigoNacional: 22 },
-          { dataHora: '2023-05-29T11:17:03Z', titulo: 'Trânsito em julgado', descricao: 'Certificado o Trânsito em Julgado da Sentença', codigoNacional: 848 },
-          { dataHora: '2023-03-20T07:00:00Z', titulo: 'Publicação', descricao: 'Publicado no Diário da Justiça Eletrônico do TRF3', codigoNacional: 92 },
-          { dataHora: '2023-03-16T17:25:22Z', titulo: 'Ausência das condições da ação', descricao: 'Sentença Extintiva Proferida (Art. 485, IV do CPC)', codigoNacional: 461 },
-          { dataHora: '2023-01-10T14:56:40Z', titulo: 'Requisição de Informações', descricao: 'Notificada a Autoridade Coatora para informações', codigoNacional: 11020 },
-          { dataHora: '2023-01-02T00:54:32Z', titulo: 'Distribuição', descricao: 'Distribuído por sorteio à 21ª Vara Federal Cível de SP', codigoNacional: 26 }
+          {
+            dataHora: '2023-05-30T16:53:59Z',
+            titulo: 'Baixa Definitiva',
+            descricao: 'Baixa Definitiva dos autos arquivados no TRF3',
+            codigoNacional: 22
+          },
+          {
+            dataHora: '2023-05-29T11:17:03Z',
+            titulo: 'Trânsito em julgado',
+            descricao: 'Certificado o Trânsito em Julgado da Sentença',
+            codigoNacional: 848
+          },
+          {
+            dataHora: '2023-03-17T12:00:00Z',
+            titulo: 'Disponibilização DJEN (TRF3)',
+            descricao: 'Disponibilizado no Diário da Justiça Eletrônico do TRF3',
+            codigoNacional: 92
+          },
+          {
+            dataHora: '2023-03-16T17:25:22Z',
+            titulo: 'Ausência das condições da ação',
+            descricao: 'Sentença Extintiva Proferida (Art. 485, IV do CPC)',
+            codigoNacional: 461
+          },
+          {
+            dataHora: '2023-01-10T14:56:40Z',
+            titulo: 'Requisição de Informações',
+            descricao: 'Notificada a Autoridade Coatora para informações em 10 dias',
+            codigoNacional: 11020
+          },
+          {
+            dataHora: '2023-01-02T12:00:00Z',
+            titulo: 'Distribuição',
+            descricao: 'Distribuído por sorteio à 21ª Vara Federal Cível de SP',
+            codigoNacional: 26
+          }
         ]
       };
-      this.processoAtual.set(mockTrf3);
+      this.processoAtual.set(snapTrf3);
+      this.prazoEmDobroAtivo.set(true);
       this.erro.set(null);
       return;
     }
 
-    const mockTjsp: Processo = {
+    const snapTjsp: Processo = {
       id: '1d5f1438-f818-4648-b0ef-ec39eaf6d8b5',
       numeroCnjFormatado: '2101760-84.2025.8.26.0000',
       numeroCnjLimpo: '21017608420258260000',
       tribunal: 'TJSP',
       grau: 2,
       classe: 'Agravo de Instrumento',
-      assunto: 'Esbulho / Turbação / Ameaça (Direito das Coisas / Posse)',
+      assunto: 'Esbulho / Turbação / Ameaça (Posse)',
       orgaoJulgador: '24ª CÂMARA DE DIREITO PRIVADO',
       comarca: 'Comarca de Guarulhos / Foro de Guarulhos / 1ª Vara Cível',
       foro: '1ª Vara Cível do Foro de Guarulhos (Proc. 1º Grau: 1006805-85.2025.8.26.0224 - Juiz: Alex Freitas Lima)',
       processoOrigem: '1006805-85.2025.8.26.0224',
       juizOrigem: 'Alex Freitas Lima',
-      relator: 'Des. Pedro Paulo Maillet Preuss',
-      valorCausa: 10000.00,
+      relator: 'PEDRO PAULO MAILLET PREUSS',
+      valorCausa: 10000.0,
       segredoJustica: false,
       dataDistribuicao: '2025-04-07T12:21:17Z',
-      status: 'Julgado com Acórdão Proferido',
+      status: 'Julgado no TJSP • Em Grau de Recurso no STJ (AREsp 3319477/SP)',
       ultimaAtualizacao: new Date().toISOString(),
       envolvidos: [
         {
@@ -925,41 +1116,173 @@ export class App implements OnInit {
       ],
       documentosPublicos: [
         {
-          id: '1a0ee27e-b348-4090-832a-d0d64bc2b12b',
-          tipo: 'Acórdão / Julgamento Colegiado',
-          data: '2025-08-27T00:00:00Z',
-          titulo: 'Acórdão de 2º Grau - Julgado',
-          situacao: 'Julgado',
+          id: 'djen-765092040',
+          tipo: 'DJEN (STJ) - ATA DE DISTRIBUIÇÃO',
+          data: '2026-10-23T12:00:00Z',
+          titulo: 'ATA DE DISTRIBUIÇÃO — AGRAVO EM RECURSO ESPECIAL (STJ)',
+          situacao: 'Publicado no DJEN/CNJ',
+          magistradoRelator: 'MINISTRO ANTONIO CARLOS FERREIRA',
+          ementa:
+            'AREsp 3319477/SP (2026/0275833-5) — RELATOR: MINISTRO ANTONIO CARLOS FERREIRA. Processo distribuído pelo sistema automático em 22/10/2026.',
+          conteudoTexto:
+            'AREsp 3319477/SP (2026/0275833-5) - RELATOR: MINISTRO ANTONIO CARLOS FERREIRA - AGRAVANTE: PASCHOAL THOMEU (Repr. por ROSELI THOMEU) - ADVOGADO: JOÃO PAULO PAIVA CAMACHO - SP238470. Processo distribuído pelo sistema automático em 22/10/2026.',
+          certidaoPublicacao:
+            'Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 765092040) em 23/10/2026 pela Coordenadoria de Classificação e Distribuição de Processos (STJ).',
+          urlOrigem:
+            'https://justica.web.stj.jus.br/api/pcp/documentos/pdf/dinamico/NDA3MTY0NzExMjAyNjAyNzU4MzM1MTc5MjY2ODY4MDk0NA=='
+        },
+        {
+          id: 'djen-421853952',
+          tipo: 'DJEN (TJSP) - Intimação de Acórdão (Embargos)',
+          data: '2025-10-02T12:00:00Z',
+          titulo: 'Intimação de Acórdão — EMBARGOS DE DECLARAÇÃO CÍVEL (TJSP)',
+          situacao: 'Rejeitaram os embargos. V. U.',
           magistradoRelator: 'PEDRO PAULO MAILLET PREUSS',
-          ementa: 'AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR DEFERIDA EM PRIMEIRO GRAU – ALEGAÇÃO DE ESBULHO E AUSÊNCIA DOS REQUISITOS DO ART. 561 DO CPC – DECISÃO REFORMADA EM PARTE PARA SUSPENDER A DESOCUPAÇÃO COMPULSÓRIA ATÉ AUDIÊNCIA DE JUSTIFICAÇÃO PRÉVIA – RECURSO PARCIALMENTE PROVIDO.',
-          conteudoTexto: 'Acordam os Desembargadores da 24ª Câmara de Direito Privado do Tribunal de Justiça de São Paulo, por votação unânime, dar provimento em parte ao recurso, nos termos do voto do Relator Des. Pedro Paulo Maillet Preuss. V. U.',
-          certidaoPublicacao: 'Sessão Colegiada de Julgamento realizada em 27/08/2025 pela 24ª Câmara de Direito Privado do TJSP. Registrado sob autenticação digital da Lei 11.419/2006.',
+          ementa:
+            'EMBARGOS DE DECLARAÇÃO. OMISSÃO, CONTRADIÇÃO E OBSCURIDADE. INOCORRÊNCIA. MERO INCONFORMISMO DA PARTE. AUSENTE QUALQUER VÍCIO NO DECISUM. INOCORRENTES AS HIPÓTESES DO ART. 1.022 DO CPC. RECURSO QUE, VIA DE REGRA, NÃO TEM CARÁTER INFRINGENTE. PREQUESTIONAMENTO. ART. 1.025, DO CPC. EMBARGOS REJEITADOS.',
+          conteudoTexto: 'Rejeitaram os embargos. V. U. Magistrado(a) Pedro Paulo Maillet Preuss.',
+          certidaoPublicacao:
+            'Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 421853952) em 02/10/2025 pela 24ª Câmara de Direito Privado do TJSP.',
+          urlOrigem: 'https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo=RI008POZI0000'
+        },
+        {
+          id: 'djen-370489236',
+          tipo: 'DJEN (TJSP) - Intimação de Acórdão',
+          data: '2025-09-04T12:00:00Z',
+          titulo: 'Intimação de Acórdão — AGRAVO DE INSTRUMENTO (TJSP)',
+          situacao: 'Deram provimento em parte ao recurso. V. U.',
+          magistradoRelator: 'PEDRO PAULO MAILLET PREUSS',
+          ementa:
+            'AGRAVO DE INSTRUMENTO. AÇÃO DE MANUTENÇÃO DE POSSE. DECISÃO QUE DETERMINOU A CORREÇÃO DO VALOR DA CAUSA PARA QUE CORRESPONDA AO BENEFÍCIO PATRIMONIAL VISADO. INSURGÊNCIA DO AUTOR. CABIMENTO EM PARTE. ART. 292 QUE NÃO ESTABELECE CRITÉRIOS PARA O VALOR DA CAUSA EM AÇÕES POSSESSÓRIAS. ENTENDIMENTO CONSUETUDINÁRIO E JURISPRUDENCIAL DE QUE O VALOR DA CAUSA, NAS AÇÕES POSSESSÓRIAS, DEVA SER DE 1/3 DO VALOR VENAL DO IMÓVEL. PRECEDENTES. DECISÃO REFORMADA. RECURSO PARCIALMENTE PROVIDO.',
+          conteudoTexto:
+            'Deram provimento em parte ao recurso. V. U. Magistrado(a) Pedro Paulo Maillet Preuss.',
+          certidaoPublicacao:
+            'Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 370489236) em 04/09/2025 pela Subseção IX - Intimações de Acórdãos (TJSP).',
           urlOrigem: 'https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo=RI008POZI0000'
         }
       ],
       movimentacoes: [
-        { dataHora: '2026-07-06T10:49:20Z', titulo: 'Remessa', descricao: 'Remetidos os autos ao Setor de Recursos aos Tribunais Superiores', codigoNacional: 123 },
-        { dataHora: '2026-06-23T12:23:58Z', titulo: 'Ato ordinatório', descricao: 'Certificada a regularidade formal da juntada de contrarrazões', codigoNacional: 11383 },
-        { dataHora: '2026-06-22T11:33:00Z', titulo: 'Expedição de documento', descricao: 'Expedida notificação eletrônica via portal aos patronos', codigoNacional: 60 },
-        { dataHora: '2026-06-22T11:23:55Z', titulo: 'Decurso de Prazo', descricao: 'Decorrido prazo legal sem oposição de embargos infringentes', codigoNacional: 1051 },
-        { dataHora: '2026-05-22T14:07:49Z', titulo: 'Petição', descricao: 'Juntada de Petição de Contrarrazões ao Recurso Especial', codigoNacional: 85 },
-        { dataHora: '2026-03-19T18:15:27Z', titulo: 'Recurso Especial', descricao: 'Interposição de Recurso Especial para o Superior Tribunal de Justiça (STJ)', codigoNacional: 433 },
-        { dataHora: '2025-09-30T10:34:23Z', titulo: 'Julgamento', descricao: 'Acórdão Registrado sob o nº 2025.0000789123', codigoNacional: 193 },
-        { dataHora: '2025-08-27T17:59:52Z', titulo: 'Julgamento', descricao: 'Sessão de Julgamento realizada: Deram provimento em parte ao recurso. V. U.', codigoNacional: 193 },
-        { dataHora: '2025-08-21T17:31:38Z', titulo: 'Pedido de inclusão em pauta virtual', descricao: 'Inclusão em pauta de julgamento virtual da 24ª Câmara', codigoNacional: 12313 },
-        { dataHora: '2025-07-24T17:16:27Z', titulo: 'Conclusão', descricao: 'Autos conclusos ao Relator Des. Pedro Paulo Maillet Preuss', codigoNacional: 51 },
-        { dataHora: '2025-04-10T00:00:00Z', titulo: 'Publicação', descricao: 'Disponibilizado no Diário da Justiça Eletrônico de São Paulo', codigoNacional: 92 },
-        { dataHora: '2025-04-07T14:06:55Z', titulo: 'Outras Decisões', descricao: 'Deferido efeito suspensivo ativo parcial para obstar desocupação compulsória imediata', codigoNacional: 12164 },
-        { dataHora: '2025-04-07T12:33:53Z', titulo: 'Conclusão', descricao: 'Autos conclusos para apreciação de tutela de urgência recursal liminar', codigoNacional: 51 },
-        { dataHora: '2025-04-07T12:21:17Z', titulo: 'Distribuição', descricao: 'Distribuído por sorteio à 24ª Câmara de Direito Privado', codigoNacional: 26 }
+        {
+          dataHora: '2026-10-23T12:00:00Z',
+          titulo: 'Disponibilização DJEN (STJ) - ATA DE DISTRIBUIÇÃO',
+          descricao:
+            'AREsp 3319477/SP (2026/0275833-5) — Distribuído ao Relator Ministro Antonio Carlos Ferreira (DJEN ID 765092040)',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2026-10-21T12:00:00Z',
+          titulo: 'Disponibilização DJEN (STJ) - DESPACHO / DECISÃO',
+          descricao:
+            'AREsp 3319477/SP — Despacho da Presidência do STJ (Min. Luis Felipe Salomão) determinando distribuição (DJEN ID 763473219)',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2026-07-06T10:49:20Z',
+          titulo: 'Remessa',
+          descricao: 'Remetidos os autos ao Setor de Recursos aos Tribunais Superiores',
+          codigoNacional: 123
+        },
+        {
+          dataHora: '2026-06-23T12:23:58Z',
+          titulo: 'Ato ordinatório',
+          descricao: 'Certificada a regularidade formal da juntada de contrarrazões',
+          codigoNacional: 11383
+        },
+        {
+          dataHora: '2026-06-22T11:33:00Z',
+          titulo: 'Expedição de documento',
+          descricao: 'Expedida notificação eletrônica via portal aos patronos',
+          codigoNacional: 60
+        },
+        {
+          dataHora: '2026-06-22T11:23:55Z',
+          titulo: 'Decurso de Prazo',
+          descricao: 'Decorrido prazo legal sem manifestação',
+          codigoNacional: 1051
+        },
+        {
+          dataHora: '2026-05-22T14:07:49Z',
+          titulo: 'Petição',
+          descricao: 'Juntada de Petição de Contrarrazões',
+          codigoNacional: 85
+        },
+        {
+          dataHora: '2026-05-19T12:00:00Z',
+          titulo: 'Disponibilização DJEN (TJSP) - VISTA',
+          descricao:
+            'Vista à(s) parte(s) recorrida(s) para apresentação de contrarrazões (DJEN ID 614121539)',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2026-03-19T18:15:27Z',
+          titulo: 'Recurso Especial',
+          descricao: 'Interposição de Recurso Especial (STJ)',
+          codigoNacional: 433
+        },
+        {
+          dataHora: '2025-10-02T12:00:00Z',
+          titulo: 'Disponibilização DJEN (TJSP) - Intimação de Acórdão',
+          descricao:
+            'Embargos de Declaração Cível rejeitados por votação unânime (DJEN ID 421853952)',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2025-09-04T12:00:00Z',
+          titulo: 'Disponibilização DJEN (TJSP) - Intimação de Acórdão',
+          descricao:
+            'Acórdão publicado: Deram provimento em parte ao recurso quanto ao valor da causa em possessória (DJEN ID 370489236)',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2025-08-27T17:59:52Z',
+          titulo: 'Julgamento',
+          descricao: 'Sessão de Julgamento realizada: Deram provimento em parte ao recurso. V. U.',
+          codigoNacional: 193
+        },
+        {
+          dataHora: '2025-08-21T17:31:38Z',
+          titulo: 'Pedido de inclusão em pauta virtual',
+          descricao: 'Inclusão em pauta de julgamento virtual da 24ª Câmara',
+          codigoNacional: 12313
+        },
+        {
+          dataHora: '2025-07-24T17:16:27Z',
+          titulo: 'Conclusão',
+          descricao: 'Autos conclusos ao Relator Des. Pedro Paulo Maillet Preuss',
+          codigoNacional: 51
+        },
+        {
+          dataHora: '2025-04-10T12:00:00Z',
+          titulo: 'Disponibilização DJEN (TJSP)',
+          descricao: 'Disponibilizado no Diário da Justiça Eletrônico de São Paulo',
+          codigoNacional: 92
+        },
+        {
+          dataHora: '2025-04-07T14:06:55Z',
+          titulo: 'Outras Decisões',
+          descricao: 'Apreciação inicial no Agravo de Instrumento',
+          codigoNacional: 12164
+        },
+        {
+          dataHora: '2025-04-07T12:33:53Z',
+          titulo: 'Conclusão',
+          descricao: 'Autos conclusos ao Relator',
+          codigoNacional: 51
+        },
+        {
+          dataHora: '2025-04-07T12:21:17Z',
+          titulo: 'Distribuição',
+          descricao: 'Distribuído por sorteio à 24ª Câmara de Direito Privado',
+          codigoNacional: 26
+        }
       ]
     };
 
-    this.processoAtual.set(mockTjsp);
+    this.processoAtual.set(snapTjsp);
+    this.prazoEmDobroAtivo.set(false);
     this.erro.set(null);
   }
 
-  // Visualizador Forense In-App
   abrirDocumento(doc: DocumentoProcessual) {
     this.documentoSelecionado.set(doc);
     this.visualizadorAberto.set(true);
@@ -970,7 +1293,6 @@ export class App implements OnInit {
     this.documentoSelecionado.set(null);
   }
 
-  // Impressões e Compartilhamento
   imprimirCapa() {
     window.print();
   }
@@ -991,56 +1313,39 @@ export class App implements OnInit {
     const doc = this.documentoSelecionado();
     if (!doc?.ementa) return;
     navigator.clipboard.writeText(doc.ementa);
-    alert('Ementa jurídica copiada para a área de transferência!');
   }
 
-  // INTELIGÊNCIA JURÍDICA: MENSAGEM EXECUTIVA PARA WHATSAPP DO CLIENTE (ADAPTATIVA E DINÂMICA)
   copiarRelatorioCliente() {
     const proc = this.processoAtual();
-    if (!proc) return;
+    const sintese = this.resumoExecutivoCliente();
+    if (!proc || !sintese) return;
     const jur = this.jurimetriaDinamica();
     const risco = this.alertaRiscoForense();
     const prazo = this.termoFatalCalculado();
 
-    let explicacaoDecisao = '';
-    let impactoPratico = '';
-    let proximoPasso = '';
-
-    if (proc.tribunal === 'TJSP') {
-      explicacaoDecisao = 'O Tribunal de Justiça de São Paulo (24ª Câmara) proferiu Acórdão acolhendo parcialmente nosso recurso, reformando a decisão de primeiro grau e mantendo a posse até a realização de audiência de justificação prévia.';
-      impactoPratico = 'A desocupação compulsória imediata foi obstada, garantindo total segurança possessória para o polo requerente.';
-      proximoPasso = 'Acompanhamento do retorno dos autos à 1ª Vara Cível da Comarca de Guarulhos e preparação do rol de testemunhas.';
-    } else {
-      explicacaoDecisao = `O juízo da ${proc.orgaoJulgador || 'Vara Federal'} proferiu sentença extintiva no Mandado de Segurança, com trânsito em julgado e baixa definitiva certificada no TRF3.`;
-      impactoPratico = 'Procedimento especial do Mandado de Segurança concluído na 1ª Instância Federal.';
-      proximoPasso = 'Avaliação de eventual ajuizamento de ação ordinária com ampla dilação probatória fiscal.';
-    }
-
     const texto = `*RESUMO FORENSE EXECUTIVO - LEXFERREIRA* ⚖️
-Olá! Segue a atualização do seu processo:
+Olá! Segue a atualização oficial do seu processo:
 
 📌 *Processo:* ${proc.numeroCnjFormatado}
-🏛️ *Tribunal:* ${proc.tribunal} (${proc.orgaoJulgador || 'Órgão Competente'})
+🏛️ *Tribunal / Órgão:* ${proc.tribunal} (${proc.orgaoJulgador || 'Órgão Competente'})
 ⚖️ *Classe:* ${proc.classe || 'Ação Judicial'}
 📊 *Situação Atual:* ${proc.status}
-⚡ *Histórico:* ${jur?.totalMovimentacoes || proc.movimentacoes.length} movimentações (ritmo médio de 1 ato a cada ${jur?.ritmoMedioDias || 6} dias)
+⚡ *Histórico Registrado:* ${jur?.totalMovimentacoes || proc.movimentacoes.length} movimentações e ${jur?.totalDocumentosDjen || 0} publicações DJEN
 
-🔍 *O que o Tribunal decidiu:*
-${explicacaoDecisao}
+🔍 *Último Pronunciamento / Andamento:*
+${sintese.oQueDecidiu}
 
-📌 *Impacto Prático:*
-${impactoPratico}
+📌 *Posição Processual:*
+${sintese.impactoPratico}
 
 🛡️ *Diagnóstico de Risco Forense:*
-${risco?.titulo || 'Processo regular'}
+${risco?.titulo || 'Tramitação regular'}
 
-⏱️ *Previsão de Prazo Fatal (CPC/2015):*
-${prazo ? `${prazo.tipoAto} até ${prazo.dataTermoFatal} (${prazo.diasUteisRestantes} dias úteis restantes)` : 'Nenhum prazo fatal pendente'}
+⏱️ *Cálculo de Prazo (CPC/2015 + DJEN):*
+${prazo ? `${prazo.tipoAto} — Vencimento em ${prazo.dataTermoFatal} (${prazo.diasUteisRestantes} dias úteis restantes)` : 'Nenhum prazo em aberto'}
 
-🎯 *Próximo Passo Estratégico:*
-${proximoPasso}
-
-_Relatório gerado automaticamente por LexFerreira LegalOps Intelligence._`;
+🎯 *Próximo Passo:*
+${sintese.proximoPasso}`;
 
     navigator.clipboard.writeText(texto);
     this.whatsappCopiado.set(true);

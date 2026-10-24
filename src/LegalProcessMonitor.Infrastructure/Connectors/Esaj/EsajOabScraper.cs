@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -13,176 +12,173 @@ namespace LegalProcessMonitor.Infrastructure.Connectors.Esaj;
 
 public class EsajOabScraper : IEsajOabScraper
 {
+    private readonly IDjenComunicacaoConnector _djenConnector;
     private readonly ILogger<EsajOabScraper> _logger;
 
-    public EsajOabScraper(ILogger<EsajOabScraper> logger)
+    public EsajOabScraper(IDjenComunicacaoConnector djenConnector, ILogger<EsajOabScraper> logger)
     {
+        _djenConnector = djenConnector;
         _logger = logger;
     }
 
     public async Task<AdvogadoCarteira> ConsultarProcessosPorOabAsync(string numeroOab, CancellationToken ct = default)
     {
-        // Normaliza OAB (remove pontos, barras, traços, espaços; garante maiúsculas)
         var oabLimpa = Regex.Replace(numeroOab ?? "", @"[^a-zA-Z0-9]", "").ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(oabLimpa))
-        {
-            return new AdvogadoCarteira { NumeroOab = numeroOab ?? string.Empty };
-        }
+        var numDigitos = Regex.Replace(oabLimpa, @"\D", "");
+        var uf = Regex.Replace(oabLimpa, @"[^A-Z]", "");
+        if (string.IsNullOrWhiteSpace(uf)) uf = "SP";
 
         var carteira = new AdvogadoCarteira
         {
-            NumeroOab = oabLimpa,
-            Tribunal = "TJSP"
+            NumeroOab = $"{numDigitos}{uf}",
+            Tribunal = uf == "SP" ? "DJEN/CNJ Nacional + TJSP (e-SAJ)" : $"DJEN/CNJ Nacional ({uf})"
         };
 
-        try
+        if (string.IsNullOrWhiteSpace(numDigitos))
         {
-            var cookieContainer = new CookieContainer();
-            using var handler = new HttpClientHandler
-            {
-                CookieContainer = cookieContainer,
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-
-            using var client = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(25)
-            };
-            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-            // 1. Consulta 1º Grau (cpopg)
-            await client.GetAsync("https://esaj.tjsp.jus.br/cpopg/open.do", ct);
-            var url1g = $"https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMOAB&dadosConsulta.valorConsulta={oabLimpa}&cdForo=-1";
-            var html1g = await client.GetStringAsync(url1g, ct);
-
-            // Parsing 1º Grau
-            var regexLi1g = @"(?s)<li[^>]*>\s*<div id=""divProcesso[^""]*""[^>]*>(.*?)</li>";
-            var matches1g = Regex.Matches(html1g, regexLi1g, RegexOptions.IgnoreCase);
-
-            foreach (Match m in matches1g)
-            {
-                var block = m.Groups[1].Value;
-                var matchCnj = Regex.Match(block, @"<a[^>]*class=""linkProcesso""[^>]*>\s*([0-9\.\-]+)\s*</a>", RegexOptions.IgnoreCase);
-                if (!matchCnj.Success) continue;
-
-                var cnjFormatado = matchCnj.Groups[1].Value.Trim();
-                var cnjLimpo = Regex.Replace(cnjFormatado, @"\D", "");
-
-                // Nome do advogado (captura do primeiro processo)
-                if (string.IsNullOrWhiteSpace(carteira.NomeAdvogado))
-                {
-                    var matchAdv = Regex.Match(block, @"class=""unj-base-alt nomeParte""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
-                    if (matchAdv.Success && !string.IsNullOrWhiteSpace(matchAdv.Groups[1].Value))
-                    {
-                        carteira.NomeAdvogado = matchAdv.Groups[1].Value.Trim();
-                    }
-                }
-
-                var matchClasse = Regex.Match(block, @"class=""classeProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
-                var matchAssunto = Regex.Match(block, @"class=""assuntoPrincipalProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
-                var matchDataVara = Regex.Match(block, @"class=""dataLocalDistribuicaoProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
-
-                var classe = matchClasse.Success ? matchClasse.Groups[1].Value.Trim() : "Processo Cível";
-                var assunto = matchAssunto.Success ? matchAssunto.Groups[1].Value.Trim() : "";
-                var dataVara = matchDataVara.Success ? matchDataVara.Groups[1].Value.Trim() : "";
-
-                carteira.Processos.Add(new ProcessoResumo
-                {
-                    NumeroCnjFormatado = cnjFormatado,
-                    NumeroCnjLimpo = cnjLimpo,
-                    Tribunal = "TJSP",
-                    Grau = 1,
-                    Classe = !string.IsNullOrWhiteSpace(assunto) ? $"{classe} ({assunto})" : classe,
-                    Vara = dataVara,
-                    Papel = "Advogado(a)",
-                    DataRecebimento = dataVara.Contains('-') ? dataVara.Split('-')[0].Trim() : "",
-                    UrlOrigem = $"https://esaj.tjsp.jus.br/cpopg/search.do?cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={cnjFormatado}"
-                });
-            }
-
-            // 2. Consulta 2º Grau (cposg)
-            await client.GetAsync("https://esaj.tjsp.jus.br/cposg/open.do", ct);
-            var url2g = $"https://esaj.tjsp.jus.br/cposg/search.do?conversationId=&paginaConsulta=0&cbPesquisa=NUMOAB&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado=&dePesquisa={oabLimpa}";
-            var html2g = await client.GetStringAsync(url2g, ct);
-
-            var matches2g = Regex.Matches(html2g, regexLi1g, RegexOptions.IgnoreCase);
-            foreach (Match m in matches2g)
-            {
-                var block = m.Groups[1].Value;
-                var matchCnj = Regex.Match(block, @"<a[^>]*class=""linkProcesso""[^>]*>\s*([0-9\.\-]+)\s*</a>", RegexOptions.IgnoreCase);
-                if (!matchCnj.Success) continue;
-
-                var cnjFormatado = matchCnj.Groups[1].Value.Trim();
-                var cnjLimpo = Regex.Replace(cnjFormatado, @"\D", "");
-
-                // Evita duplicidade se já listado
-                if (carteira.Processos.Exists(p => p.NumeroCnjLimpo == cnjLimpo)) continue;
-
-                var matchDataLocal = Regex.Match(block, @"class=""dataLocalDistribuicao""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
-                var dataLocal = matchDataLocal.Success ? matchDataLocal.Groups[1].Value.Trim() : "2º Grau / Colegiado";
-
-                carteira.Processos.Add(new ProcessoResumo
-                {
-                    NumeroCnjFormatado = cnjFormatado,
-                    NumeroCnjLimpo = cnjLimpo,
-                    Tribunal = "TJSP",
-                    Grau = 2,
-                    Classe = "Agravo de Instrumento / Recurso de 2º Grau",
-                    Vara = dataLocal,
-                    Papel = "Advogado(a) / Patrono",
-                    DataRecebimento = dataLocal.Contains('-') ? dataLocal.Split('-')[0].Trim() : "",
-                    UrlOrigem = $"https://esaj.tjsp.jus.br/cposg/search.do?cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={cnjFormatado}"
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao raspar carteira de processos para a OAB {Oab}", oabLimpa);
+            carteira.AvisosOuErros.Add("Número de inscrição OAB inválido.");
+            return carteira;
         }
 
-        // Se a consulta live não retornou nada por instabilidade do tribunal, 
-        // e a OAB for o caso canônico testado (238470SP), garante o snapshot autêntico real
-        if (carteira.Processos.Count == 0 && (oabLimpa == "238470SP" || oabLimpa == "238470"))
+        // 1. Consulta Oficial na API Nacional do DJEN / Comunica PJe (CNJ)
+        await _djenConnector.EnriquecerCarteiraPorOabAsync(carteira, numDigitos, uf, ct);
+
+        // 2. Se for OAB/SP, complementa com varredura direta no e-SAJ TJSP (1º e 2º Grau)
+        if (uf == "SP")
         {
-            carteira.NomeAdvogado = "Dr. João Paulo Paiva Camacho";
-            carteira.Processos.Add(new ProcessoResumo
+            try
             {
-                NumeroCnjFormatado = "2101760-84.2025.8.26.0000",
-                NumeroCnjLimpo = "21017608420258260000",
-                Tribunal = "TJSP",
-                Grau = 2,
-                Classe = "Agravo de Instrumento (Esbulho / Turbação / Ameaça)",
-                Vara = "24ª Câmara de Direito Privado",
-                Papel = "Patrono dos Agravantes (Espólio de Paschoal Thomeu)",
-                DataRecebimento = "07/04/2025",
-                UrlOrigem = "https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo=RI008POZI0000"
-            });
-            carteira.Processos.Add(new ProcessoResumo
+                var cookieContainer = new CookieContainer();
+                using var handler = new HttpClientHandler
+                {
+                    CookieContainer = cookieContainer,
+                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                };
+
+                using var client = new HttpClient(handler)
+                {
+                    Timeout = TimeSpan.FromSeconds(20)
+                };
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+
+                var parametroEsaj = $"{numDigitos}{uf}";
+
+                // 1º Grau (cpopg)
+                await client.GetAsync("https://esaj.tjsp.jus.br/cpopg/open.do", ct);
+                var url1g = $"https://esaj.tjsp.jus.br/cpopg/search.do?conversationId=&cbPesquisa=NUMOAB&dadosConsulta.valorConsulta={Uri.EscapeDataString(parametroEsaj)}&cdForo=-1";
+                var html1g = await client.GetStringAsync(url1g, ct);
+                ExtrairProcessos1Grau(html1g, carteira);
+                carteira.FontesConsultadas.Add("e-SAJ TJSP 1º Grau");
+
+                // 2º Grau (cposg)
+                await client.GetAsync("https://esaj.tjsp.jus.br/cposg/open.do", ct);
+                var url2g = $"https://esaj.tjsp.jus.br/cposg/search.do?conversationId=&paginaConsulta=0&cbPesquisa=NUMOAB&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado=&dePesquisa={Uri.EscapeDataString(parametroEsaj)}";
+                var html2g = await client.GetStringAsync(url2g, ct);
+                ExtrairProcessos2Grau(html2g, carteira);
+                carteira.FontesConsultadas.Add("e-SAJ TJSP 2º Grau");
+            }
+            catch (Exception ex)
             {
-                NumeroCnjFormatado = "1006805-85.2025.8.26.0224",
-                NumeroCnjLimpo = "10068058520258260224",
-                Tribunal = "TJSP",
-                Grau = 1,
-                Classe = "Reintegração / Manutenção de Posse",
-                Vara = "1ª Vara Cível de Guarulhos",
-                Papel = "Patrono dos Autores",
-                DataRecebimento = "01/04/2025",
-                UrlOrigem = "https://esaj.tjsp.jus.br/cpopg/show.do"
-            });
-            carteira.Processos.Add(new ProcessoResumo
-            {
-                NumeroCnjFormatado = "1130342-15.2026.8.26.0053",
-                NumeroCnjLimpo = "11303421520268260053",
-                Tribunal = "TJSP",
-                Grau = 1,
-                Classe = "Mandado de Segurança Cível (Suspensão da Exigibilidade)",
-                Vara = "15ª Vara da Fazenda Pública - Foro Central",
-                Papel = "Impetrante",
-                DataRecebimento = "20/08/2026",
-                UrlOrigem = "https://esaj.tjsp.jus.br/cpopg/show.do"
-            });
+                _logger.LogError(ex, "Erro ao consultar portal e-SAJ TJSP para a OAB {Oab}", carteira.NumeroOab);
+                carteira.AvisosOuErros.Add($"Portal e-SAJ TJSP indisponível ou bloqueou a consulta automatizada ({ex.GetType().Name}). Exibindo registros oficiais obtidos via DJEN/CNJ.");
+            }
         }
 
         return carteira;
+    }
+
+    public static void ExtrairProcessos1Grau(string html1g, AdvogadoCarteira carteira)
+    {
+        if (string.IsNullOrWhiteSpace(html1g)) return;
+
+        var regexLi = @"(?s)<li[^>]*>\s*<div id=""divProcesso[^""]*""[^>]*>(.*?)</li>";
+        var matches = Regex.Matches(html1g, regexLi, RegexOptions.IgnoreCase);
+
+        foreach (Match m in matches)
+        {
+            var block = m.Groups[1].Value;
+            var matchCnj = Regex.Match(block, @"<a[^>]*class=""linkProcesso""[^>]*>\s*([0-9\.\-]+)\s*</a>", RegexOptions.IgnoreCase);
+            if (!matchCnj.Success) continue;
+
+            var cnjFormatado = matchCnj.Groups[1].Value.Trim();
+            var cnjLimpo = Regex.Replace(cnjFormatado, @"\D", "");
+
+            if (string.IsNullOrWhiteSpace(carteira.NomeAdvogado))
+            {
+                var matchAdv = Regex.Match(block, @"class=""unj-base-alt nomeParte""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+                if (matchAdv.Success && !string.IsNullOrWhiteSpace(matchAdv.Groups[1].Value))
+                {
+                    carteira.NomeAdvogado = WebUtility.HtmlDecode(matchAdv.Groups[1].Value).Trim();
+                }
+            }
+
+            if (carteira.Processos.Exists(p => p.NumeroCnjLimpo == cnjLimpo))
+                continue;
+
+            var matchClasse = Regex.Match(block, @"class=""classeProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+            var matchAssunto = Regex.Match(block, @"class=""assuntoPrincipalProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+            var matchDataVara = Regex.Match(block, @"class=""dataLocalDistribuicaoProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+
+            var classe = matchClasse.Success ? WebUtility.HtmlDecode(matchClasse.Groups[1].Value).Trim() : "Processo Judicial";
+            var assunto = matchAssunto.Success ? WebUtility.HtmlDecode(matchAssunto.Groups[1].Value).Trim() : "";
+            var dataVara = matchDataVara.Success ? WebUtility.HtmlDecode(matchDataVara.Groups[1].Value).Trim() : "";
+
+            carteira.Processos.Add(new ProcessoResumo
+            {
+                NumeroCnjFormatado = cnjFormatado,
+                NumeroCnjLimpo = cnjLimpo,
+                Tribunal = "TJSP",
+                Grau = 1,
+                Classe = !string.IsNullOrWhiteSpace(assunto) ? $"{classe} ({assunto})" : classe,
+                Vara = dataVara,
+                Papel = "Advogado(a) habilitado(a)",
+                DataRecebimento = dataVara.Contains('-') ? dataVara.Split('-')[0].Trim() : "",
+                UrlOrigem = $"https://esaj.tjsp.jus.br/cpopg/search.do?cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={cnjFormatado}",
+                FonteDados = "e-SAJ TJSP 1º Grau"
+            });
+        }
+    }
+
+    public static void ExtrairProcessos2Grau(string html2g, AdvogadoCarteira carteira)
+    {
+        if (string.IsNullOrWhiteSpace(html2g)) return;
+
+        var regexLi = @"(?s)<li[^>]*>\s*<div id=""divProcesso[^""]*""[^>]*>(.*?)</li>";
+        var matches = Regex.Matches(html2g, regexLi, RegexOptions.IgnoreCase);
+
+        foreach (Match m in matches)
+        {
+            var block = m.Groups[1].Value;
+            var matchCnj = Regex.Match(block, @"<a[^>]*class=""linkProcesso""[^>]*>\s*([0-9\.\-]+)\s*</a>", RegexOptions.IgnoreCase);
+            if (!matchCnj.Success) continue;
+
+            var cnjFormatado = matchCnj.Groups[1].Value.Trim();
+            var cnjLimpo = Regex.Replace(cnjFormatado, @"\D", "");
+
+            if (carteira.Processos.Exists(p => p.NumeroCnjLimpo == cnjLimpo))
+                continue;
+
+            var matchClasse = Regex.Match(block, @"class=""classeProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+            var matchAssunto = Regex.Match(block, @"class=""assuntoPrincipalProcesso""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+            var matchDataLocal = Regex.Match(block, @"class=""dataLocalDistribuicao(?:Processo)?""[^>]*>\s*([^<]+)\s*</div>", RegexOptions.IgnoreCase);
+
+            var classe = matchClasse.Success ? WebUtility.HtmlDecode(matchClasse.Groups[1].Value).Trim() : "Recurso de 2º Grau";
+            var assunto = matchAssunto.Success ? WebUtility.HtmlDecode(matchAssunto.Groups[1].Value).Trim() : "";
+            var dataLocal = matchDataLocal.Success ? WebUtility.HtmlDecode(matchDataLocal.Groups[1].Value).Trim() : "2º Grau TJSP";
+
+            carteira.Processos.Add(new ProcessoResumo
+            {
+                NumeroCnjFormatado = cnjFormatado,
+                NumeroCnjLimpo = cnjLimpo,
+                Tribunal = "TJSP",
+                Grau = 2,
+                Classe = !string.IsNullOrWhiteSpace(assunto) ? $"{classe} ({assunto})" : classe,
+                Vara = dataLocal,
+                Papel = "Advogado(a) / Patrono recursal",
+                DataRecebimento = dataLocal.Contains('-') ? dataLocal.Split('-')[0].Trim() : "",
+                UrlOrigem = $"https://esaj.tjsp.jus.br/cposg/search.do?cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={cnjFormatado}",
+                FonteDados = "e-SAJ TJSP 2º Grau"
+            });
+        }
     }
 }

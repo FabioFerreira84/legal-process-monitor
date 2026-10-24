@@ -187,29 +187,34 @@ public class EsajDocumentScraper : ITribunalDocumentScraper
             foreach (Match m in matchesJulgamentos)
             {
                 var dataTexto = m.Groups[1].Value.Trim();
-                var situacao = m.Groups[2].Value.Trim();
-                var decisao = m.Groups[3].Value.Trim();
+                var situacao = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
+                var decisao = WebUtility.HtmlDecode(m.Groups[3].Value).Trim();
 
                 if (DateTime.TryParseExact(dataTexto, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dataJulg))
                 {
+                    var dataUtc = new DateTime(dataJulg.Year, dataJulg.Month, dataJulg.Day, 12, 0, 0, DateTimeKind.Utc);
                     docs.Add(new DocumentoProcessual
                     {
-                        Tipo = "Acórdão / Julgamento Colegiado",
-                        Data = dataJulg,
-                        Titulo = $"Julgamento de 2º Grau - {situacao}",
+                        Id = $"esaj-julg-{dataJulg:yyyyMMdd}",
+                        Tipo = "Acórdão / Julgamento Colegiado (e-SAJ)",
+                        Data = dataUtc,
+                        Titulo = $"Julgamento de 2º Grau — {situacao}",
                         Situacao = situacao,
                         ConteudoTexto = decisao,
-                        MagistradoRelator = !string.IsNullOrWhiteSpace(processo.Relator) ? processo.Relator : "PEDRO PAULO MAILLET PREUSS",
-                        Ementa = "AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR DEFERIDA EM PRIMEIRO GRAU – ALEGAÇÃO DE ESBULHO E AUSÊNCIA DOS REQUISITOS DO ART. 561 DO CPC – DECISÃO REFORMADA EM PARTE PARA SUSPENDER A DESOCUPAÇÃO COMPULSÓRIA ATÉ AUDIÊNCIA DE JUSTIFICAÇÃO PRÉVIA – RECURSO PARCIALMENTE PROVIDO.",
-                        CertidaoPublicacao = $"Sessão Colegiada de Julgamento realizada em {dataTexto}. Acórdão registrado sob conferência digital nos termos da Lei 11.419/2006.",
+                        MagistradoRelator = !string.IsNullOrWhiteSpace(processo.Relator) ? processo.Relator : null,
+                        Ementa = decisao,
+                        CertidaoPublicacao = $"Sessão de Julgamento registrada no portal e-SAJ TJSP em {dataTexto}.",
                         UrlOrigem = detailUrl
                     });
                 }
             }
 
-            if (docs.Count > 0)
+            foreach (var docItem in docs)
             {
-                processo.DocumentosPublicos = docs;
+                if (!processo.DocumentosPublicos.Exists(d => d.Id == docItem.Id))
+                {
+                    processo.DocumentosPublicos.Add(docItem);
+                }
             }
         }
         catch (Exception ex)

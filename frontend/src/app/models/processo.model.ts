@@ -82,6 +82,8 @@ export interface ProcessoResumo {
   papel?: string;
   dataRecebimento?: string;
   urlOrigem?: string;
+  fonteDados?: string;
+  ultimaComunicacaoResumo?: string;
 }
 
 export interface AdvogadoCarteira {
@@ -89,6 +91,9 @@ export interface AdvogadoCarteira {
   nomeAdvogado?: string;
   tribunal: string;
   totalProcessos: number;
+  totalComunicacoesDjen?: number;
+  fontesConsultadas?: string[];
+  avisosOuErros?: string[];
   dataConsulta: string;
   processos: ProcessoResumo[];
 }
@@ -103,14 +108,19 @@ export interface RiscoForense {
 }
 
 export interface TermoFatalCalculado {
+  dataDisponibilizacaoDjen: string;
   dataPublicacaoDje: string;
   dataInicioPrazo: string;
   dataTermoFatal: string;
+  diasPrazoBase: number;
+  prazoEmDobro: boolean;
+  ehDisponibilizacaoDjen: boolean;
   diasUteisTotal: number;
   diasUteisRestantes: number;
   precluso: boolean;
   baseLegal: string;
   tipoAto: string;
+  feriadosConsiderados: { data: string; descricao: string }[];
 }
 
 export interface ProcessoWatchlistItem {

@@ -74,15 +74,19 @@ public class DataJudConnector : ITribunalConnector
             }
         };
 
-        var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Content = jsonContent;
-        request.Headers.Authorization = new AuthenticationHeaderValue("APIKey", _settings.ApiKey);
+        var jsonString = JsonSerializer.Serialize(payload);
 
         _logger.LogInformation("Consultando processo {Numero} no tribunal {Sigla} via DataJud...", numeroProcesso.NumeroFormatado, siglaTribunal.ToUpper());
 
-        var response = await _retryPolicy.ExecuteAsync(async () => await _httpClient.SendAsync(request, ct));
+        using var response = await _retryPolicy.ExecuteAsync(async () =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(jsonString, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("APIKey", _settings.ApiKey);
+            return await _httpClient.SendAsync(request, ct);
+        });
 
         if (!response.IsSuccessStatusCode)
         {

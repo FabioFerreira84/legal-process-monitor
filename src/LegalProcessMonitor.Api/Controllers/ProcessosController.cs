@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using LegalProcessMonitor.Domain.Entities;
 using LegalProcessMonitor.Domain.Interfaces;
+using LegalProcessMonitor.Domain.Services;
 using LegalProcessMonitor.Domain.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,15 +17,18 @@ public class ProcessosController : ControllerBase
 {
     private readonly IEnumerable<ITribunalConnector> _connectors;
     private readonly IEnumerable<ITribunalDocumentScraper> _documentScrapers;
+    private readonly IDjenComunicacaoConnector _djenConnector;
     private readonly IProcessoRepository _repository;
 
     public ProcessosController(
         IEnumerable<ITribunalConnector> connectors,
         IEnumerable<ITribunalDocumentScraper> documentScrapers,
+        IDjenComunicacaoConnector djenConnector,
         IProcessoRepository repository)
     {
         _connectors = connectors;
         _documentScrapers = documentScrapers;
+        _djenConnector = djenConnector;
         _repository = repository;
     }
 
@@ -37,8 +42,33 @@ public class ProcessosController : ControllerBase
     }
 
     /// <summary>
+    /// Calcula o termo fatal de um prazo processual em dias úteis segundo o CPC/2015, Lei 14.759/2023 e Resolução CNJ 455/2022 (DJEN).
+    /// </summary>
+    [HttpGet("calcular-prazo")]
+    public ActionResult<CalculoPrazoForenseResult> CalcularPrazo(
+        [FromQuery] string dataMarco,
+        [FromQuery] int diasUteis = 15,
+        [FromQuery] bool ehDisponibilizacaoDjen = true,
+        [FromQuery] bool prazoEmDobro = false,
+        [FromQuery] string tribunal = "TJSP")
+    {
+        if (!DateOnly.TryParseExact(dataMarco, new[] { "yyyy-MM-dd", "dd/MM/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var data))
+        {
+            return BadRequest(new { erro = "Formato de data inválido. Utilize YYYY-MM-DD ou DD/MM/YYYY." });
+        }
+
+        if (diasUteis is < 1 or > 180)
+        {
+            return BadRequest(new { erro = "O prazo em dias úteis deve estar entre 1 e 180 dias." });
+        }
+
+        var resultado = CalculadoraPrazoForense.Calcular(data, diasUteis, ehDisponibilizacaoDjen, prazoEmDobro, tribunal);
+        return Ok(resultado);
+    }
+
+    /// <summary>
     /// Consulta um processo pelo número CNJ em formato com ou sem máscara.
-    /// Busca primeiro no cache/MongoDB e, caso solicitado ou ausente, sincroniza diretamente com o tribunal.
+    /// Busca primeiro no cache/MongoDB e, caso solicitado ou ausente, sincroniza com DataJud, DJEN/CNJ e tribunal de origem.
     /// </summary>
     [HttpGet("{numeroProcesso}")]
     public async Task<ActionResult<Processo>> ObterProcesso(
@@ -58,7 +88,6 @@ public class ProcessosController : ControllerBase
                 return Ok(existente);
         }
 
-        // Busca conector compatível
         var conector = ObterConectorParaTribunal(cnj);
         if (conector == null)
         {
@@ -67,55 +96,48 @@ public class ProcessosController : ControllerBase
 
         var processoAtualizado = await conector.ConsultarProcessoAsync(cnj, ct);
 
-        // Enriquece o processo com dados do crawler/scraper do tribunal (partes completas, valor da causa, origem, acórdãos)
+        // Enriquece com crawler do tribunal se aplicável (ex: e-SAJ TJSP)
         var scraper = ObterScraperParaTribunal(cnj);
         if (scraper != null)
         {
-            if (processoAtualizado == null)
-            {
-                processoAtualizado = Processo.Criar(cnj);
-            }
+            processoAtualizado ??= Processo.Criar(cnj);
             await scraper.EnriquecerProcessoAsync(processoAtualizado, cnj, ct);
         }
 
-        if (processoAtualizado == null || (processoAtualizado.Movimentacoes.Count == 0 && processoAtualizado.DocumentosPublicos.Count == 0))
+        // Enriquece sempre com publicações, ementas e partes da API Oficial do DJEN/CNJ (comunicaapi.pje.jus.br)
+        processoAtualizado ??= Processo.Criar(cnj);
+        await _djenConnector.EnriquecerProcessoAsync(processoAtualizado, cnj, ct);
+
+        if (processoAtualizado.Movimentacoes.Count == 0 && processoAtualizado.DocumentosPublicos.Count == 0)
         {
-            return NotFound(new { mensagem = $"Processo '{cnj.NumeroFormatado}' não foi localizado no tribunal '{cnj.SiglaTribunal}'." });
+            return NotFound(new { mensagem = $"Processo '{cnj.NumeroFormatado}' não foi localizado nos índices públicos (DataJud / DJEN / {cnj.SiglaTribunal})." });
         }
 
-        // Garante preenchimento fiel de metadados da Capa do Processo
-        if (string.IsNullOrWhiteSpace(processoAtualizado.Comarca))
-        {
-            processoAtualizado.Comarca = cnj.SiglaTribunal == "TJSP" ? "Comarca de São Paulo" : "Comarca Regional";
-        }
+        // Metadados objetivos derivados exclusivamente do código CNJ ou do órgão julgador real (sem inventar valores de causa)
         if (string.IsNullOrWhiteSpace(processoAtualizado.Foro))
         {
-            processoAtualizado.Foro = cnj.ForoOrigem == "0000" ? "Tribunal de Justiça (2ª Instância)" : $"Foro Regional {cnj.ForoOrigem}";
-        }
-        if (!processoAtualizado.ValorCausa.HasValue)
-        {
-            processoAtualizado.ValorCausa = cnj.SiglaTribunal == "TJSP" ? 10000.00m : 1000.00m;
+            processoAtualizado.Foro = cnj.ForoOrigem == "0000"
+                ? $"Originário de 2º Grau ({cnj.SiglaTribunal})"
+                : $"Unidade / Foro Código CNJ {cnj.ForoOrigem}";
         }
 
-        // Se o tribunal não retornou partes via API pública (restrição por LGPD Resolução CNJ 334/2020),
-        // identifica com rigor institucional ao invés de nomes fictícios
         if (processoAtualizado.Envolvidos == null || processoAtualizado.Envolvidos.Count == 0)
         {
             processoAtualizado.Envolvidos = new List<Envolvido>
             {
                 new Envolvido
                 {
-                    Nome = "Polo Ativo (Sob Sigilo do Tribunal / LGPD CNJ)",
+                    Nome = "Polo Ativo (Omitido na consulta pública - Resolução CNJ nº 334/2020 LGPD)",
                     TipoPolo = "Ativo",
-                    Papel = "Requerente",
-                    Oab = "Acesso restrito aos patronos habilitados"
+                    Papel = "Polo Ativo",
+                    Oab = "Acesso restrito aos autos ou sem publicação no DJEN"
                 },
                 new Envolvido
                 {
-                    Nome = "Polo Passivo (Sob Sigilo do Tribunal / LGPD CNJ)",
+                    Nome = "Polo Passivo (Omitido na consulta pública - Resolução CNJ nº 334/2020 LGPD)",
                     TipoPolo = "Passivo",
-                    Papel = "Requerido",
-                    Oab = "Acesso restrito aos patronos habilitados"
+                    Papel = "Polo Passivo",
+                    Oab = "Acesso restrito aos autos ou sem publicação no DJEN"
                 }
             };
         }
@@ -125,7 +147,7 @@ public class ProcessosController : ControllerBase
     }
 
     /// <summary>
-    /// Obtém exclusivamente os documentos e julgamentos públicos capturados do tribunal.
+    /// Obtém exclusivamente os documentos e julgamentos públicos capturados do DJEN e tribunal.
     /// </summary>
     [HttpGet("{numeroProcesso}/documentos")]
     public async Task<ActionResult<IReadOnlyList<DocumentoProcessual>>> ObterDocumentos(
@@ -143,20 +165,21 @@ public class ProcessosController : ControllerBase
             return Ok(processo.DocumentosPublicos);
         }
 
+        var procTemp = processo ?? Processo.Criar(cnj);
         var scraper = ObterScraperParaTribunal(cnj);
-        if (scraper == null)
+        if (scraper != null)
         {
-            return StatusCode(501, new { erro = $"Nenhum scraper de documentos disponível para o tribunal '{cnj.SiglaTribunal}'." });
+            await scraper.EnriquecerProcessoAsync(procTemp, cnj, ct);
         }
+        await _djenConnector.EnriquecerProcessoAsync(procTemp, cnj, ct);
 
-        var docs = await scraper.ObterDocumentosPublicosAsync(cnj, ct);
-        if (processo != null)
+        if (processo != null && procTemp.DocumentosPublicos.Count > 0)
         {
-            processo.DocumentosPublicos = new List<DocumentoProcessual>(docs);
+            processo.DocumentosPublicos = new List<DocumentoProcessual>(procTemp.DocumentosPublicos);
             await _repository.SalvarOuAtualizarAsync(processo, ct);
         }
 
-        return Ok(docs);
+        return Ok(procTemp.DocumentosPublicos);
     }
 
     /// <summary>
@@ -167,7 +190,8 @@ public class ProcessosController : ControllerBase
         [FromQuery] int limite = 20,
         CancellationToken ct = default)
     {
-        var processos = await _repository.ListarRecentesAsync(limite, ct);
+        var limiteSeguro = Math.Clamp(limite, 1, 100);
+        var processos = await _repository.ListarRecentesAsync(limiteSeguro, ct);
         return Ok(processos);
     }
 

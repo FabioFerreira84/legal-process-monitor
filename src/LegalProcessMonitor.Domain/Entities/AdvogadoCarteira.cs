@@ -15,14 +15,19 @@ public class ProcessoResumo
     public string? Papel { get; set; }
     public string? DataRecebimento { get; set; }
     public string? UrlOrigem { get; set; }
+    public string? FonteDados { get; set; }
+    public string? UltimaComunicacaoResumo { get; set; }
 }
 
 public class AdvogadoCarteira
 {
     public string NumeroOab { get; set; } = string.Empty;
     public string? NomeAdvogado { get; set; }
-    public string Tribunal { get; set; } = "TJSP";
+    public string Tribunal { get; set; } = "DJEN/CNJ + TJSP";
     public int TotalProcessos => Processos.Count;
+    public int TotalComunicacoesDjen { get; set; }
     public DateTime DataConsulta { get; set; } = DateTime.UtcNow;
+    public List<string> FontesConsultadas { get; set; } = new();
+    public List<string> AvisosOuErros { get; set; } = new();
     public List<ProcessoResumo> Processos { get; set; } = new();
 }

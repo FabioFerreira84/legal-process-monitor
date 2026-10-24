@@ -192,7 +192,7 @@
           <span class="preset-label">OAB Auditada no e-SAJ:</span>
           <button class="preset-tag oab" (click)="buscarCarteiraOab('238470SP')" type="button">
             <span class="tag-code">OAB/SP 238.470</span>
-            <span>Dr. João Paulo Paiva Camacho (21 Processos no TJSP 1G/2G)</span>
+            <span>Dr. João Paulo Paiva Camacho (Consulta Real DJEN/CNJ + TJSP)</span>
           </button>
         </div>
 
@@ -203,25 +203,41 @@
               <div class="portfolio-lawyer-info">
                 <div class="portfolio-avatar">⚖️</div>
                 <div>
-                  <h4 class="lawyer-name">{{ cart.nomeAdvogado || 'Patrono com Inscrição Regular' }}</h4>
-                  <span class="lawyer-meta">Inscrição OAB: <strong>{{ cart.numeroOab }}</strong> • Tribunal: <strong>{{ cart.tribunal }}</strong></span>
+                  <h4 class="lawyer-name">{{ cart.nomeAdvogado || 'Advogado(a) Identificado(a) na Base Pública' }}</h4>
+                  <span class="lawyer-meta">
+                    Inscrição OAB: <strong>{{ cart.numeroOab }}</strong> • Fontes: <strong>{{ cart.fontesConsultadas?.join(' + ') || cart.tribunal }}</strong>
+                    @if (cart.totalComunicacoesDjen) {
+                      • <strong>{{ cart.totalComunicacoesDjen }} comunicações oficiais no DJEN/CNJ</strong>
+                    }
+                  </span>
                 </div>
               </div>
               <div class="portfolio-counter-badge">
                 <strong class="count-num">{{ cart.totalProcessos }}</strong>
-                <span>Processos Ativos Encontrados</span>
+                <span>Processos Únicos Localizados</span>
               </div>
             </div>
+
+            @if (cart.avisosOuErros && cart.avisosOuErros.length > 0) {
+              <div style="margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fcd34d; font-size: 0.85rem;">
+                ⚠️ {{ cart.avisosOuErros.join(' | ') }}
+              </div>
+            }
 
             <div class="portfolio-cases-grid">
               @for (item of cart.processos; track item.numeroCnjLimpo) {
                 <div class="portfolio-case-card">
                   <div class="case-card-header">
-                    <span class="case-grau-pill" [class.grau2]="item.grau === 2">{{ item.grau === 2 ? '2º Grau (Colegiado)' : '1ª Instância' }}</span>
-                    <span class="case-vara-text">{{ item.vara || 'Vara Cível' }}</span>
+                    <span class="case-grau-pill" [class.grau2]="item.grau >= 2">
+                      {{ item.tribunal }} • {{ item.grau === 3 ? 'Tribunal Superior' : (item.grau === 2 ? '2º Grau' : '1ª Instância') }}
+                    </span>
+                    <span class="case-vara-text">{{ item.fonteDados || item.vara || 'Índice Público' }}</span>
                   </div>
                   <strong class="case-cnj-title">{{ item.numeroCnjFormatado }}</strong>
                   <p class="case-classe-desc">{{ item.classe }}</p>
+                  @if (item.vara) {
+                    <p style="font-size: 0.78rem; color: #94a3b8; margin: 4px 0 10px;">📍 {{ item.vara }}</p>
+                  }
                   <button class="btn-audit-case" (click)="abrirProcessoDaCarteira(item)">
                     Auditar este Processo →
                   </button>
@@ -474,36 +490,34 @@
               <div class="capa-grid-details">
                 <div class="capa-cell">
                   <label>Comarca / Seção Judiciária</label>
-                  <div class="val">{{ proc.comarca || (proc.tribunal === 'TJSP' ? 'Comarca de Guarulhos / Foro de Guarulhos / 1ª Vara Cível' : 'Seção Judiciária de São Paulo (Federal)') }}</div>
+                  <div class="val">{{ proc.comarca || proc.orgaoJulgador || 'Jurisdição ' + proc.tribunal }}</div>
                 </div>
                 <div class="capa-cell">
                   <label>Instância de Origem / Foro</label>
-                  <div class="val">{{ proc.foro || (proc.tribunal === 'TJSP' ? '1ª Vara Cível do Foro de Guarulhos' : '21ª Vara Federal Cível de SP') }}</div>
+                  <div class="val">{{ proc.foro || proc.orgaoJulgador || 'Unidade Judicial Competente' }}</div>
                 </div>
                 <div class="capa-cell">
                   <label>Processo de Origem (1º Grau)</label>
                   <div class="val">
-                    <span>{{ proc.processoOrigem ? proc.processoOrigem + (proc.juizOrigem ? ' • Juiz: ' + proc.juizOrigem : '') : (proc.tribunal === 'TJSP' ? '1006805-85.2025.8.26.0224 • Juiz: Alex Freitas Lima' : 'Autos Originários do Mandado de Segurança') }}</span>
-                    @if (proc.juizOrigem || proc.tribunal === 'TJSP') {
-                      <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.juizOrigem || 'Alex Freitas Lima')" type="button">
-                        👤 Dossiê do Juiz de 1º Grau
+                    <span>{{ proc.processoOrigem ? proc.processoOrigem + (proc.juizOrigem ? ' • Juiz: ' + proc.juizOrigem : '') : (proc.grau === 1 ? 'Autos de 1ª Instância (Originário)' : 'Não vinculado no índice público') }}</span>
+                    @if (proc.juizOrigem) {
+                      <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.juizOrigem)" type="button">
+                        🏛️ Ficha do Juízo de 1º Grau
                       </button>
                     }
                   </div>
                 </div>
                 <div class="capa-cell">
-                  <label>Data e Hora da Distribuição</label>
-                  <div class="val">{{ (proc.dataDistribuicao | date:'dd/MM/yyyy às HH:mm:ss') || '07/04/2025 às 12:21:17' }}</div>
+                  <label>Data da Distribuição / Autuação</label>
+                  <div class="val">{{ proc.dataDistribuicao ? (proc.dataDistribuicao | date:'dd/MM/yyyy') : 'Ver histórico de movimentações' }}</div>
                 </div>
                 <div class="capa-cell">
-                  <label>Relator / Magistrado Sorteado</label>
+                  <label>Relatoria / Juízo Sorteado</label>
                   <div class="val highlight-bold">
-                    <span>{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</span>
-                    @if (proc.relator || proc.tribunal === 'TJSP') {
-                      <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
-                        👤 Dossiê & Balcão Virtual
-                      </button>
-                    }
+                    <span>{{ proc.relator || proc.orgaoJulgador || 'Juízo Natural Competente' }}</span>
+                    <button class="btn-dossie-mini" (click)="abrirDossieMagistrado(proc.relator || proc.orgaoJulgador || '')" type="button">
+                      🏛️ Ficha do Juízo & Balcão Virtual
+                    </button>
                   </div>
                 </div>
                 <div class="capa-cell">
@@ -515,31 +529,37 @@
 
             <!-- BLOCO 2: QUALIFICAÇÃO DA CAUSA E CUSTAS -->
             <div class="capa-sub-section">
-              <h5 class="sub-section-title">2. Objeto da Causa, Procedimento & Custas Processuais</h5>
+              <h5 class="sub-section-title">2. Objeto da Causa, Procedimento & Valor</h5>
               <div class="capa-grid-details">
                 <div class="capa-cell">
                   <label>Classe Processual (Tabelas CNJ)</label>
-                  <div class="val highlight-bold">{{ proc.classe || 'Agravo de Instrumento' }}</div>
+                  <div class="val highlight-bold">{{ proc.classe || 'Processo Judicial' }}</div>
                 </div>
                 <div class="capa-cell">
-                  <label>Ramo / Procedimento</label>
-                  <div class="val">{{ proc.tribunal === 'TJSP' ? 'Rito Ordinário Recursal Colegiado' : 'Procedimento Especial da Lei 12.016/2009' }}</div>
+                  <label>Instância / Grau de Jurisdição</label>
+                  <div class="val">{{ proc.grau === 2 ? '2º Grau (Competência Recursal / Originária)' : '1º Grau de Jurisdição' }}</div>
                 </div>
                 <div class="capa-cell">
                   <label>Assunto Principal (TPU CNJ)</label>
-                  <div class="val">{{ proc.assunto || 'Esbulho / Turbação / Ameaça (Direito das Coisas)' }}</div>
+                  <div class="val">{{ proc.assunto || 'Não especificado na consulta pública' }}</div>
                 </div>
                 <div class="capa-cell">
                   <label>Valor da Causa (Atribuído)</label>
-                  <div class="val highlight-gold">{{ (proc.valorCausa || (proc.tribunal === 'TJSP' ? 10000 : 1000)) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</div>
+                  <div class="val highlight-gold">
+                    @if (proc.valorCausa !== null && proc.valorCausa !== undefined) {
+                      {{ proc.valorCausa | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+                    } @else {
+                      <span style="color: #94a3b8; font-weight: 500;">Não informado pela fonte pública</span>
+                    }
+                  </div>
                 </div>
                 <div class="capa-cell">
-                  <label>Preparo Recursal / Custas</label>
-                  <div class="val">{{ proc.tribunal === 'TJSP' ? 'Recolhido via Guia DARE-SP (Cód. 230-6)' : 'Custas Federais Recolhidas via GRU' }}</div>
+                  <label>Publicações Oficiais DJEN/CNJ</label>
+                  <div class="val">{{ (proc.documentosPublicos?.length || 0) }} comunicação(ões) vinculada(s)</div>
                 </div>
                 <div class="capa-cell">
-                  <label>Gratuidade de Justiça</label>
-                  <div class="val">Preparo comprovado / Sem JG</div>
+                  <label>Total de Movimentações</label>
+                  <div class="val">{{ proc.movimentacoes.length }} andamento(s) registrado(s)</div>
                 </div>
               </div>
             </div>
@@ -594,136 +614,178 @@
         @if (abaAtiva() === 'inteligencia') {
           <div class="inteligencia-tab-content animate-fade-in">
             
-            <!-- CALCULADORA FORENSE DINÂMICA DE TERMO FATAL (CPC/2015) -->
+            <!-- CALCULADORA FORENSE DINÂMICA DE TERMO FATAL (CPC/2015 + LEI 14.759/2023 + DJEN) -->
             <div class="legal-card-ai">
               <div class="card-ai-header">
                 <div class="ai-badge-title">
                   <span class="icon">⏱️</span>
                   <div>
-                    <h4>Calculadora Forense de Termo Fatal • Art. 219 e 220 CPC/2015</h4>
-                    <span class="subtitle">Contagem dinâmica de dias úteis com base na última publicação no DJE dos autos</span>
+                    <h4>Calculadora Forense de Termo Fatal • CPC/2015, Lei 14.759/2023 e Res. CNJ 455/2022</h4>
+                    <span class="subtitle">Contagem determinística em dias úteis (feriados nacionais, móveis, estaduais, 20/nov e recesso de 20/dez a 20/jan)</span>
                   </div>
                 </div>
                 @if (termoFatalCalculado(); as prazo) {
                   <span class="prazos-status-tag" [class.urgent]="prazo.diasUteisRestantes <= 3 && !prazo.precluso" [class.danger]="prazo.precluso">
-                    {{ prazo.precluso ? 'Precluso / Concluído' : prazo.diasUteisRestantes + ' dias úteis restantes' }}
+                    {{ prazo.precluso ? 'Prazo Expirado / Concluído' : prazo.diasUteisRestantes + ' dias úteis restantes' }}
                   </span>
                 }
               </div>
 
-              <!-- BANNER DE DATAS DA CALCULADORA -->
+              <!-- CONTROLES INTERATIVOS DE SIMULAÇÃO DE PRAZO -->
               @if (termoFatalCalculado(); as prazo) {
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center;">
+                  <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600; margin-right: 4px;">Simular Prazo:</span>
+                  <button type="button" (click)="selecionarPrazoBase(5)"
+                    [style.background]="prazo.diasPrazoBase === 5 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.04)'"
+                    [style.borderColor]="prazo.diasPrazoBase === 5 ? '#3b82f6' : 'rgba(255,255,255,0.12)'"
+                    style="padding: 5px 11px; border-radius: 6px; border: 1px solid; color: #e2e8f0; font-size: 0.78rem; cursor: pointer;">
+                    5 dias úteis (Embargos)
+                  </button>
+                  <button type="button" (click)="selecionarPrazoBase(10)"
+                    [style.background]="prazo.diasPrazoBase === 10 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.04)'"
+                    [style.borderColor]="prazo.diasPrazoBase === 10 ? '#3b82f6' : 'rgba(255,255,255,0.12)'"
+                    style="padding: 5px 11px; border-radius: 6px; border: 1px solid; color: #e2e8f0; font-size: 0.78rem; cursor: pointer;">
+                    10 dias úteis (Informações/MS)
+                  </button>
+                  <button type="button" (click)="selecionarPrazoBase(15)"
+                    [style.background]="prazo.diasPrazoBase === 15 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.04)'"
+                    [style.borderColor]="prazo.diasPrazoBase === 15 ? '#3b82f6' : 'rgba(255,255,255,0.12)'"
+                    style="padding: 5px 11px; border-radius: 6px; border: 1px solid; color: #e2e8f0; font-size: 0.78rem; cursor: pointer;">
+                    15 dias úteis (Recurso/Geral)
+                  </button>
+
+                  <button type="button" (click)="alternarModoDjen()"
+                    [style.background]="ehDisponibilizacaoDjenAtivo() ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.04)'"
+                    [style.borderColor]="ehDisponibilizacaoDjenAtivo() ? '#10b981' : 'rgba(255,255,255,0.12)'"
+                    style="padding: 5px 11px; border-radius: 6px; border: 1px solid; color: #e2e8f0; font-size: 0.78rem; cursor: pointer;">
+                    {{ ehDisponibilizacaoDjenAtivo() ? '✓ Sistemática DJEN (Disp. → Pub. D+1 → Início D+2)' : 'Intimação Direta (Início D+1)' }}
+                  </button>
+
+                  <button type="button" (click)="alternarPrazoEmDobro()"
+                    [style.background]="prazoEmDobroAtivo() ? 'rgba(245, 158, 11, 0.22)' : 'rgba(255,255,255,0.04)'"
+                    [style.borderColor]="prazoEmDobroAtivo() ? '#f59e0b' : 'rgba(255,255,255,0.12)'"
+                    style="padding: 5px 11px; border-radius: 6px; border: 1px solid; color: #e2e8f0; font-size: 0.78rem; cursor: pointer;">
+                    {{ prazoEmDobroAtivo() ? '✓ Prazo em Dobro Ativo (Art. 183/186 CPC)' : 'Prazo Simples (Ativar Dobro Art. 183/186)' }}
+                  </button>
+                </div>
+
                 <div class="prazos-calc-dossier">
                   <div class="prazos-calc-col">
-                    <span class="calc-lbl">Disponibilização DJE:</span>
+                    <span class="calc-lbl">1. Disponibilização DJEN:</span>
+                    <strong class="calc-val">{{ prazo.dataDisponibilizacaoDjen }}</strong>
+                  </div>
+                  <div class="prazos-calc-col">
+                    <span class="calc-lbl">2. Publicação (Art. 224 §2º):</span>
                     <strong class="calc-val">{{ prazo.dataPublicacaoDje }}</strong>
                   </div>
                   <div class="prazos-calc-col">
-                    <span class="calc-lbl">Início do Prazo Útil (D+1):</span>
+                    <span class="calc-lbl">3. Início do Prazo (Art. 224 §3º):</span>
                     <strong class="calc-val">{{ prazo.dataInicioPrazo }}</strong>
                   </div>
                   <div class="prazos-calc-col fatal">
-                    <span class="calc-lbl">Termo Fatal Improrrogável:</span>
+                    <span class="calc-lbl">4. Termo Fatal ({{ prazo.diasUteisTotal }}d úteis):</span>
                     <strong class="calc-val-fatal">{{ prazo.dataTermoFatal }} (23:59h)</strong>
                   </div>
-                  <div class="prazos-calc-col">
-                    <span class="calc-lbl">Regra Legal:</span>
-                    <strong class="calc-val">{{ prazo.baseLegal }}</strong>
-                  </div>
+                </div>
+
+                <div style="margin: 10px 0 14px; font-size: 0.8rem; color: #94a3b8;">
+                  <strong>Fundamento Legal:</strong> {{ prazo.baseLegal }}
+                  @if (prazo.feriadosConsiderados && prazo.feriadosConsiderados.length > 0) {
+                    <div style="margin-top: 6px; color: #fcd34d;">
+                      📅 <strong>Feriados / Suspensões deduzidos no período:</strong>
+                      @for (fer of prazo.feriadosConsiderados; track fer.data) {
+                        <span style="display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 4px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.3);">
+                          {{ fer.data }} — {{ fer.descricao }}
+                        </span>
+                      }
+                    </div>
+                  }
                 </div>
               }
 
-              <div class="prazos-grid">
-                <div class="prazo-box urgent">
-                  <span class="prazo-type">Embargos de Declaração</span>
-                  <strong class="prazo-days">5 dias úteis</strong>
-                  <span class="prazo-base">Art. 1.023 do CPC</span>
-                  <div class="prazo-detail">
-                    <span>Termo Fatal:</span>
-                    <strong>Concluído / Precluso</strong>
+              @if (simulacoesPrazo(); as sim) {
+                <div class="prazos-grid">
+                  <div class="prazo-box" [class.urgent]="!sim.embargos5d.precluso" (click)="selecionarPrazoBase(5)" style="cursor: pointer;">
+                    <span class="prazo-type">Embargos de Declaração</span>
+                    <strong class="prazo-days">5 dias úteis</strong>
+                    <span class="prazo-base">Art. 1.023 do CPC/2015</span>
+                    <div class="prazo-detail">
+                      <span>Termo Fatal:</span>
+                      <strong>{{ sim.embargos5d.dataTermoFatal }} ({{ sim.embargos5d.precluso ? 'Expirado' : sim.embargos5d.diasUteisRestantes + 'd úteis' }})</strong>
+                    </div>
                   </div>
-                </div>
 
-                <div class="prazo-box warning">
-                  <span class="prazo-type">Recurso Especial (STJ)</span>
-                  <strong class="prazo-days">15 dias úteis</strong>
-                  <span class="prazo-base">Art. 1.003, § 5º do CPC</span>
-                  <div class="prazo-detail">
-                    <span>Situação:</span>
-                    <strong class="highlight-warn">Interposto / Contrarrazões</strong>
+                  <div class="prazo-box warning" (click)="selecionarPrazoBase(15)" style="cursor: pointer;">
+                    <span class="prazo-type">Recurso / Contrarrazões</span>
+                    <strong class="prazo-days">15 dias úteis</strong>
+                    <span class="prazo-base">Art. 1.003, § 5º do CPC/2015</span>
+                    <div class="prazo-detail">
+                      <span>Termo Fatal:</span>
+                      <strong class="highlight-warn">{{ sim.recurso15d.dataTermoFatal }} ({{ sim.recurso15d.precluso ? 'Expirado' : sim.recurso15d.diasUteisRestantes + 'd úteis' }})</strong>
+                    </div>
                   </div>
-                </div>
 
-                <div class="prazo-box active">
-                  <span class="prazo-type">Audiência de Justificação</span>
-                  <strong class="prazo-days">Aguardando Pauta</strong>
-                  <span class="prazo-base">Art. 562 do CPC</span>
-                  <div class="prazo-detail">
-                    <span>Próximo Ato:</span>
-                    <strong class="highlight-green">Apresentar Testemunhas</strong>
+                  <div class="prazo-box active">
+                    <span class="prazo-type">Fazenda / Defensoria / MP</span>
+                    <strong class="prazo-days">30 dias úteis (Dobro)</strong>
+                    <span class="prazo-base">Arts. 180, 183 e 186 do CPC</span>
+                    <div class="prazo-detail">
+                      <span>Termo Fatal:</span>
+                      <strong class="highlight-green">{{ sim.dobro30d.dataTermoFatal }} ({{ sim.dobro30d.precluso ? 'Expirado' : sim.dobro30d.diasUteisRestantes + 'd úteis' }})</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
             </div>
 
-            <!-- SINTETIZADOR DE JURIDIQUÊS PARA O CLIENTE (WHATSAPP 1-CLICK) -->
-            <div class="legal-card-ai">
-              <div class="card-ai-header">
-                <div class="ai-badge-title">
-                  <span class="icon">💬</span>
-                  <div>
-                    <h4>Sintetizador de Decisão para Clientes • 1-Click WhatsApp</h4>
-                    <span class="subtitle">Converte decisões técnicas complexas em linguagem clara e empática</span>
+            <!-- SINTETIZADOR DE ATUALIZAÇÃO PARA O CLIENTE (WHATSAPP 1-CLICK) -->
+            @if (resumoExecutivoCliente(); as sintese) {
+              <div class="legal-card-ai">
+                <div class="card-ai-header">
+                  <div class="ai-badge-title">
+                    <span class="icon">💬</span>
+                    <div>
+                      <h4>Resumo Executivo para o Cliente • 1-Click WhatsApp</h4>
+                      <span class="subtitle">Síntese gerada diretamente dos andamentos e publicações oficiais DJEN deste processo</span>
+                    </div>
+                  </div>
+                  <button class="btn-whatsapp-copy" (click)="copiarRelatorioCliente()" [class.copied]="whatsappCopiado()">
+                    @if (whatsappCopiado()) {
+                      <span>✓ Mensagem Copiada!</span>
+                    } @else {
+                      <span>📲 Copiar Mensagem para WhatsApp</span>
+                    }
+                  </button>
+                </div>
+
+                <div class="whatsapp-preview-balloon">
+                  <div class="balloon-header">
+                    <span class="sender-name">LexFerreira • Resumo Processual Verificado</span>
+                    <span class="time">Dados dos Autos</span>
+                  </div>
+                  <div class="balloon-body">
+                    <p><strong>RESUMO FORENSE EXECUTIVO - LEXFERREIRA</strong> ⚖️</p>
+                    <p>Olá! Segue a atualização oficial do processo nº <strong>{{ proc.numeroCnjFormatado }}</strong> ({{ proc.classe }}):</p>
+                    <p>🔍 <strong>Último pronunciamento / andamento:</strong><br>{{ sintese.oQueDecidiu }}</p>
+                    <p>📌 <strong>Situação atual:</strong><br>{{ sintese.impactoPratico }}</p>
+                    <p>🎯 <strong>Próximo passo:</strong><br>{{ sintese.proximoPasso }}</p>
                   </div>
                 </div>
-                <button class="btn-whatsapp-copy" (click)="copiarRelatorioCliente()" [class.copied]="whatsappCopiado()">
-                  @if (whatsappCopiado()) {
-                    <span>✓ Mensagem Copiada!</span>
-                  } @else {
-                    <span>📲 Copiar Mensagem para WhatsApp</span>
-                  }
-                </button>
               </div>
+            }
 
-              <div class="whatsapp-preview-balloon">
-                <div class="balloon-header">
-                  <span class="sender-name">LexFerreira • Mensagem Executiva Formatada</span>
-                  <span class="time">Agora</span>
-                </div>
-                <div class="balloon-body">
-                  <p><strong>RESUMO FORENSE EXECUTIVO - LEXFERREIRA</strong> ⚖️</p>
-                  <p>Olá! Segue a atualização do seu processo nº <strong>{{ proc.numeroCnjFormatado }}</strong>:</p>
-                  @if (proc.tribunal === 'TJSP') {
-                    <p>🔍 <strong>O que o Tribunal decidiu:</strong><br>
-                    O Tribunal de Justiça de São Paulo (24ª Câmara) proferiu Acórdão acolhendo parcialmente nosso recurso, reformando a decisão de primeiro grau e mantendo a posse até a audiência de justificação prévia.</p>
-                    <p>📌 <strong>Impacto prático para você:</strong><br>
-                    A desocupação compulsória imediata foi obstada, garantindo total segurança possessória para o polo requerente.</p>
-                    <p>🎯 <strong>Próximo passo estratégico:</strong><br>
-                    Acompanhamento na Comarca de Guarulhos e finalização do rol de testemunhas para audiência com o magistrado de 1º grau.</p>
-                  } @else {
-                    <p>🔍 <strong>O que o Tribunal decidiu:</strong><br>
-                    O juízo da {{ proc.orgaoJulgador || 'Vara Federal' }} proferiu sentença extintiva no Mandado de Segurança, com trânsito em julgado e baixa definitiva certificada no TRF3.</p>
-                    <p>📌 <strong>Impacto prático para você:</strong><br>
-                    Procedimento especial do Mandado de Segurança concluído na 1ª Instância Federal.</p>
-                    <p>🎯 <strong>Próximo passo estratégico:</strong><br>
-                    Avaliação técnica de providências cabíveis ou arquivamento definitivo.</p>
-                  }
-                </div>
-              </div>
-            </div>
-
-            <!-- DOSSIÊ DO MAGISTRADO & BALCÃO VIRTUAL (JUDICIAL PROFILING) -->
+            <!-- FICHA INSTITUCIONAL DO JUÍZO / RELATORIA & BALCÃO VIRTUAL -->
             <div class="legal-card-ai">
               <div class="card-ai-header">
                 <div class="ai-badge-title">
                   <span class="icon">🏛️</span>
                   <div>
-                    <h4>Dossiê do Magistrado & Balcão Virtual • Judicial Profiling</h4>
-                    <span class="subtitle">Análise comportamental do juiz/relator, sala oficial de atendimento e recomendações táticas</span>
+                    <h4>Ficha Institucional do Juízo & Balcão Virtual Oficial</h4>
+                    <span class="subtitle">Dados institucionais verificados da unidade judicial, Balcão Virtual e Notas Internas do Escritório</span>
                   </div>
                 </div>
-                <button class="btn-dossie-action" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
-                  <span>Abrir Dossiê Completo →</span>
+                <button class="btn-dossie-action" (click)="abrirDossieMagistrado(proc.relator || proc.orgaoJulgador || '')" type="button">
+                  <span>Abrir Ficha & Notas do Escritório →</span>
                 </button>
               </div>
 
@@ -731,79 +793,83 @@
                 <div class="preview-mag-header">
                   <div class="mag-avatar-mini">⚖️</div>
                   <div>
-                    <strong class="mag-name">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</strong>
-                    <span class="mag-role">{{ proc.grau === 2 ? 'Relator da 24ª Câmara de Direito Privado' : 'Magistrado Titular da Vara Cível' }}</span>
+                    <strong class="mag-name">{{ proc.relator || proc.orgaoJulgador || 'Juízo Competente' }}</strong>
+                    <span class="mag-role">{{ proc.orgaoJulgador }} • {{ proc.tribunal }} ({{ proc.grau }}º Grau)</span>
                   </div>
                 </div>
                 <div class="preview-mag-body">
                   <p>
-                    <strong>Tendência em Tutelas de Urgência:</strong> 
-                    Garantista e prudente em matéria possessória. Prefere designar audiência de justificação prévia (Art. 562 CPC) a deferir reintegração de posse inaudita altera parte.
+                    <strong>Unidade / Origem Registrada nos Autos:</strong>
+                    {{ proc.foro || proc.comarca || proc.orgaoJulgador }}
                   </p>
-                  <p>
-                    <strong>Recomendação de Peticionamento:</strong> 
-                    Memoriais sucintos (máximo 4 laudas). Em despachos urgentes, utilizar o Balcão Virtual oficial do Tribunal.
-                  </p>
+                  @if (proc.documentosPublicos && proc.documentosPublicos.length > 0) {
+                    <p>
+                      <strong>Última Ementa / Publicação DJEN desta Relatoria nos Autos:</strong>
+                      "{{ proc.documentosPublicos[0].ementa }}"
+                    </p>
+                  }
                 </div>
                 <div class="preview-mag-actions">
-                  <a href="https://tjsp.jus.br/balcaovirtual" target="_blank" rel="noopener" class="link-balcao-direct">
-                    📞 Acessar Balcão Virtual Oficial
+                  <a [href]="proc.tribunal === 'TRF3' ? 'https://www.trf3.jus.br/balcao-virtual' : 'https://www.tjsp.jus.br/BalcaoVirtual'" target="_blank" rel="noopener" class="link-balcao-direct">
+                    📞 Acessar Portal Oficial do Balcão Virtual ({{ proc.tribunal }})
                   </a>
-                  <button class="btn-open-mag-dossier" (click)="abrirDossieMagistrado(proc.relator || 'Pedro Paulo Maillet Preuss')" type="button">
-                    Ver Padrão de Honorários e Gratuidade
+                  <button class="btn-open-mag-dossier" (click)="abrirDossieMagistrado(proc.relator || proc.orgaoJulgador || '')" type="button">
+                    Regras do Rito & Notas do Escritório
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- PAINEL DE JURIMETRIA ANALÍTICA (MÉTRICAS DINÂMICAS CALCULADAS EM TEMPO REAL) -->
+            <!-- PAINEL DE JURIMETRIA EMPÍRICA DOS AUTOS (100% CALCULADA SOBRE OS MOVIMENTOS REAIS) -->
             @if (jurimetriaDinamica(); as jur) {
               <div class="legal-card-ai">
                 <div class="card-ai-header">
                   <div class="ai-badge-title">
                     <span class="icon">📊</span>
                     <div>
-                      <h4>Jurimetria Analítica • Perfil Decisório e Celeridade Processual</h4>
-                      <span class="subtitle">Estatística extraída em tempo real dos andamentos e julgamentos reais do {{ proc.tribunal }}</span>
+                      <h4>Métricas Empíricas de Tramitação dos Autos</h4>
+                      <span class="subtitle">Cálculo matemático exato sobre os movimentos e publicações reais deste processo (sem estimativas sintéticas)</span>
                     </div>
                   </div>
                   <span class="prazos-status-tag">{{ jur.amostra }}</span>
                 </div>
 
-                <!-- JURIMETRIA METRICS ROW -->
                 <div class="jurimetria-stats-grid">
                   <div class="stat-box">
-                    <span class="stat-label">Tempo até {{ jur.tipoDecisao }}</span>
+                    <span class="stat-label">Tempo até {{ jur.tituloDecisao }}</span>
                     <div class="stat-value-group">
-                      <strong class="stat-number">{{ jur.diasAteDecisao }} dias</strong>
-                      <span class="stat-comparison positive">{{ jur.taxaCeleridade.percentual }} (vs. {{ jur.taxaCeleridade.mediaTribunal }})</span>
+                      <strong class="stat-number">
+                        {{ jur.diasAteDecisao !== null ? jur.diasAteDecisao + ' dias corridos' : 'Em tramitação' }}
+                      </strong>
+                      <span class="stat-comparison positive">
+                        Tempo total entre o 1º e o último andamento: {{ jur.diasTramitacaoTotal }} dias
+                      </span>
                     </div>
                   </div>
 
                   <div class="stat-box">
-                    <span class="stat-label">Ritmo Médio dos Autos</span>
+                    <span class="stat-label">Ritmo Real de Movimentação</span>
                     <div class="stat-value-group">
                       <strong class="stat-number">1 ato a cada {{ jur.ritmoMedioDias }}d</strong>
-                      <span class="stat-comparison">{{ jur.totalMovimentacoes }} andamentos processuais computados</span>
+                      <span class="stat-comparison">{{ jur.totalMovimentacoes }} movimentações e {{ jur.totalDocumentosDjen }} publicações DJEN</span>
                     </div>
                   </div>
 
                   <div class="stat-box">
-                    <span class="stat-label">Tendência Jurisprudencial</span>
+                    <span class="stat-label">Maior Hiato Processual Registrado</span>
                     <div class="stat-value-group">
-                      <strong class="stat-number highlight-gold">{{ jur.perfilJulgador.tendencia }}</strong>
-                      <span class="stat-comparison">{{ jur.perfilJulgador.foco }}</span>
+                      <strong class="stat-number highlight-gold">{{ jur.maiorHiatoDias }} dias</strong>
+                      <span class="stat-comparison">Período: {{ jur.maiorHiatoPeriodo }}</span>
                     </div>
                   </div>
                 </div>
 
-                <!-- BARRA DE DISTRIBUIÇÃO DE DESFECHOS -->
                 <div class="desfechos-breakdown-box">
-                  <span class="breakdown-title">Distribuição Estatística de Julgamentos ({{ proc.orgaoJulgador || proc.tribunal }}):</span>
+                  <span class="breakdown-title">Composição Real dos Atos Processuais nestes Autos (n = {{ jur.totalMovimentacoes }}):</span>
                   <div class="breakdown-bar">
                     @for (item of jur.distribuicao; track item.label) {
                       <div class="bar-segment seg-{{ item.color }}" [style.width.%]="item.percent" [title]="item.label + ': ' + item.percent + '%'">
-                        {{ item.percent }}% {{ item.highlight ? '★ Concreto' : '' }}
+                        {{ item.percent }}%
                       </div>
                     }
                   </div>
@@ -818,73 +884,48 @@
               </div>
             }
 
-            <!-- JURISPRUDÊNCIA SEMÂNTICA COMPARADA (CASOS GÊMEOS) -->
+            <!-- COMUNICAÇÕES OFICIAIS DJEN/CNJ & PESQUISA DE JURISPRUDÊNCIA VERIFICADA -->
             <div class="legal-card-ai">
               <div class="card-ai-header">
                 <div class="ai-badge-title">
                   <span class="icon">📚</span>
                   <div>
-                    <h4>Jurisprudência Semântica Comparada • Casos Gêmeos</h4>
-                    <span class="subtitle">Varredura inteligente de acórdãos análogos na mesma câmara e nos tribunais superiores</span>
+                    <h4>Publicações Oficiais no DJEN/CNJ & Pesquisa de Jurisprudência</h4>
+                    <span class="subtitle">Intimações, despachos e ementas autênticas extraídas da API Nacional do CNJ (comunicaapi.pje.jus.br)</span>
                   </div>
                 </div>
-                <span class="ai-confidence-badge">Correspondência 98%</span>
+                <a [href]="urlPesquisaJurisprudenciaOficial()" target="_blank" rel="noopener" class="ai-confidence-badge" style="text-decoration: none;">
+                  Pesquisar Jurisprudência Oficial ({{ proc.tribunal }}) ↗
+                </a>
               </div>
 
-              <div class="casos-gemeos-grid">
-                <div class="caso-gemeo-card">
-                  <div class="caso-header">
-                    <span class="caso-court">TJSP • 24ª Câmara de Direito Privado</span>
-                    <span class="match-score">98% Similaridade</span>
-                  </div>
-                  <strong class="caso-num">Agravo de Instrumento nº 2098451-12.2024.8.26.0000</strong>
-                  <div class="caso-relator">Rel. Des. Pedro Paulo Maillet Preuss • Julgamento: 14/05/2024</div>
-                  <p class="caso-ementa-resumo">
-                    "AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR CONCEDIDA INAUDITA ALTERA PARTE – REFORMA PARA OBSTAR DESOCUPAÇÃO COMPULSÓRIA ATÉ AUDIÊNCIA DE JUSTIFICAÇÃO – RECURSO PROVIDO EM PARTE."
-                  </p>
-                  <span class="caso-tag">Precedente Direto do Mesmo Relator</span>
+              @if (proc.documentosPublicos && proc.documentosPublicos.length > 0) {
+                <div class="casos-gemeos-grid">
+                  @for (doc of proc.documentosPublicos; track doc.id) {
+                    <div class="caso-gemeo-card">
+                      <div class="caso-header">
+                        <span class="caso-court">{{ doc.tipo }}</span>
+                        <span class="match-score">{{ doc.data | date:'dd/MM/yyyy' }}</span>
+                      </div>
+                      <strong class="caso-num">{{ doc.titulo }}</strong>
+                      @if (doc.magistradoRelator) {
+                        <div class="caso-relator">Relator(a) / Juízo: {{ doc.magistradoRelator }}</div>
+                      }
+                      <p class="caso-ementa-resumo">"{{ doc.ementa || doc.conteudoTexto }}"</p>
+                      <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                        <span class="caso-tag">{{ doc.situacao || 'DJEN/CNJ' }}</span>
+                        @if (doc.urlOrigem) {
+                          <a [href]="doc.urlOrigem" target="_blank" rel="noopener" style="font-size: 0.78rem; color: #60a5fa;">Abrir Fonte Oficial ↗</a>
+                        }
+                      </div>
+                    </div>
+                  }
                 </div>
-
-                <div class="caso-gemeo-card">
-                  <div class="caso-header">
-                    <span class="caso-court">STJ • 4ª Turma (Tribunal Superior)</span>
-                    <span class="match-score">94% Similaridade</span>
-                  </div>
-                  <strong class="caso-num">Recurso Especial nº 1.845.920/SP</strong>
-                  <div class="caso-relator">Rel. Ministro Luis Felipe Salomão • Julgamento: 22/09/2020</div>
-                  <p class="caso-ementa-resumo">
-                    "DIREITO PROCESSUAL CIVIL – POSSESSÓRIA – ART. 562 DO CPC – HAVENDO DÚVIDA RAZOÁVEL QUANTO À DATA DO ESBULHO E À POSSE MANSA E PACÍFICA, IMPÕE-SE A REALIZAÇÃO DE AUDIÊNCIA PRÉVIA DE JUSTIFICAÇÃO."
-                  </p>
-                  <span class="caso-tag federal">Precedente Obrigatório Art. 927 CPC</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- ANÁLISE DE RISCO RECURSAL & SÚMULAS APLICÁVEIS -->
-            <div class="legal-card-ai">
-              <div class="card-ai-header">
-                <div class="ai-badge-title">
-                  <span class="icon">⚖️</span>
-                  <div>
-                    <h4>Diagnóstico de Admissibilidade Recursal (STJ / STF)</h4>
-                    <span class="subtitle">Previsibilidade estatística e filtros de jurisprudência defensiva</span>
-                  </div>
-                </div>
-                <span class="ai-confidence-badge">Alta Probabilidade</span>
-              </div>
-
-              <div class="jurisprudencia-grid">
-                <div class="juris-item">
-                  <span class="juris-badge danger">Óbice Recursal</span>
-                  <strong>Súmula nº 7 do STJ</strong>
-                  <p>"A pretensão de simples reexame de prova não enseja recurso especial." O Recurso Especial da parte contrária tem forte probabilidade de não conhecimento por revolver matéria fática da reintegração de posse.</p>
-                </div>
-                <div class="juris-item">
-                  <span class="juris-badge success">Tese Favorável</span>
-                  <strong>Art. 561 do CPC</strong>
-                  <p>Posse velha com ausência de comprovação documental cabal na inicial autoriza a sustação da liminar em prol da ampla defesa e audiência preliminar.</p>
-                </div>
-              </div>
+              } @else {
+                <p style="color: #94a3b8; font-size: 0.9rem; margin: 8px 0;">
+                  Nenhuma publicação textual localizada no DJEN/CNJ para este número de processo. Utilize o botão acima para consultar o repositório oficial de jurisprudência do {{ proc.tribunal }}.
+                </p>
+              }
             </div>
 
           </div>
@@ -1193,12 +1234,12 @@
     }
   }
 
-  <!-- MODAL DE JUDICIAL PROFILING (DOSSIÊ DO MAGISTRADO) -->
+  <!-- MODAL DE FICHA INSTITUCIONAL DO JUÍZO & NOTAS INTERNAS DO ESCRITÓRIO -->
   @if (magistradoModalAberto() && magistradoSelecionado(); as mag) {
     <div class="modal-backdrop animate-fade-in" (click)="fecharDossieMagistrado()">
       <div class="magistrado-modal-card animate-slide-up" (click)="$event.stopPropagation()">
         <div class="modal-close-header">
-          <span class="modal-badge-court">🏛️ {{ mag.tribunal }} • JUDICIAL PROFILING</span>
+          <span class="modal-badge-court">🏛️ {{ mag.tribunal }} • FICHA INSTITUCIONAL DO JUÍZO / RELATORIA</span>
           <button class="close-btn" (click)="fecharDossieMagistrado()" type="button">✕</button>
         </div>
 
@@ -1215,47 +1256,49 @@
         @if (mag.balcaoVirtualUrl) {
           <div class="balcao-virtual-action-card">
             <div class="balcao-info">
-              <strong>📞 Balcão Virtual Oficial de Atendimento</strong>
-              <p>{{ mag.horarioAtendimento || 'Segunda a Sexta das 13h às 18h via Videoconferência' }}</p>
+              <strong>📞 Portal Oficial do Balcão Virtual ({{ mag.tribunal }})</strong>
+              <p>{{ mag.horarioAtendimento || 'Atendimento telepresencial conforme expediente oficial do Tribunal' }}</p>
             </div>
             <a [href]="mag.balcaoVirtualUrl" target="_blank" rel="noopener" class="btn-balcao-direct">
-              Entrar no Balcão Virtual →
+              Acessar Balcão Virtual Oficial →
             </a>
           </div>
         }
 
-        <!-- CONTATOS DO GABINETE E CARTÓRIO -->
+        <!-- CONTATOS INSTITUCIONAIS -->
         <div class="mag-contacts-grid">
           <div class="contact-box">
-            <span class="contact-lbl">E-mail Institucional:</span>
-            <strong class="contact-val">{{ mag.emailGabinete || 'cartorio.civel@tjsp.jus.br' }}</strong>
+            <span class="contact-lbl">Canal / Catálogo Oficial:</span>
+            <strong class="contact-val">{{ mag.emailGabinete || 'Consultar Catálogo Oficial do Tribunal' }}</strong>
           </div>
           <div class="contact-box">
-            <span class="contact-lbl">Telefone do Cartório:</span>
-            <strong class="contact-val">{{ mag.telefoneCartorio || '(11) 3295-5000' }}</strong>
+            <span class="contact-lbl">Telefone / PABX da Unidade:</span>
+            <strong class="contact-val">{{ mag.telefoneCartorio || 'Consultar Lista Telefônica Oficial' }}</strong>
           </div>
         </div>
 
-        <!-- TENDÊNCIAS DECISÓRIAS -->
+        <!-- ENQUADRAMENTO REGIMENTAL E PRECEDENTE DJEN -->
         <div class="mag-tendencias-section">
-          <h5>⚖️ Padrão Decisório e Rigor Jurisprudencial</h5>
+          <h5>⚖️ Competência Regimental, Disciplina Legal & Precedente Verificado</h5>
           <div class="tendencia-item">
-            <strong>Tutelas de Urgência & Liminares:</strong>
+            <strong>Competência & Rito Aplicável:</strong>
             <p>{{ mag.tendenciaLiminares }}</p>
           </div>
+          @if (mag.precedenteMarcante) {
+            <div class="tendencia-item">
+              <strong>Registro Verificado no DJEN/CNJ ou Autos:</strong>
+              <p>{{ mag.precedenteMarcante }}</p>
+            </div>
+          }
           <div class="tendencia-item">
-            <strong>Justiça Gratuita (JG):</strong>
-            <p>{{ mag.tendenciaJusticaGratuita }}</p>
-          </div>
-          <div class="tendencia-item">
-            <strong>Fixação de Honorários Advocatícios:</strong>
-            <p>{{ mag.tendenciaHonorarios }}</p>
+            <strong>Gratuidade & Honorários (CPC/2015):</strong>
+            <p>{{ mag.tendenciaJusticaGratuita }} {{ mag.tendenciaHonorarios }}</p>
           </div>
         </div>
 
-        <!-- DICAS PRÁTICAS DE PETICIONAMENTO -->
+        <!-- DIRETRIZES DE RITO -->
         <div class="mag-dicas-section">
-          <h5>🎯 Recomendações Práticas para Memoriais & Sustentação Oral</h5>
+          <h5>🎯 Diretrizes Processuais e Regimentais da Unidade</h5>
           <ul>
             @for (dica of mag.dicasPeticionamento; track dica) {
               <li>{{ dica }}</li>
@@ -1263,8 +1306,32 @@
           </ul>
         </div>
 
+        <!-- NOTAS INTERNAS DO ESCRITÓRIO (PERSISTIDAS EM LOCALSTORAGE) -->
+        <div class="mag-dicas-section" style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
+          <h5>📝 Notas Internas do Seu Escritório para este Juízo / Câmara</h5>
+          <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 8px;">
+            Registre observações reais de despacho, link específico da sala do Microsoft Teams/Zoom desta vara ou orientações da secretaria (salvo localmente no seu navegador):
+          </p>
+          <textarea
+            [ngModel]="notaEscritorioTexto()"
+            (ngModelChange)="notaEscritorioTexto.set($event)"
+            rows="3"
+            placeholder="Ex: Despacho de tutela urgente pelo Balcão Virtual às 14h; escrevente responsável; preferência em memoriais..."
+            style="width: 100%; border-radius: 8px; padding: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.15); color: #f8fafc; font-family: inherit; font-size: 0.85rem; resize: vertical;"
+          ></textarea>
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 8px;">
+            @if (notaSalvaFeedback()) {
+              <span style="color: #10b981; font-size: 0.82rem; font-weight: 600;">✓ Nota salva no navegador!</span>
+            }
+            <button type="button" (click)="salvarNotaEscritorio()"
+              style="padding: 6px 14px; border-radius: 6px; background: #2563eb; color: #fff; border: none; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+              Salvar Nota do Escritório
+            </button>
+          </div>
+        </div>
+
         <div class="modal-footer-actions">
-          <button class="btn-close-modal" (click)="fecharDossieMagistrado()" type="button">Fechar Dossiê</button>
+          <button class="btn-close-modal" (click)="fecharDossieMagistrado()" type="button">Fechar Ficha</button>
         </div>
       </div>
     </div>

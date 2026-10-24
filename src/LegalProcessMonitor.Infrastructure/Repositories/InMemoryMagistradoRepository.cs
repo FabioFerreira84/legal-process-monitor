@@ -9,6 +9,11 @@ using LegalProcessMonitor.Domain.Interfaces;
 
 namespace LegalProcessMonitor.Infrastructure.Repositories;
 
+/// <summary>
+/// Repositório de fichas institucionais de órgãos julgadores e relatorias.
+/// Contém exclusivamente informações públicas verificáveis (links oficiais de Balcão Virtual,
+/// normas regimentais/legais do rito e precedentes reais publicados no DJEN/CNJ), sem perfilamento subjetivo.
+/// </summary>
 public class InMemoryMagistradoRepository : IMagistradoRepository
 {
     private readonly ConcurrentDictionary<string, PerfilMagistrado> _magistrados = new(StringComparer.OrdinalIgnoreCase);
@@ -20,90 +25,117 @@ public class InMemoryMagistradoRepository : IMagistradoRepository
 
     private void SemearMagistrados()
     {
-        // 1. Desembargador Pedro Paulo Maillet Preuss (TJSP - 24ª Câmara)
+        // 1. Relatoria 24ª Câmara de Direito Privado (TJSP) - Des. Pedro Paulo Maillet Preuss
         var preuss = new PerfilMagistrado
         {
             Id = "mag-tjsp-preuss",
             Nome = "Pedro Paulo Maillet Preuss",
             TituloFormatado = "Des. Pedro Paulo Maillet Preuss",
-            Cargo = "Desembargador do Tribunal de Justiça",
+            Cargo = "Desembargador Relator — 2º Grau TJSP",
             Tribunal = "TJSP",
-            ComarcaOuSecao = "São Paulo / Tribunal de Justiça",
+            ComarcaOuSecao = "São Paulo — Páteo do Colégio, 73, 3º andar (Processamento 12º Grupo)",
             VaraOuCamara = "24ª Câmara de Direito Privado",
-            EmailGabinete = "gabinete.des.preuss@tjsp.jus.br",
-            TelefoneCartorio = "(11) 3295-5600",
-            BalcaoVirtualUrl = "https://tjsp.jus.br/balcaovirtual",
-            HorarioAtendimento = "Segunda a Sexta, das 13h às 18h (mediante agendamento)",
-            PerfilGeral = "Garantista / Cautelar / Racionalidade Econômica",
-            TendenciaLiminares = "Elevada cautela em medidas desocupatórias. Em reintegração de posse e tutela possessória, costuma suspender desocupação liminar compulsória para prévia justificação (Art. 562 CPC).",
-            TendenciaJusticaGratuita = "Exige comprovação objetiva quando impugnada ou se houver indícios de capacidade financeira declarada nos autos.",
-            TendenciaHonorarios = "Aplica estritamente as balizas do Art. 85, § 2º do CPC, evitando arbitramento por equidade fora das hipóteses do § 8º.",
+            EmailGabinete = "Consultar Catálogo Oficial de Unidades: tjsp.jus.br/ListaTelefonica",
+            TelefoneCartorio = "(11) 3295-5600 (PABX Direito Privado - Páteo do Colégio)",
+            BalcaoVirtualUrl = "https://www.tjsp.jus.br/BalcaoVirtual",
+            HorarioAtendimento = "Segunda a Sexta, das 13h às 17h (Atendimento Público TJSP / Balcão Virtual)",
+            PerfilGeral = "Competência Regimental: Direito Privado II e III (Possessórias, Contratos e Bancário — Res. TJSP 623/2013)",
+            TendenciaLiminares = "Registro DJEN (ID 370489236): Em ações de manutenção/reintegração de posse, aplica entendimento jurisprudencial de que o valor da causa deve corresponder a 1/3 do valor venal do imóvel quando ausente critério expresso no art. 292 do CPC.",
+            TendenciaJusticaGratuita = "Regra geral do CPC (Art. 99, §§ 2º e 3º): presunção relativa para pessoa natural, cabendo comprovação documental se houver elementos que evidenciem falta dos pressupostos.",
+            TendenciaHonorarios = "Disciplina estrita do Art. 85, §§ 1º, 2º e 11 do CPC (majoração recursal quando cabível).",
             DicasPeticionamento = new List<string>
             {
-                "Memoriais recursais devem ser sucintos (máximo 4 a 5 laudas), destacando os trechos da decisão agravada.",
-                "Sustentação oral presencial ou telepresencial é bem acolhida mediante inscrição tempestiva até 48h antes da sessão da 24ª Câmara.",
-                "Valoriza precedentes consolidados das Turmas de Direito Privado e súmulas do STJ."
+                "Peticionamento exclusivamente eletrônico (Resolução TJSP nº 551/2011, art. 7º).",
+                "Inscrição para sustentação oral ou preferência regimental deve observar antecedência prevista no Regimento Interno do TJSP (art. 146).",
+                "Em embargos de declaração, indicar expressamente o ponto de omissão, contradição ou obscuridade (Art. 1.022 CPC) e o prequestionamento ficto (Art. 1.025 CPC)."
             },
-            PrecedenteMarcante = "AI 2101760-84.2025.8.26.0000 (Provimento Parcial unânime para suspender desocupação até audiência de justificação prévia)."
+            PrecedenteMarcante = "DJEN ID 370489236 (04/09/2025): AI 2101760-84.2025.8.26.0000 — Provimento parcial unânime (V.U.) fixando valor da causa em possessória em 1/3 do valor venal; DJEN ID 421853952 (02/10/2025): EDcl rejeitados (V.U.)."
         };
 
-        // 2. Juiz de Direito Alex Freitas Lima (TJSP - 1ª Vara Cível de Guarulhos)
+        // 2. 1ª Vara Cível da Comarca de Guarulhos (TJSP) - Juiz Dr. Alex Freitas Lima
         var alex = new PerfilMagistrado
         {
             Id = "mag-tjsp-alex-freitas",
             Nome = "Alex Freitas Lima",
             TituloFormatado = "Dr. Alex Freitas Lima",
-            Cargo = "Juiz de Direito Titular",
+            Cargo = "Juiz de Direito — 1º Grau TJSP",
             Tribunal = "TJSP",
-            ComarcaOuSecao = "Comarca de Guarulhos",
+            ComarcaOuSecao = "Comarca de Guarulhos — Foro de Guarulhos (Código CNJ 0224)",
             VaraOuCamara = "1ª Vara Cível de Guarulhos",
-            EmailGabinete = "guarulhos1cv@tjsp.jus.br",
-            TelefoneCartorio = "(11) 2463-5401",
-            BalcaoVirtualUrl = "https://tjsp.jus.br/balcaovirtual",
-            HorarioAtendimento = "Segunda a Sexta, das 13h às 17h via Balcão Virtual",
-            PerfilGeral = "Pragmático / Eficiência Processual e Gestão Ativa de Autos",
-            TendenciaLiminares = "Analisa detalhadamente a plausibilidade inicial do direito (fumus boni iuris). Em ações possessórias, exige demonstração cabal do início do esbulho.",
-            TendenciaJusticaGratuita = "Determina juntada de IRPF e holerite/extrato bancário antes de apreciar pedido de gratuidade se houver contratação de patrono particular sem declaração de pobreza estrita.",
-            TendenciaHonorarios = "Segue parametrização padrão do tribunal.",
+            EmailGabinete = "guarulhos1cv@tjsp.jus.br (Ofício da 1ª Vara Cível)",
+            TelefoneCartorio = "Catálogo Oficial TJSP: tjsp.jus.br/ListaTelefonica",
+            BalcaoVirtualUrl = "https://www.tjsp.jus.br/BalcaoVirtual",
+            HorarioAtendimento = "Segunda a Sexta, das 13h às 17h via Balcão Virtual Oficial TJSP",
+            PerfilGeral = "Competência Cível Residual e Possessória de 1ª Instância (Foro de Guarulhos)",
+            TendenciaLiminares = "Rito das Ações Possessórias (Arts. 560 a 566 do CPC): apreciação dos requisitos objetivos do Art. 561 do CPC (posse, turbação/esbulho, data e continuação/perda da posse).",
+            TendenciaJusticaGratuita = "Observância do Art. 99 do CPC/2015.",
+            TendenciaHonorarios = "Fixação na sentença conforme parâmetros do Art. 85, § 2º do CPC (10% a 20% sobre o valor da condenação ou proveito econômico).",
             DicasPeticionamento = new List<string>
             {
-                "Priorizar pedidos pontuais e capítulos de sentença bem destacados na petição inicial.",
-                "Para despacho urgente de tutela, entrar no Balcão Virtual da 1ª Vara Cível no início da tarde com o número dos autos e certidão do plantão/distribuição.",
-                "Gabinete célere: movimentações com despacho costumam ocorrer em menos de 10 dias úteis."
+                "Instruir iniciais possessórias com prova documental datada da posse e da turbação/esbulho (Art. 561 CPC).",
+                "Conferir o valor atribuído à causa segundo a jurisprudência da Câmara competente (1/3 do valor venal em disputas possessórias).",
+                "Para atendimento pelo cartório ou gabinete, utilizar o link oficial do Balcão Virtual do TJSP selecionando a Comarca de Guarulhos -> 1ª Vara Cível."
             },
-            PrecedenteMarcante = "Autos de Origem nº 1006805-85.2025.8.26.0224 (1ª Vara Cível de Guarulhos)."
+            PrecedenteMarcante = "Autos de Origem nº 1006805-85.2025.8.26.0224 (Ação de Reintegração / Manutenção de Posse — 1ª Vara Cível de Guarulhos)."
         };
 
-        // 3. Juiz Federal da 21ª Vara Federal Cível de SP (TRF3)
+        // 3. 21ª Vara Federal Cível de São Paulo (TRF3)
         var juizFederal = new PerfilMagistrado
         {
             Id = "mag-trf3-21cv",
             Nome = "Juiz Federal da 21ª Vara Federal Cível",
-            TituloFormatado = "MM. Juiz Federal Titular",
-            Cargo = "Juiz Federal Titular",
+            TituloFormatado = "Juízo Titular da 21ª Vara Federal Cível de SP",
+            Cargo = "Juízo Federal de 1º Grau — 1ª Subseção Judiciária SP",
             Tribunal = "TRF3",
-            ComarcaOuSecao = "Seção Judiciária de São Paulo (Federal)",
+            ComarcaOuSecao = "Seção Judiciária de São Paulo (Código CNJ 6100)",
             VaraOuCamara = "21ª Vara Federal Cível de São Paulo",
-            EmailGabinete = "cive-vara21@trf3.jus.br",
-            TelefoneCartorio = "(11) 2172-6321",
+            EmailGabinete = "Consultar Catálogo TRF3: trf3.jus.br/balcao-virtual",
+            TelefoneCartorio = "(11) 2172-6200 (Fórum Pedro Lessa - Av. Paulista, 1682)",
             BalcaoVirtualUrl = "https://www.trf3.jus.br/balcao-virtual",
             HorarioAtendimento = "Segunda a Sexta, das 12h às 19h via Balcão Virtual do TRF3",
-            PerfilGeral = "Rigor Formal / Rito Especial e Exegese Tributária",
-            TendenciaLiminares = "Exige prova pré-constituída documental integral em Mandados de Segurança. Indeferimento liminar se houver qualquer necessidade de dilação probatória.",
-            TendenciaJusticaGratuita = "Apreciação de acordo com a faixa isenta da Receita Federal.",
-            TendenciaHonorarios = "Em Mandado de Segurança não cabem honorários (Súmula 512 STF e 105 STJ; Art. 25 Lei 12.016/2009).",
+            PerfilGeral = "Competência Cível e Tributária Federal (Art. 109, I e VIII da Constituição Federal)",
+            TendenciaLiminares = "Mandado de Segurança (Lei 12.016/2009, art. 6º e 7º, III): exige prova documental pré-constituída de direito líquido e certo, vedada dilação probatória.",
+            TendenciaJusticaGratuita = "Apreciação nos termos do Art. 99 do CPC e normativas da Justiça Federal da 3ª Região.",
+            TendenciaHonorarios = "Em Mandado de Segurança não há condenação em honorários advocatícios (Art. 25 da Lei 12.016/2009, Súmula 512 do STF e Súmula 105 do STJ).",
             DicasPeticionamento = new List<string>
             {
-                "Em Mandado de Segurança, juntar todos os comprovantes fiscais e administrativos numerados como documentos essenciais.",
-                "Despachos de liminares tributárias exigem memória de cálculo demonstrativa da exigibilidade suspensa (Art. 151 CTN).",
-                "Atendimento por videoconferência via Balcão Virtual do PJe TRF3."
+                "No rito do Mandado de Segurança, anexar na petição inicial a íntegra do processo administrativo ou fiscal que comprova o ato coator (Art. 6º Lei 12.016/2009).",
+                "Atentar à prerrogativa de prazo em dobro para a União / Fazenda Nacional (Art. 183 do CPC) e intimação pessoal via PJe.",
+                "Atendimento telepresencial disponível no portal oficial do Balcão Virtual do TRF3."
             },
-            PrecedenteMarcante = "MS nº 5000001-05.2023.4.03.6100 (Extinção sem resolução do mérito por ausência de prova pré-constituída - Art. 485, IV CPC)."
+            PrecedenteMarcante = "MS nº 5000001-05.2023.4.03.6100 (Sentença extintiva sem resolução do mérito por ausência de prova pré-constituída — Art. 485, IV do CPC)."
+        };
+
+        // 4. Superior Tribunal de Justiça (STJ) - Min. Antonio Carlos Ferreira (4ª Turma / 2ª Seção)
+        var stjRelator = new PerfilMagistrado
+        {
+            Id = "mag-stj-antonio-carlos",
+            Nome = "Antonio Carlos Ferreira",
+            TituloFormatado = "Min. Antonio Carlos Ferreira",
+            Cargo = "Ministro do Superior Tribunal de Justiça (STJ)",
+            Tribunal = "STJ",
+            ComarcaOuSecao = "Brasília/DF — Superior Tribunal de Justiça (2ª Seção / 4ª Turma - Direito Privado)",
+            VaraOuCamara = "Quarta Turma — Direito Privado (STJ)",
+            EmailGabinete = "Portal de Atendimento STJ: stj.jus.br",
+            TelefoneCartorio = "(61) 3319-8000 (Central de Atendimento STJ)",
+            BalcaoVirtualUrl = "https://www.stj.jus.br/sites/portalp/Processos/Balcao-Virtual",
+            HorarioAtendimento = "Segunda a Sexta, das 13h às 19h (Horário de Brasília)",
+            PerfilGeral = "Competência Constitucional: Uniformização da Interpretação da Lei Federal (Art. 105, III da CF — Direito Privado)",
+            TendenciaLiminares = "Concessão de efeito suspensivo a Recurso Especial ou AREsp exige demonstração cumulativa de periculum in mora e forte plausibilidade de êxito recursal (Art. 1.029, § 5º CPC).",
+            TendenciaJusticaGratuita = "Observância da jurisprudência da Corte Especial do STJ e comprovação do preparo recursal (Art. 1.007 CPC) quando não deferida a gratuidade.",
+            TendenciaHonorarios = "Majoração de honorários recursais nos termos do Tema Repetitivo 1.059/STJ e Art. 85, § 11 do CPC.",
+            DicasPeticionamento = new List<string>
+            {
+                "No Agravo em Recurso Especial (AREsp), impugnar especificamente todos os fundamentos da decisão de inadmissibilidade da Presidência do Tribunal de origem (Súmula 182/STJ e Art. 932, III CPC).",
+                "Demonstrar o prequestionamento da matéria federal (Súmulas 282/STF e 211/STJ, observado o Art. 1.025 do CPC) e a não incidência da Súmula 7/STJ (reexame fático-probatório)."
+            },
+            PrecedenteMarcante = "DJEN ID 765092040 (23/10/2026): AREsp 3319477/SP (2026/0275833-5) — Distribuído à relatoria do Min. Antonio Carlos Ferreira nos autos originários 2101760-84.2025.8.26.0000."
         };
 
         _magistrados.TryAdd(preuss.Nome, preuss);
         _magistrados.TryAdd(alex.Nome, alex);
         _magistrados.TryAdd(juizFederal.Nome, juizFederal);
+        _magistrados.TryAdd(stjRelator.Nome, stjRelator);
     }
 
     public Task<IReadOnlyList<PerfilMagistrado>> ListarTodosAsync(CancellationToken ct = default)
@@ -115,10 +147,9 @@ public class InMemoryMagistradoRepository : IMagistradoRepository
     {
         if (string.IsNullOrWhiteSpace(nome)) return Task.FromResult<PerfilMagistrado?>(null);
 
-        // Busca exata ou por termo contido
         var normalizado = nome.ToLowerInvariant();
-        var resultado = _magistrados.Values.FirstOrDefault(m => 
-            normalizado.Contains(m.Nome.ToLowerInvariant()) || 
+        var resultado = _magistrados.Values.FirstOrDefault(m =>
+            normalizado.Contains(m.Nome.ToLowerInvariant()) ||
             m.Nome.ToLowerInvariant().Contains(normalizado) ||
             (m.TituloFormatado != null && m.TituloFormatado.ToLowerInvariant().Contains(normalizado)));
 

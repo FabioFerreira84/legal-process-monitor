@@ -1,9 +1,14 @@
 using System;
+using System.Threading.RateLimiting;
 using LegalProcessMonitor.Domain.Interfaces;
 using LegalProcessMonitor.Infrastructure.Configuration;
 using LegalProcessMonitor.Infrastructure.Connectors.DataJud;
+using LegalProcessMonitor.Infrastructure.Connectors.Djen;
+using LegalProcessMonitor.Infrastructure.Connectors.Esaj;
 using LegalProcessMonitor.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -20,6 +25,25 @@ builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection(Mongo
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Rate Limiting por IP para proteger conectores externos (DataJud, DJEN e e-SAJ) contra abuso
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ip,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 30,
+                QueueLimit = 2,
+                Window = TimeSpan.FromMinutes(1)
+            });
+    });
+});
+
 // Configuração de CORS para o Frontend Angular (Localhost e GitHub Pages)
 builder.Services.AddCors(options =>
 {
@@ -34,10 +58,15 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Registro do Cliente HTTP do DataJud com Resilience e Scraper do e-SAJ
+// Registro dos Clientes HTTP e Conectores Oficiais (DataJud CNJ, DJEN/PJe CNJ e e-SAJ)
 builder.Services.AddHttpClient<ITribunalConnector, DataJudConnector>();
-builder.Services.AddSingleton<ITribunalDocumentScraper, LegalProcessMonitor.Infrastructure.Connectors.Esaj.EsajDocumentScraper>();
-builder.Services.AddSingleton<IEsajOabScraper, LegalProcessMonitor.Infrastructure.Connectors.Esaj.EsajOabScraper>();
+builder.Services.AddHttpClient<IDjenComunicacaoConnector, DjenComunicacaoConnector>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+builder.Services.AddSingleton<ITribunalDocumentScraper, EsajDocumentScraper>();
+builder.Services.AddSingleton<IEsajOabScraper, EsajOabScraper>();
 builder.Services.AddSingleton<IMagistradoRepository, InMemoryMagistradoRepository>();
 
 // Configuração de Persistência (MongoDB com Fallback gracioso In-Memory)
@@ -54,15 +83,14 @@ builder.Services.AddSingleton<IProcessoRepository>(sp =>
         var client = new MongoClient(settings);
         var db = client.GetDatabase(mongoSettings.DatabaseName);
 
-        // Ping síncrono rápido para validar conectividade imediata
         db.RunCommand<MongoDB.Bson.BsonDocument>(new MongoDB.Bson.BsonDocument("ping", 1));
 
         logger.LogInformation("Conectado ao MongoDB com sucesso em {DatabaseName}", mongoSettings.DatabaseName);
         return new MongoProcessoRepository(db, sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MongoSettings>>(), logger);
     }
-    catch (System.Exception ex)
+    catch (Exception ex)
     {
-        logger.LogWarning("MongoDB offline no endereço configurado ({Msg}). Ativando repositório In-Memory para desenvolvimento.", ex.Message);
+        logger.LogWarning("MongoDB offline no endereço configurado ({Msg}). Ativando repositório In-Memory.", ex.Message);
         return new InMemoryProcessoRepository();
     }
 });
@@ -74,7 +102,17 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Security Headers Middleware
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
 app.UseCors("AllowAngularDev");
+app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();

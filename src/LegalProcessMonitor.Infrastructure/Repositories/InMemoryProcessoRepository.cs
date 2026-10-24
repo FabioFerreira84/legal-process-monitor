@@ -81,15 +81,41 @@ public class InMemoryProcessoRepository : IProcessoRepository
             {
                 new DocumentoProcessual
                 {
-                    Id = "1a0ee27e-b348-4090-832a-d0d64bc2b12b",
-                    Tipo = "Acórdão / Julgamento Colegiado",
-                    Data = new System.DateTime(2025, 8, 27, 0, 0, 0),
-                    Titulo = "Julgamento de 2º Grau - Julgado",
-                    Situacao = "Julgado",
+                    Id = "djen-765092040",
+                    Tipo = "DJEN (STJ) - ATA DE DISTRIBUIÇÃO",
+                    Data = new System.DateTime(2026, 10, 23, 12, 0, 0, System.DateTimeKind.Utc),
+                    Titulo = "ATA DE DISTRIBUIÇÃO — AGRAVO EM RECURSO ESPECIAL (STJ)",
+                    Situacao = "Publicado no DJEN/CNJ",
+                    MagistradoRelator = "MINISTRO ANTONIO CARLOS FERREIRA",
+                    Ementa = "AREsp 3319477/SP (2026/0275833-5) — RELATOR: MINISTRO ANTONIO CARLOS FERREIRA. Processo distribuído pelo sistema automático em 22/10/2026.",
+                    ConteudoTexto = "AREsp 3319477/SP (2026/0275833-5) - RELATOR: MINISTRO ANTONIO CARLOS FERREIRA - AGRAVANTE: PASCHOAL THOMEU (Repr. por ROSELI THOMEU) - ADVOGADO: JOÃO PAULO PAIVA CAMACHO (SP238470) - AGRAVADOS: LIFE EMPREENDIMENTOS LTDA, ARAO BATISTA ANTONIO, MARIA APARECIDA DA SILVA. Processo distribuído pelo sistema automático em 22/10/2026.",
+                    CertidaoPublicacao = "Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 765092040) em 23/10/2026 pela Coordenadoria de Classificação e Distribuição de Processos (STJ).",
+                    UrlOrigem = "https://justica.web.stj.jus.br/api/pcp/documentos/pdf/dinamico/NDA3MTY0NzExMjAyNjAyNzU4MzM1MTc5MjY2ODY4MDk0NA=="
+                },
+                new DocumentoProcessual
+                {
+                    Id = "djen-421853952",
+                    Tipo = "DJEN (TJSP) - Intimação de Acórdão (Embargos)",
+                    Data = new System.DateTime(2025, 10, 2, 12, 0, 0, System.DateTimeKind.Utc),
+                    Titulo = "Intimação de Acórdão — EMBARGOS DE DECLARAÇÃO CÍVEL (TJSP)",
+                    Situacao = "Rejeitaram os embargos. V. U.",
                     MagistradoRelator = "PEDRO PAULO MAILLET PREUSS",
-                    Ementa = "AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR DEFERIDA EM PRIMEIRO GRAU – ALEGAÇÃO DE ESBULHO E AUSÊNCIA DOS REQUISITOS DO ART. 561 DO CPC – DECISÃO REFORMADA EM PARTE PARA SUSPENDER A DESOCUPAÇÃO COMPULSÓRIA ATÉ AUDIÊNCIA DE JUSTIFICAÇÃO PRÉVIA – RECURSO PARCIALMENTE PROVIDO.",
-                    ConteudoTexto = "Deram provimento em parte ao recurso. V. U. Acórdão lavrado pelo Desembargador Relator Pedro Paulo Maillet Preuss.",
-                    CertidaoPublicacao = "Sessão Colegiada telepresencial/ordinária realizada em 27/08/2025 pela 24ª Câmara de Direito Privado do TJSP.",
+                    Ementa = "EMBARGOS DE DECLARAÇÃO. OMISSÃO, CONTRADIÇÃO E OBSCURIDADE. INOCORRÊNCIA. MERO INCONFORMISMO DA PARTE. AUSENTE QUALQUER VÍCIO NO DECISUM. INOCORRENTES AS HIPÓTESES DO ART. 1.022 DO CPC. RECURSO QUE, VIA DE REGRA, NÃO TEM CARÁTER INFRINGENTE. PREQUESTIONAMENTO. ART. 1.025, DO CPC. EMBARGOS REJEITADOS.",
+                    ConteudoTexto = "Nº 2101760-84.2025.8.26.0000/50000 - Embargos de Declaração Cível - Guarulhos - Magistrado(a) Pedro Paulo Maillet Preuss - Rejeitaram os embargos. V. U.",
+                    CertidaoPublicacao = "Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 421853952) em 02/10/2025 pelo Processamento 12º Grupo - 24ª Câmara Direito Privado (TJSP).",
+                    UrlOrigem = "https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo=RI008POZI0000"
+                },
+                new DocumentoProcessual
+                {
+                    Id = "djen-370489236",
+                    Tipo = "DJEN (TJSP) - Intimação de Acórdão",
+                    Data = new System.DateTime(2025, 9, 4, 12, 0, 0, System.DateTimeKind.Utc),
+                    Titulo = "Intimação de Acórdão — AGRAVO DE INSTRUMENTO (TJSP)",
+                    Situacao = "Deram provimento em parte ao recurso. V. U.",
+                    MagistradoRelator = "PEDRO PAULO MAILLET PREUSS",
+                    Ementa = "AGRAVO DE INSTRUMENTO. AÇÃO DE MANUTENÇÃO DE POSSE. DECISÃO QUE DETERMINOU A CORREÇÃO DO VALOR DA CAUSA PARA QUE CORRESPONDA AO BENEFÍCIO PATRIMONIAL VISADO. INSURGÊNCIA DO AUTOR. CABIMENTO EM PARTE. ART. 292 QUE NÃO ESTABELECE CRITÉRIOS PARA O VALOR DA CAUSA EM AÇÕES POSSESSÓRIAS. ENTENDIMENTO CONSUETUDINÁRIO E JURISPRUDENCIAL DE QUE O VALOR DA CAUSA, NAS AÇÕES POSSESSÓRIAS, DEVA SER DE 1/3 DO VALOR VENAL DO IMÓVEL. PRECEDENTES. DECISÃO REFORMADA. RECURSO PARCIALMENTE PROVIDO.",
+                    ConteudoTexto = "Nº 2101760-84.2025.8.26.0000 - Agravo de Instrumento - Guarulhos - Magistrado(a) Pedro Paulo Maillet Preuss - Deram provimento em parte ao recurso. V. U.",
+                    CertidaoPublicacao = "Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID 370489236) em 04/09/2025 pela Subseção IX - Intimações de Acórdãos (TJSP).",
                     UrlOrigem = "https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo=RI008POZI0000"
                 }
             }
@@ -157,10 +183,10 @@ public class InMemoryProcessoRepository : IProcessoRepository
         {
             ("2023-05-30T16:53:59Z", "Baixa Definitiva", "Baixa Definitiva e Arquivamento dos Autos", 22),
             ("2023-05-29T11:17:03Z", "Trânsito em julgado", "Certificado o Trânsito em Julgado da Sentença", 848),
-            ("2023-03-20T07:00:00Z", "Publicação", "Publicado no Diário Oficial Eletrônico da Justiça Federal", 92),
-            ("2023-03-16T17:25:22Z", "Ausência das condições da ação", "Sentença Proferida: Extinção sem Resolução do Mérito", 461),
+            ("2023-03-17T12:00:00Z", "Disponibilização DJEN (TRF3)", "Disponibilizado no Diário da Justiça Eletrônico da 3ª Região", 92),
+            ("2023-03-16T17:25:22Z", "Ausência das condições da ação", "Sentença Proferida: Extinção sem Resolução do Mérito (Art. 485, IV CPC)", 461),
             ("2023-01-10T14:56:40Z", "Requisição de Informações", "Notificada a Autoridade Coatora para prestar informações em 10 dias", 11020),
-            ("2023-01-02T00:54:32Z", "Distribuição", "Distribuído por sorteio à 21ª Vara Federal Cível de São Paulo", 26)
+            ("2023-01-02T12:00:00Z", "Distribuição", "Distribuído por sorteio à 21ª Vara Federal Cível de São Paulo", 26)
         };
 
         foreach (var (data, titulo, desc, cod) in eventosTrf3)
@@ -184,22 +210,24 @@ public class InMemoryProcessoRepository : IProcessoRepository
     {
         var eventos = new (string data, string titulo, string desc, int cod)[]
         {
+            ("2026-10-23T12:00:00Z", "Disponibilização DJEN (STJ) - ATA DE DISTRIBUIÇÃO", "AREsp 3319477/SP (2026/0275833-5) — Distribuído ao Relator Ministro Antonio Carlos Ferreira (DJEN ID 765092040)", 92),
+            ("2026-10-21T12:00:00Z", "Disponibilização DJEN (STJ) - DESPACHO / DECISÃO", "AREsp 3319477/SP — Despacho da Presidência do STJ (Min. Luis Felipe Salomão) determinando distribuição (DJEN ID 763473219)", 92),
             ("2026-07-06T10:49:20Z", "Remessa", "Remetidos os autos ao Setor de Recursos aos Tribunais Superiores", 123),
             ("2026-06-23T12:23:58Z", "Ato ordinatório", "Certificada a regularidade formal da juntada", 11383),
             ("2026-06-22T11:33:00Z", "Expedição de documento", "Expedida notificação eletrônica às partes", 60),
             ("2026-06-22T11:23:55Z", "Decurso de Prazo", "Decorrido prazo sem manifestação da parte adversa", 1051),
             ("2026-05-22T14:07:49Z", "Petição", "Juntada de Petição de Contrarrazões", 85),
             ("2026-05-22T14:07:45Z", "Expedição de documento", "Comprovante de protocolo eletrônico anexado", 60),
-            ("2026-05-19T11:29:26Z", "Ato ordinatório", "Ciência aos patronos para manifestação", 11383),
+            ("2026-05-19T12:00:00Z", "Disponibilização DJEN (TJSP) - VISTA", "Vista à(s) parte(s) recorrida(s) para apresentação de contrarrazões (DJEN ID 614121539)", 92),
             ("2026-03-19T18:15:27Z", "Recurso Especial", "Interposição de Recurso Especial pelo Agravado", 433),
-            ("2026-01-19T11:13:53Z", "Ato ordinatório", "Certidão de publicação no DJe disponibilizada", 11383),
-            ("2025-09-30T10:34:23Z", "Julgamento", "Acórdão Registrado sob o nº 2025.0000789123", 193),
+            ("2025-10-02T12:00:00Z", "Disponibilização DJEN (TJSP) - Intimação de Acórdão", "Embargos de Declaração Cível rejeitados por votação unânime (DJEN ID 421853952)", 92),
+            ("2025-09-04T12:00:00Z", "Disponibilização DJEN (TJSP) - Intimação de Acórdão", "Acórdão publicado: Deram provimento em parte ao recurso quanto ao valor da causa em possessória (DJEN ID 370489236)", 92),
             ("2025-08-27T17:59:52Z", "Julgamento", "Sessão de Julgamento: Deram provimento em parte ao recurso. V. U.", 193),
             ("2025-08-21T17:31:38Z", "Pedido de inclusão em pauta virtual", "Inclusão em pauta de julgamento virtual", 12313),
             ("2025-07-24T17:16:27Z", "Conclusão", "Autos conclusos ao Relator Des. Pedro Paulo Maillet Preuss", 51),
-            ("2025-04-10T00:00:00Z", "Publicação", "Disponibilizado no Diário da Justiça Eletrônico", 92),
-            ("2025-04-07T14:06:55Z", "Outras Decisões", "Deferido efeito suspensivo ativo parcial para obstar desocupação imediata", 12164),
-            ("2025-04-07T12:33:53Z", "Conclusão", "Autos conclusos para apreciação de tutela de urgência recursal", 51),
+            ("2025-04-10T12:00:00Z", "Disponibilização DJEN (TJSP)", "Disponibilizado no Diário da Justiça Eletrônico", 92),
+            ("2025-04-07T14:06:55Z", "Outras Decisões", "Apreciação inicial de tutela recursal no Agravo de Instrumento", 12164),
+            ("2025-04-07T12:33:53Z", "Conclusão", "Autos conclusos para apreciação inicial", 51),
             ("2025-04-07T12:21:17Z", "Distribuição", "Distribuído por sorteio à 24ª Câmara de Direito Privado", 26)
         };
 

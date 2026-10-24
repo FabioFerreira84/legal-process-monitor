@@ -2,9 +2,10 @@ name: Keep Backend Alive
 
 on:
   schedule:
-    # Executa a cada 10 minutos para evitar o Cold Start do Render Free Tier
-    - cron: '*/10 * * * *'
-  workflow_dispatch: # Permite disparo manual
+    # Executa de segunda a sexta durante o horário comercial/forense (08h às 20h BRT / 11h às 23h UTC) a cada 14 min
+    # Preserva a cota mensal de 750h do plano gratuito do Render evitando consumo desnecessário na madrugada e fins de semana
+    - cron: '*/14 11-23 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -12,6 +13,6 @@ jobs:
     steps:
       - name: Ping Legal Process Monitor API on Render
         run: |
-          echo "Pinging Render backend to keep instance warm..."
+          echo "Pinging Render backend during business hours..."
           curl -sI -m 20 "https://legal-process-monitor-api.onrender.com/api/processos/ping" || true
           echo "Keep-alive ping sent."
