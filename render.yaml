@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: legal-process-monitor-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: ohio
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production

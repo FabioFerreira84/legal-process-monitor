@@ -1,10 +1,13 @@
 # ⚖️ LegalProcess Monitor
 
+[![Live Demo](https://img.shields.io/badge/Demo-GitHub%20Pages-brightgreen.svg)](https://fabioferreira84.github.io/legal-process-monitor/)
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
 [![Angular](https://img.shields.io/badge/Angular-21-red.svg)](https://angular.dev/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-NoSQL-green.svg)](https://www.mongodb.com/)
 [![Resilience](https://img.shields.io/badge/Resilience-Polly-blue.svg)](https://github.com/App-vNext/Polly)
 [![TDD](https://img.shields.io/badge/Tests-xUnit%20%26%20FluentAssertions-success.svg)]()
+
+> 🌐 **Acesso Online (Live Demo):** [https://fabioferreira84.github.io/legal-process-monitor/](https://fabioferreira84.github.io/legal-process-monitor/)
 
 Sistema distribuído e escalável para consulta, normalização e monitoramento de andamentos processuais de tribunais brasileiros, integrando a **API Oficial Pública do DataJud (CNJ)** e arquitetura extensível para web scrapers (ex: TJSP e-SAJ).
 

@@ -20,12 +20,15 @@ builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection(Mongo
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// Configuração de CORS para o Frontend Angular
+// Configuração de CORS para o Frontend Angular (Localhost e GitHub Pages)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularDev", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
+        policy.WithOrigins(
+                "http://localhost:4200",
+                "https://fabioferreira84.github.io"
+              )
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

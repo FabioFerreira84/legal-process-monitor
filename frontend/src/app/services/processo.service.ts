@@ -8,7 +8,9 @@ import { Processo } from '../models/processo.model';
 })
 export class ProcessoService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:5000/api/processos';
+  private readonly apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:5000/api/processos'
+    : 'https://legal-process-monitor-api.onrender.com/api/processos';
 
   consultarProcesso(numeroProcesso: string, forcarAtualizacao = false): Observable<Processo> {
     const url = `${this.apiUrl}/${encodeURIComponent(numeroProcesso)}?forcarAtualizacao=${forcarAtualizacao}`;
