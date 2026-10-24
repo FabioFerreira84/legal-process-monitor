@@ -37,6 +37,8 @@ builder.Services.AddCors(options =>
 // Registro do Cliente HTTP do DataJud com Resilience e Scraper do e-SAJ
 builder.Services.AddHttpClient<ITribunalConnector, DataJudConnector>();
 builder.Services.AddSingleton<ITribunalDocumentScraper, LegalProcessMonitor.Infrastructure.Connectors.Esaj.EsajDocumentScraper>();
+builder.Services.AddSingleton<IEsajOabScraper, LegalProcessMonitor.Infrastructure.Connectors.Esaj.EsajOabScraper>();
+builder.Services.AddSingleton<IMagistradoRepository, InMemoryMagistradoRepository>();
 
 // Configuração de Persistência (MongoDB com Fallback gracioso In-Memory)
 var mongoSettings = builder.Configuration.GetSection(MongoSettings.SectionName).Get<MongoSettings>() ?? new MongoSettings();
