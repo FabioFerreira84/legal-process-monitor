@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0E1422" stroke="#6366F1" stroke-width="2"/>
+  <!-- Balança da Justiça -->
+  <path d="M32 12V48M22 48H42" stroke="url(#gold)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M16 20H48" stroke="url(#gold)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Pratos -->
+  <path d="M16 20L10 32H22L16 20Z" fill="url(#indigo)" fill-opacity="0.3" stroke="url(#indigo)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M48 20L42 32H54L48 20Z" fill="url(#indigo)" fill-opacity="0.3" stroke="url(#indigo)" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Monograma FF -->
+  <text x="32" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#F8FAFC" text-anchor="middle" letter-spacing="1">FF</text>
+</svg>
