@@ -1,0 +1,140 @@
+<div class="app-layout">
+  <!-- Top Navigation Header -->
+  <header class="header">
+    <div class="brand">
+      <div class="logo-icon">⚖️</div>
+      <div>
+        <h1 class="logo-title">LegalProcess Monitor</h1>
+        <p class="logo-subtitle">Captura e Monitoramento Resiliente de Andamentos • CNJ DataJud & Tribunais</p>
+      </div>
+    </div>
+    <div class="badge-status">
+      <span class="status-dot"></span>
+      .NET 9 + Angular + MongoDB
+    </div>
+  </header>
+
+  <main class="main-content">
+    <!-- Search Box Card -->
+    <section class="card search-card">
+      <h2 class="card-title">Consultar Processo Unificado</h2>
+      <p class="card-subtitle">Digite o número no padrão CNJ (20 dígitos). O sistema valida o dígito verificador módulo 97 e consulta a fonte oficial.</p>
+      
+      <div class="search-form">
+        <div class="input-wrapper">
+          <input
+            type="text"
+            class="search-input"
+            placeholder="0000000-00.0000.0.00.0000"
+            [value]="numeroProcessoInput()"
+            (input)="formatarEntrada($event)"
+            (keyup.enter)="buscarProcesso()"
+          />
+          <button class="btn-clear" *ngIf="numeroProcessoInput()" (click)="numeroProcessoInput.set('')">✕</button>
+        </div>
+
+        <button class="btn-primary" [disabled]="carregando()" (click)="buscarProcesso()">
+          <span *ngIf="!carregando()">🔍 Consultar</span>
+          <span *ngIf="carregando()">⏳ Consultando...</span>
+        </button>
+      </div>
+
+      <!-- Quick sample actions -->
+      <div class="quick-samples">
+        <span class="sample-label">Exemplos rápidos:</span>
+        <button class="btn-pill" (click)="usarExemplo('0000001-32.2023.8.26.0100')">TJSP (1ª Vara Central)</button>
+        <button class="btn-pill" (click)="usarExemplo('5000001-80.2023.4.03.6100')">TRF3 (Justiça Federal)</button>
+      </div>
+
+      <!-- Error alert -->
+      <div class="alert-error" *ngIf="erro()">
+        ⚠️ {{ erro() }}
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="carregando()">
+      <div class="spinner"></div>
+      <p>Sincronizando com a API do Tribunal via políticas resilientes Polly...</p>
+    </div>
+
+    <!-- Process Details & Timeline -->
+    <section class="process-details" *ngIf="processoAtual() as proc">
+      <!-- Overview Card -->
+      <div class="card meta-card">
+        <div class="meta-header">
+          <div>
+            <span class="tribunal-badge">{{ proc.tribunal }}</span>
+            <span class="grau-badge">{{ proc.grau }}º Grau</span>
+            <span class="status-badge">{{ proc.status }}</span>
+            <h2 class="process-number">{{ proc.numeroCnjFormatado }}</h2>
+          </div>
+          <button class="btn-secondary" (click)="buscarProcesso(true)" [disabled]="carregando()">
+            🔄 Forçar Atualização no Tribunal
+          </button>
+        </div>
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Órgão Julgador</span>
+            <span class="meta-value">{{ proc.orgaoJulgador || 'Não informado' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Classe Processual</span>
+            <span class="meta-value">{{ proc.classe || 'Não informado' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Assunto Principal</span>
+            <span class="meta-value">{{ proc.assunto || 'Não informado' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Última Sincronização</span>
+            <span class="meta-value">{{ proc.ultimaAtualizacao | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Movements Timeline -->
+      <div class="card timeline-card">
+        <div class="timeline-header">
+          <h3 class="card-title">Linha do Tempo de Movimentações</h3>
+          <span class="counter-badge">{{ proc.movimentacoes.length }} eventos capturados</span>
+        </div>
+
+        <div class="empty-timeline" *ngIf="proc.movimentacoes.length === 0">
+          Nenhuma movimentação pública registrada no tribunal até o momento.
+        </div>
+
+        <div class="timeline-list" *ngIf="proc.movimentacoes.length > 0">
+          <div class="timeline-item" *ngFor="let mov of proc.movimentacoes; let first = first">
+            <div class="timeline-marker" [class.latest]="first"></div>
+            <div class="timeline-content">
+              <div class="timeline-time">
+                {{ mov.dataHora | date:'dd/MM/yyyy HH:mm' }}
+                <span class="badge-code" *ngIf="mov.codigoNacional">Cód. CNJ: {{ mov.codigoNacional }}</span>
+              </div>
+              <h4 class="timeline-title">{{ mov.titulo }}</h4>
+              <p class="timeline-desc" *ngIf="mov.descricao && mov.descricao !== mov.titulo">
+                {{ mov.descricao }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent queries sidebar / list -->
+    <section class="card recent-card" *ngIf="processosRecentes().length > 0 && !processoAtual()">
+      <h3 class="card-title">Processos Consultados Recentemente</h3>
+      <div class="recent-list">
+        <div class="recent-item" *ngFor="let item of processosRecentes()" (click)="usarExemplo(item.numeroCnjFormatado)">
+          <div>
+            <strong>{{ item.numeroCnjFormatado }}</strong>
+            <span class="recent-sub">{{ item.tribunal }} • {{ item.classe || 'Geral' }}</span>
+          </div>
+          <span class="recent-date">{{ item.ultimaAtualizacao | date:'dd/MM HH:mm' }}</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

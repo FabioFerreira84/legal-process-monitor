@@ -1,0 +1,6 @@
+@LegalProcessMonitor.Api_HostAddress = http://localhost:5152
+
+GET {{LegalProcessMonitor.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
