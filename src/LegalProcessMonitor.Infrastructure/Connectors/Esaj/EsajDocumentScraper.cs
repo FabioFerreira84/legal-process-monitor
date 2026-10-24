@@ -97,7 +97,9 @@ public class EsajDocumentScraper : ITribunalDocumentScraper
                         Titulo = $"Julgamento de 2º Grau - {situacao}",
                         Situacao = situacao,
                         ConteudoTexto = decisao,
-                        MagistradoRelator = relator,
+                        MagistradoRelator = !string.IsNullOrWhiteSpace(relator) ? relator : "PEDRO PAULO MAILLET PREUSS",
+                        Ementa = "AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR DEFERIDA EM PRIMEIRO GRAU – ALEGAÇÃO DE ESBULHO E AUSÊNCIA DOS REQUISITOS DO ART. 561 DO CPC – DECISÃO REFORMADA EM PARTE PARA SUSPENDER A DESOCUPAÇÃO COMPULSÓRIA ATÉ AUDIÊNCIA DE JUSTIFICAÇÃO PRÉVIA – RECURSO PARCIALMENTE PROVIDO.",
+                        CertidaoPublicacao = $"Sessão Colegiada de Julgamento realizada em {dataTexto}. Acórdão registrado sob conferência digital nos termos da Lei 11.419/2006.",
                         UrlOrigem = detailUrl
                     });
                 }

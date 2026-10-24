@@ -9,6 +9,8 @@ export interface Movimentacao {
 export interface Envolvido {
   nome: string;
   tipoPolo: string;
+  papel?: string;
+  oab?: string;
   documento?: string;
 }
 
@@ -20,6 +22,8 @@ export interface DocumentoProcessual {
   conteudoTexto: string;
   situacao?: string;
   magistradoRelator?: string;
+  ementa?: string;
+  certidaoPublicacao?: string;
   urlOrigem?: string;
 }
 
@@ -35,6 +39,11 @@ export interface Processo {
   dataDistribuicao?: string;
   status: string;
   ultimaAtualizacao: string;
+  comarca?: string;
+  foro?: string;
+  valorCausa?: number;
+  relator?: string;
+  segredoJustica?: boolean;
   movimentacoes: Movimentacao[];
   envolvidos: Envolvido[];
   documentosPublicos?: DocumentoProcessual[];

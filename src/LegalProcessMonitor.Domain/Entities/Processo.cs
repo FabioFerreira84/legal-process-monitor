@@ -17,6 +17,11 @@ public class Processo
     public DateTime? DataDistribuicao { get; set; }
     public string Status { get; set; } = "Em Andamento";
     public DateTime UltimaAtualizacao { get; set; } = DateTime.UtcNow;
+    public string? Comarca { get; set; }
+    public string? Foro { get; set; }
+    public decimal? ValorCausa { get; set; }
+    public string? Relator { get; set; }
+    public bool SegredoJustica { get; set; } = false;
 
     public List<Movimentacao> Movimentacoes { get; set; } = new();
     public List<Envolvido> Envolvidos { get; set; } = new();

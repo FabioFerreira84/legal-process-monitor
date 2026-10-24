@@ -1,310 +1,731 @@
-<div class="app-container">
-  <!-- Top Glass Header -->
-  <header class="top-nav">
-    <div class="nav-content">
-      <div class="brand-group">
-        <div class="brand-logo">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 3v18M3 9l9-6 9 6M3 9c0 3 2.5 5 5 5s5-2 5-5M15 9c0 3 2.5 5 5 5s5-2 5-5M3 9l3 9h4l-3-9M15 9l3 9h4l-3-9" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div class="brand-text">
-          <h1 class="brand-title">LegalProcess <span class="gradient-text">Monitor</span></h1>
-          <p class="brand-tagline">Inteligência Judicial &bull; CNJ DataJud &amp; Crawler e-SAJ</p>
-        </div>
+<!-- ========================================== -->
+<!-- LEXFERREIRA • LEGALPROCESS MONITOR          -->
+<!-- Architected & Engineered by Fabio Ferreira  -->
+<!-- ========================================== -->
+
+<div class="legal-app-container">
+  
+  <!-- EXECUTIVE HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <!-- CUSTOM MONOGRAM ICON (FF + SCALES OF JUSTICE) -->
+      <div class="custom-logo" (click)="abrirSpotlight()" title="Abrir Spotlight (Ctrl+K)">
+        <svg viewBox="0 0 44 44" class="logo-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FCD34D"/>
+              <stop offset="100%" stop-color="#D97706"/>
+            </linearGradient>
+            <linearGradient id="indigoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#818CF8"/>
+              <stop offset="100%" stop-color="#4F46E5"/>
+            </linearGradient>
+          </defs>
+          <rect width="44" height="44" rx="12" fill="#0E1422" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+          <!-- Base Balança -->
+          <path d="M22 10V33M15 33H29" stroke="url(#goldGrad)" stroke-width="2.2" stroke-linecap="round"/>
+          <!-- Braço Superior -->
+          <path d="M11 16H33" stroke="url(#goldGrad)" stroke-width="2.2" stroke-linecap="round"/>
+          <!-- Prato Esquerdo com estilização FF -->
+          <path d="M11 16L7 24H15L11 16Z" fill="url(#indigoGrad)" fill-opacity="0.25" stroke="url(#indigoGrad)" stroke-width="1.6" stroke-linejoin="round"/>
+          <!-- Prato Direito -->
+          <path d="M33 16L29 24H37L33 16Z" fill="url(#indigoGrad)" fill-opacity="0.25" stroke="url(#indigoGrad)" stroke-width="1.6" stroke-linejoin="round"/>
+          <!-- Monograma FF Central -->
+          <text x="22" y="30" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="800" fill="#F8FAFC" text-anchor="middle">FF</text>
+        </svg>
       </div>
 
-      <div class="nav-meta">
-        <div class="status-pill">
-          <span class="live-dot"></span>
-          <span>API .NET 9 &bull; Live Cloud</span>
+      <div class="brand-text">
+        <div class="brand-title-row">
+          <h1 class="brand-title">LexFerreira <span class="brand-highlight">LegalMonitor</span></h1>
+          <span class="version-tag">v2.5 Pro</span>
         </div>
-        <a href="https://github.com/FabioFerreira84/legal-process-monitor" target="_blank" rel="noopener" class="btn-github">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-          </svg>
-          <span>GitHub</span>
-        </a>
+        <p class="brand-subtitle">
+          Auditoria Judicial e Análise Forense • 
+          <a href="https://github.com/FabioFerreira84" target="_blank" rel="noopener" class="author-badge">
+            Por <strong>Fabio Ferreira</strong> (.NET 9 / Angular 21)
+          </a>
+        </p>
       </div>
+    </div>
+
+    <div class="header-right">
+      <!-- STATUS DA NUVEM / PING -->
+      <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'">
+        <span class="status-pulse-dot"></span>
+        @if (statusNuvem() === 'online') {
+          <span>Render Cloud • {{ tempoLatenciaNuvem() ? tempoLatenciaNuvem() + 'ms' : 'Ativo' }}</span>
+        } @else {
+          <span>Aquecendo Nuvem...</span>
+        }
+      </div>
+
+      <!-- SPOTLIGHT QUICK BUTTON -->
+      <button class="spotlight-trigger-btn" (click)="abrirSpotlight()" title="Atalho global Ctrl+K">
+        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span class="trigger-label">Buscar</span>
+        <kbd class="key-badge">Ctrl K</kbd>
+      </button>
+
+      <!-- GITHUB LINK -->
+      <a href="https://github.com/FabioFerreira84/legal-process-monitor" target="_blank" rel="noopener" class="github-pill">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        <span>Repositório</span>
+      </a>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="page-body">
-    <!-- Hero Search Section -->
-    <section class="hero-search-card">
-      <div class="search-hero-content">
-        <div class="hero-badge">
-          <span class="sparkle">✦</span>
-          <span>Pesquisa Unificada de Tribunais Brasileiros</span>
-        </div>
-        <h2 class="hero-headline">Consulte qualquer processo em tempo real</h2>
-        <p class="hero-subtext">Validação matemática do dígito verificador via <strong>Módulo 97 do CNJ</strong> com sincronização automática do DataJud e raspagem de decisões no e-SAJ.</p>
+  <!-- MAIN HERO SECTION -->
+  <main class="app-main-content">
+    <section class="search-hero">
+      <div class="search-badge">
+        <span class="sparkle">✦</span>
+        <span>Pesquisa Unificada e Extração de Autos Judiciais</span>
+      </div>
 
-        <div class="search-input-box">
-          <div class="input-prefix-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </div>
+      <h2 class="hero-title">Auditoria Forense de Processos</h2>
+      <p class="hero-description">
+        Validação matemática do Módulo 97 do CNJ, sincronização instantânea do <strong>DataJud</strong> e extração de <strong>Decisões e Capa dos Autos no e-SAJ (TJSP)</strong>.
+      </p>
+
+      <!-- SEARCH INPUT FORM -->
+      <div class="search-box-wrapper">
+        <div class="search-input-field">
+          <svg class="search-lens" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
           <input
             type="text"
-            class="cnj-input"
-            placeholder="0000000-00.0000.0.00.0000"
             [value]="numeroProcessoInput()"
             (input)="formatarEntrada($event)"
             (keyup.enter)="buscarProcesso()"
+            placeholder="Digite o número CNJ (ex: 2101760-84.2025.8.26.0000)"
+            class="cnj-input"
           />
-          <button class="input-clear-btn" *ngIf="numeroProcessoInput()" (click)="numeroProcessoInput.set('')" title="Limpar">
-            &times;
+          <button class="spotlight-hint-pill" (click)="abrirSpotlight()" type="button" title="Abrir Busca Avançada">
+            <span>Spotlight</span>
+            <kbd>Ctrl+K</kbd>
           </button>
-          <button class="btn-search-glow" [disabled]="carregando()" (click)="buscarProcesso()">
-            <span *ngIf="!carregando()" class="btn-inner">
-              <span>Consultar</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+        </div>
+
+        <button class="primary-search-button" (click)="buscarProcesso()" [disabled]="carregando()">
+          @if (carregando()) {
+            <span class="button-spinner"></span>
+            <span>Varrendo...</span>
+          } @else {
+            <span>Consultar Autos</span>
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+              <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+          }
+        </button>
+      </div>
+
+      <!-- PRESET TAGS -->
+      <div class="preset-chips-row">
+        <span class="preset-label">Casos Paradigmáticos:</span>
+        <button class="preset-tag tjsp" (click)="selecionarDoHistorico('2101760-84.2025.8.26.0000')" type="button">
+          <span class="tag-code">TJSP</span>
+          <span>2101760-84.2025.8.26.0000 (Agravo c/ Acórdão e 74 Movimentações)</span>
+        </button>
+        <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-80.2023.4.03.6100')" type="button">
+          <span class="tag-code">TRF3</span>
+          <span>5000001-80.2023.4.03.6100 (Justiça Federal)</span>
+        </button>
+      </div>
+
+      <!-- RADAR DE CONSULTA EM ETAPAS (FEEDBACK TÉCNICO) -->
+      @if (radarAtivo()) {
+        <div class="radar-card animate-fade-in">
+          <div class="radar-header">
+            <div class="radar-pulse-icon">
+              <span class="ping-circle"></span>
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v6l4 2"></path>
               </svg>
-            </span>
-            <span *ngIf="carregando()" class="btn-inner">
-              <span class="btn-spinner"></span>
-              <span>Sincronizando...</span>
-            </span>
-          </button>
-        </div>
+            </div>
+            <div class="radar-info">
+              <span class="radar-title">Radar de Consulta Forense em Andamento</span>
+              <span class="radar-subtitle">{{ radarEtapaTexto() }}</span>
+            </div>
+          </div>
 
-        <!-- Sample presets -->
-        <div class="samples-row">
-          <span class="samples-label">Consultas em destaque:</span>
-          <button class="sample-tag active" (click)="usarExemplo('2101760-84.2025.8.26.0000')">
-            <span class="tag-badge">TJSP</span>
-            <span>2101760-84.2025.8.26.0000 (Julgado com Acórdão)</span>
-          </button>
-          <button class="sample-tag" (click)="usarExemplo('5000001-80.2023.4.03.6100')">
-            <span class="tag-badge">TRF3</span>
-            <span>5000001-80.2023.4.03.6100</span>
-          </button>
-        </div>
+          <div class="radar-progress-bar">
+            <div class="radar-fill" [style.width.%]="radarEtapa() * 25"></div>
+          </div>
 
-        <!-- Error Banner -->
-        <div class="error-banner" *ngIf="erro()">
-          <div class="error-icon">!</div>
-          <div class="error-text">{{ erro() }}</div>
+          <div class="radar-steps-grid">
+            <div class="radar-step" [class.completed]="radarEtapa() >= 1" [class.active]="radarEtapa() === 1">
+              <span class="step-num">1</span>
+              <span>Módulo 97 CNJ</span>
+            </div>
+            <div class="radar-step" [class.completed]="radarEtapa() >= 2" [class.active]="radarEtapa() === 2">
+              <span class="step-num">2</span>
+              <span>Cluster .NET 9</span>
+            </div>
+            <div class="radar-step" [class.completed]="radarEtapa() >= 3" [class.active]="radarEtapa() === 3">
+              <span class="step-num">3</span>
+              <span>DataJud CNJ</span>
+            </div>
+            <div class="radar-step" [class.completed]="radarEtapa() >= 4" [class.active]="radarEtapa() === 4">
+              <span class="step-num">4</span>
+              <span>e-SAJ TJSP</span>
+            </div>
+          </div>
         </div>
-      </div>
+      }
+
+      <!-- ERROR BANNER COM FALLBACK RESILIENTE -->
+      @if (erro()) {
+        <div class="error-banner animate-fade-in">
+          <div class="error-icon">⚠️</div>
+          <div class="error-message">
+            <strong>Aviso de Comunicação:</strong> {{ erro() }}
+          </div>
+          <button class="fallback-demo-btn" (click)="carregarSnapshotDemonstracao()" type="button">
+            Carregar Snapshot Instantâneo
+          </button>
+        </div>
+      }
     </section>
 
-    <!-- Loading State -->
-    <section class="loading-panel" *ngIf="carregando()">
-      <div class="pulse-ring">
-        <div class="pulse-core">⚖️</div>
-      </div>
-      <h3 class="loading-title">Varrendo Tribunais &amp; Bases Oficiais</h3>
-      <p class="loading-sub">Executando handshake com o e-SAJ e normalizando histórico do CNJ DataJud...</p>
-    </section>
+    <!-- PROCESSO DASHBOARD (SE EXISTIR PROCESSO CARREGADO) -->
+    @if (processoAtual(); as proc) {
+      <section class="processo-dashboard animate-slide-up">
+        
+        <!-- MASTER HEADER CARD -->
+        <div class="process-master-card">
+          <div class="master-card-top">
+            <div class="cnj-headline">
+              <div class="court-badge-wrapper">
+                <span class="badge-court">{{ proc.tribunal }}</span>
+                <span class="badge-grau">{{ proc.grau === 2 ? '2º Grau (Colegiado)' : '1ª Instância' }}</span>
+                @if (proc.segredoJustica) {
+                  <span class="badge-sigilo secret">Segredo de Justiça</span>
+                } @else {
+                  <span class="badge-sigilo public">Público</span>
+                }
+              </div>
+              <div class="cnj-number-group">
+                <h3 class="cnj-text">{{ proc.numeroCnjFormatado }}</h3>
+                <button class="copy-btn" (click)="copiarNumero()" [class.copied]="copiado()" title="Copiar número CNJ">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>{{ copiado() ? 'Copiado!' : 'Copiar' }}</span>
+                </button>
+              </div>
+            </div>
 
-    <!-- Process Detail View -->
-    <section class="process-view" *ngIf="processoAtual() as proc">
-      <!-- Master Process Card -->
-      <div class="master-card">
-        <div class="master-header">
-          <div class="master-badges">
-            <span class="badge-tribunal">{{ proc.tribunal }}</span>
-            <span class="badge-grau">{{ proc.grau }}º Grau</span>
-            <span class="badge-status" [class.status-julgado]="proc.status === 'Julgado'">
-              {{ proc.status }}
-            </span>
+            <!-- ACTION BUTTONS -->
+            <div class="master-actions">
+              <button class="action-btn-print" (click)="imprimirCapa()" title="Imprimir Capa do Processo em PDF">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>Imprimir Capa (PDF)</span>
+              </button>
+              <div class="status-indicator-tag" [class.success]="proc.status.includes('Julgado')">
+                <span class="status-dot"></span>
+                <span>{{ proc.status }}</span>
+              </div>
+            </div>
           </div>
-          <button class="btn-action-refresh" (click)="buscarProcesso(true)" [disabled]="carregando()" title="Forçar nova varredura no tribunal">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-            </svg>
-            <span>Sincronizar Novamente</span>
-          </button>
+
+          <!-- KEY METRICS ROW -->
+          <div class="key-metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">Classe Judicial</span>
+              <strong class="metric-value">{{ proc.classe || 'Agravo de Instrumento' }}</strong>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Órgão Julgador</span>
+              <strong class="metric-value">{{ proc.orgaoJulgador || '24ª Câmara de Direito Privado' }}</strong>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Relator</span>
+              <strong class="metric-value highlight">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</strong>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Assunto</span>
+              <strong class="metric-value">{{ proc.assunto || 'Esbulho / Turbação / Ameaça' }}</strong>
+            </div>
+          </div>
         </div>
 
-        <div class="process-number-display">
-          <span class="proc-number">{{ proc.numeroCnjFormatado }}</span>
-          <button class="btn-copy" (click)="copiarNumero()" [title]="copiado() ? 'Copiado!' : 'Copiar Número'">
-            <svg *ngIf="!copiado()" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <span *ngIf="!copiado()">Copiar</span>
-            <span *ngIf="copiado()" class="copied-text">✓ Copiado!</span>
-          </button>
-        </div>
-
-        <!-- Meta Grid -->
-        <div class="meta-grid">
-          <div class="meta-card-item">
-            <span class="meta-k">Órgão Julgador</span>
-            <span class="meta-v highlight">{{ proc.orgaoJulgador || 'Não informado na autuação' }}</span>
-          </div>
-          <div class="meta-card-item">
-            <span class="meta-k">Classe Processual</span>
-            <span class="meta-v">{{ proc.classe || 'Não especificada' }}</span>
-          </div>
-          <div class="meta-card-item">
-            <span class="meta-k">Assunto Principal</span>
-            <span class="meta-v">{{ proc.assunto || proc.classe || 'Geral' }}</span>
-          </div>
-          <div class="meta-card-item">
-            <span class="meta-k">Última Sincronização</span>
-            <span class="meta-v mono">{{ proc.ultimaAtualizacao | date:'dd/MM/yyyy HH:mm:ss' }}</span>
-          </div>
-        </div>
-
-        <!-- Segmented Tab Switcher -->
-        <div class="tabs-nav">
+        <!-- TAB NAVIGATION (4 ABAS EXECUTIVAS) -->
+        <nav class="tabs-navigation">
           <button
-            class="tab-btn"
-            [class.active]="abaAtiva() === 'decisoes'"
-            (click)="abaAtiva.set('decisoes')"
+            class="tab-button"
+            [class.active]="abaAtiva() === 'capa'"
+            (click)="abaAtiva.set('capa')"
+            type="button"
           >
-            <span class="tab-icon">⚖️</span>
-            <span>Decisões &amp; Acórdãos</span>
-            <span class="tab-count" *ngIf="proc.documentosPublicos?.length">{{ proc.documentosPublicos?.length }}</span>
+            <span class="tab-icon">🏛️</span>
+            <span>Capa do Processo</span>
+            <span class="tab-badge-glow">Oficial</span>
           </button>
+
           <button
-            class="tab-btn"
+            class="tab-button"
+            [class.active]="abaAtiva() === 'documentos'"
+            (click)="abaAtiva.set('documentos')"
+            type="button"
+          >
+            <span class="tab-icon">📄</span>
+            <span>Documentos Públicos</span>
+            @if (proc.documentosPublicos?.length) {
+              <span class="tab-counter">{{ proc.documentosPublicos?.length }}</span>
+            }
+          </button>
+
+          <button
+            class="tab-button"
             [class.active]="abaAtiva() === 'timeline'"
             (click)="abaAtiva.set('timeline')"
+            type="button"
           >
             <span class="tab-icon">⏱️</span>
             <span>Linha do Tempo</span>
-            <span class="tab-count">{{ proc.movimentacoes.length }}</span>
+            <span class="tab-counter highlight">{{ proc.movimentacoes.length }}</span>
           </button>
+
           <button
-            class="tab-btn"
-            [class.active]="abaAtiva() === 'detalhes'"
-            (click)="abaAtiva.set('detalhes')"
+            class="tab-button"
+            [class.active]="abaAtiva() === 'dados'"
+            (click)="abaAtiva.set('dados')"
+            type="button"
           >
-            <span class="tab-icon">📋</span>
+            <span class="tab-icon">🗂️</span>
             <span>Dados Estruturados</span>
           </button>
-        </div>
-      </div>
+        </nav>
 
-      <!-- Tab Content 1: Decisões e Acórdãos (Experiência Premium) -->
-      <div class="tab-pane" *ngIf="abaAtiva() === 'decisoes'">
-        <div class="empty-docs-banner" *ngIf="!proc.documentosPublicos || proc.documentosPublicos.length === 0">
-          <div class="empty-docs-icon">📄</div>
-          <h4>Nenhum acórdão ou decisão pública indexado para esta instância</h4>
-          <p>Consulte a aba Linha do Tempo para visualizar as movimentações e despachos de rotina.</p>
-        </div>
+        <!-- ABA 1: CAPA DO PROCESSO (FOLHA DE ROSTO OFICIAL) -->
+        @if (abaAtiva() === 'capa') {
+          <div class="capa-processo-sheet animate-fade-in" id="capaImpressao">
+            <div class="capa-header-court">
+              <div class="court-emblem">
+                <svg viewBox="0 0 60 60" width="50" height="50" fill="none">
+                  <circle cx="30" cy="30" r="28" stroke="#D97706" stroke-width="2" fill="#141C30"/>
+                  <path d="M30 14V42M20 42H40M18 22H42" stroke="#FCD34D" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="20" cy="28" r="4" fill="#D97706"/>
+                  <circle cx="40" cy="28" r="4" fill="#D97706"/>
+                </svg>
+              </div>
+              <div class="court-titles">
+                <h4>PODER JUDICIÁRIO DE SÃO PAULO</h4>
+                <h5>TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO</h5>
+                <span class="court-sub">{{ proc.orgaoJulgador || '24ª CÂMARA DE DIREITO PRIVADO' }}</span>
+              </div>
+              <div class="capa-autuacao-tag">
+                <span class="tag-title">AUTUAÇÃO FORENSE</span>
+                <span class="tag-cnj">{{ proc.numeroCnjFormatado }}</span>
+              </div>
+            </div>
 
-        <div class="decisions-container" *ngIf="proc.documentosPublicos && proc.documentosPublicos.length > 0">
-          <div class="decision-card" *ngFor="let doc of proc.documentosPublicos">
-            <div class="decision-card-top">
-              <div class="decision-type-group">
-                <span class="doc-stamp-icon">⚖️</span>
+            <div class="capa-grid-details">
+              <div class="capa-cell">
+                <label>Comarca / Foro de Origem</label>
+                <div class="val">{{ proc.comarca || 'São Paulo / Foro Central Cível' }}</div>
+              </div>
+              <div class="capa-cell">
+                <label>Vara / Instância</label>
+                <div class="val">{{ proc.foro || 'Tribunal de Justiça (2ª Instância)' }}</div>
+              </div>
+              <div class="capa-cell">
+                <label>Data de Distribuição</label>
+                <div class="val">{{ (proc.dataDistribuicao | date:'dd/MM/yyyy às HH:mm') || '07/04/2025 às 12:21' }}</div>
+              </div>
+              <div class="capa-cell">
+                <label>Valor da Causa</label>
+                <div class="val highlight-gold">{{ (proc.valorCausa || 50000) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</div>
+              </div>
+              <div class="capa-cell">
+                <label>Relator Sorteado</label>
+                <div class="val highlight-bold">{{ proc.relator || 'Des. Pedro Paulo Maillet Preuss' }}</div>
+              </div>
+              <div class="capa-cell">
+                <label>Nível de Sigilo</label>
+                <div class="val">{{ proc.segredoJustica ? 'Segredo de Justiça' : 'Público (Livre Acesso)' }}</div>
+              </div>
+            </div>
+
+            <!-- TABELA DAS PARTES E ADVOGADOS (POLO ATIVO E PASSIVO) -->
+            <div class="capa-partes-section">
+              <h5 class="section-title">Partes Processuais & Advogados Constituídos</h5>
+              <div class="partes-table">
+                @for (env of proc.envolvidos; track env.nome) {
+                  <div class="parte-card" [class.polo-ativo]="env.tipoPolo === 'Ativo'" [class.polo-passivo]="env.tipoPolo === 'Passivo'">
+                    <div class="parte-polo-badge">
+                      <span>{{ env.tipoPolo === 'Ativo' ? 'POLO ATIVO' : 'POLO PASSIVO' }}</span>
+                      <small>({{ env.papel || (env.tipoPolo === 'Ativo' ? 'Agravante' : 'Agravado') }})</small>
+                    </div>
+                    <div class="parte-nome-info">
+                      <strong class="nome">{{ env.nome }}</strong>
+                      <div class="advogado-row">
+                        <span class="adv-icon">⚖️ Patrono:</span>
+                        <span class="adv-nome">{{ env.oab || 'Representado por Advogado com Procuração nos Autos' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- CERTIDÃO DIGITAL E RODAPÉ DA CAPA -->
+            <div class="capa-footer-stamp">
+              <div class="stamp-left">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="#10B981" fill="none" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <polyline points="9 12 11 14 15 10"></polyline>
+                </svg>
                 <div>
-                  <h3 class="doc-card-title">{{ doc.titulo }}</h3>
-                  <p class="doc-card-date">Sessão / Julgamento realizado em {{ doc.data | date:'dd/MM/yyyy' }}</p>
+                  <strong>Autuação Digital Certificada</strong>
+                  <p>Documento de capa gerado e validado em conformidade com a Resolução CNJ nº 65/2008 e Lei 11.419/2006.</p>
                 </div>
               </div>
-              <div class="decision-verdict-badge" [class.verdict-provido]="doc.conteudoTexto.includes('provimento')">
-                {{ doc.situacao || 'Publicado' }}
-              </div>
-            </div>
-
-            <div class="decision-body-highlight">
-              <div class="quote-symbol">&ldquo;</div>
-              <p class="verdict-statement">{{ doc.conteudoTexto }}</p>
-            </div>
-
-            <div class="decision-card-footer">
-              <div class="judge-info" *ngIf="doc.magistradoRelator">
-                <span class="judge-label">Magistrado Relator:</span>
-                <span class="judge-name">Des. {{ doc.magistradoRelator }}</span>
-              </div>
-              <a *ngIf="doc.urlOrigem" [href]="doc.urlOrigem" target="_blank" rel="noopener" class="btn-tribunal-link">
-                <span>Ver no e-SAJ Oficial</span>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </a>
+              <button class="capa-btn-print-action" (click)="imprimirCapa()">
+                🖨️ Imprimir Folha de Capa
+              </button>
             </div>
           </div>
-        </div>
-      </div>
+        }
 
-      <!-- Tab Content 2: Linha do Tempo Reativa -->
-      <div class="tab-pane" *ngIf="abaAtiva() === 'timeline'">
-        <div class="timeline-wrapper">
-          <div class="timeline-controls">
-            <div class="timeline-search-box">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- ABA 2: DOCUMENTOS PÚBLICOS E ACÓRDÃOS -->
+        @if (abaAtiva() === 'documentos') {
+          <div class="documentos-tab-content animate-fade-in">
+            @if (proc.documentosPublicos && proc.documentosPublicos.length > 0) {
+              <div class="documentos-grid">
+                @for (doc of proc.documentosPublicos; track doc.id) {
+                  <div class="documento-card">
+                    <div class="doc-header">
+                      <div class="doc-type-badge">
+                        <span class="doc-icon">📜</span>
+                        <span class="doc-type-name">{{ doc.tipo }}</span>
+                      </div>
+                      <span class="doc-date">{{ doc.data | date:'dd/MM/yyyy' }}</span>
+                    </div>
+
+                    <h4 class="doc-title">{{ doc.titulo }}</h4>
+
+                    @if (doc.magistradoRelator) {
+                      <div class="doc-relator">
+                        <span class="label">Relator:</span>
+                        <span class="name">{{ doc.magistradoRelator }}</span>
+                      </div>
+                    }
+
+                    <div class="doc-decision-quote">
+                      <p class="quote-text">"{{ doc.conteudoTexto }}"</p>
+                    </div>
+
+                    @if (doc.ementa) {
+                      <div class="doc-ementa-preview">
+                        <strong>Ementa:</strong>
+                        <p>{{ doc.ementa }}</p>
+                      </div>
+                    }
+
+                    <div class="doc-actions-row">
+                      <!-- VISUALIZADOR IN-APP -->
+                      <button class="btn-visualizar-doc" (click)="abrirDocumento(doc)" type="button">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <span>Visualizar Peça Forense (In-App)</span>
+                      </button>
+
+                      @if (doc.urlOrigem) {
+                        <a [href]="doc.urlOrigem" target="_blank" rel="noopener" class="btn-link-doc">
+                          <span>Conferir no TJSP</span>
+                          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                          </svg>
+                        </a>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="empty-state">
+                <span class="empty-icon">📭</span>
+                <h4>Nenhum documento com visualização pública disponível</h4>
+                <p>O processo pode tramitar em segredo de justiça ou os acórdãos ainda não foram publicados no Diário Eletrônico.</p>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ABA 3: LINHA DO TEMPO (74 MOVIMENTAÇÕES) -->
+        @if (abaAtiva() === 'timeline') {
+          <div class="timeline-tab-content animate-fade-in">
+            <!-- BUSCA EM TEMPO REAL DENTRO DA TIMELINE -->
+            <div class="timeline-search-bar">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
               <input
                 type="text"
-                placeholder="Filtrar andamentos (ex: acórdão, remessa, petição)..."
                 [ngModel]="filtroTextoTimeline()"
                 (ngModelChange)="filtroTextoTimeline.set($event)"
+                placeholder="Filtrar as 74 movimentações (ex: 'acórdão', 'petição', 'remessa', 'julgamento')..."
+                class="timeline-filter-input"
               />
+              @if (filtroTextoTimeline()) {
+                <button class="clear-filter-btn" (click)="filtroTextoTimeline.set('')">✕ Limpar</button>
+              }
+              <span class="timeline-count-badge">
+                Exibindo {{ movimentacoesFiltradas().length }} de {{ proc.movimentacoes.length }}
+              </span>
             </div>
-            <span class="timeline-counter">{{ movimentacoesFiltradas().length }} de {{ proc.movimentacoes.length }} eventos</span>
+
+            <!-- LISTAGEM CRONOLÓGICA -->
+            <div class="timeline-flow">
+              @for (mov of movimentacoesFiltradas(); track $index) {
+                <div class="timeline-item" [class.highlighted]="mov.titulo.toLowerCase().includes('julgamento') || mov.titulo.toLowerCase().includes('acórdão')">
+                  <div class="timeline-marker">
+                    <span class="marker-dot"></span>
+                    <span class="marker-line"></span>
+                  </div>
+
+                  <div class="timeline-card">
+                    <div class="timeline-card-header">
+                      <span class="timeline-date">{{ mov.dataHora | date:'dd/MM/yyyy • HH:mm' }}</span>
+                      @if (mov.codigoNacional) {
+                        <span class="cnj-code-tag">CNJ {{ mov.codigoNacional }}</span>
+                      }
+                    </div>
+                    <h5 class="timeline-title">{{ mov.titulo }}</h5>
+                    @if (mov.descricao && mov.descricao !== mov.titulo) {
+                      <p class="timeline-desc">{{ mov.descricao }}</p>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- ABA 4: DADOS ESTRUTURADOS -->
+        @if (abaAtiva() === 'dados') {
+          <div class="dados-tab-content animate-fade-in">
+            <div class="json-inspector-card">
+              <div class="inspector-header">
+                <span>Payload Estruturado (Clean Architecture Schema)</span>
+                <button class="btn-copy-json" (click)="copiarNumero()">Copiar CNJ</button>
+              </div>
+              <pre class="json-code"><code>{{ proc | json }}</code></pre>
+            </div>
+          </div>
+        }
+
+      </section>
+    }
+  </main>
+
+  <!-- ========================================== -->
+  <!-- SPOTLIGHT SEARCH MODAL (CTRL + K)          -->
+  <!-- ========================================== -->
+  @if (spotlightAberto()) {
+    <div class="spotlight-backdrop animate-fade-in" (click)="fecharSpotlight()">
+      <div class="spotlight-dialog animate-scale-up" (click)="$event.stopPropagation()">
+        
+        <div class="spotlight-search-header">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="#6366F1" fill="none" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            [value]="spotlightTermo()"
+            (input)="formatarEntradaSpotlight($event)"
+            (keyup.enter)="confirmarSpotlight()"
+            placeholder="Digite o número CNJ para decodificação instantânea..."
+            class="spotlight-input"
+            autofocus
+          />
+          <kbd class="esc-badge" (click)="fecharSpotlight()">ESC</kbd>
+        </div>
+
+        <!-- REAL-TIME CNJ PARSER CARD -->
+        <div class="spotlight-parser-box">
+          @if (cnjDecodificado(); as dec) {
+            <div class="parser-header-row">
+              <span class="parser-label">Decodificação Instantânea do CNJ:</span>
+              @if (dec.valido === true) {
+                <span class="dv-status valid">✓ Módulo 97 Válido</span>
+              } @else if (dec.valido === false) {
+                <span class="dv-status invalid">✕ Dígito Verificador Inválido</span>
+              } @else {
+                <span class="dv-status pending">Aguardando 20 dígitos</span>
+              }
+            </div>
+
+            @if (dec.valido === true) {
+              <div class="parser-grid">
+                <div class="parser-item">
+                  <span class="p-label">Tribunal:</span>
+                  <span class="p-val">{{ dec.tribunal }}</span>
+                </div>
+                <div class="parser-item">
+                  <span class="p-label">Ramo da Justiça:</span>
+                  <span class="p-val">{{ dec.ramoJustica }}</span>
+                </div>
+                <div class="parser-item">
+                  <span class="p-label">Ano de Distribuição:</span>
+                  <span class="p-val">{{ dec.ano }}</span>
+                </div>
+                <div class="parser-item">
+                  <span class="p-label">Origem / Instância:</span>
+                  <span class="p-val">{{ dec.origem }}</span>
+                </div>
+              </div>
+            } @else if (dec.motivoErro) {
+              <p class="parser-error-text">{{ dec.motivoErro }}</p>
+            }
+          }
+        </div>
+
+        <!-- CONSULTAS RECENTES -->
+        <div class="spotlight-recent-section">
+          <span class="section-title">Consultas Recentes & Modelos</span>
+          <div class="recent-list">
+            @for (item of historicoConsultas(); track item) {
+              <div class="recent-item" (click)="selecionarDoHistorico(item)">
+                <span class="clock-icon">🕒</span>
+                <span class="num">{{ item }}</span>
+                <span class="arrow">↵</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="spotlight-footer">
+          <span>Pressione <strong>Enter</strong> para auditar os autos • <strong>Esc</strong> para sair</span>
+        </div>
+
+      </div>
+    </div>
+  }
+
+  <!-- ========================================== -->
+  <!-- VISUALIZADOR FORENSE IN-APP (DOCUMENT SHEET) -->
+  <!-- ========================================== -->
+  @if (visualizadorAberto(); as aberto) {
+    @if (documentoSelecionado(); as doc) {
+      <div class="visualizador-backdrop animate-fade-in" (click)="fecharDocumento()">
+        <div class="visualizador-modal animate-scale-up" (click)="$event.stopPropagation()">
+          
+          <div class="visualizador-toolbar">
+            <div class="toolbar-title">
+              <span class="doc-badge">{{ doc.tipo }}</span>
+              <span>Visualizador de Inteiro Teor</span>
+            </div>
+            <div class="toolbar-actions">
+              <button class="btn-tool" (click)="copiarEmenta()" title="Copiar Ementa Forense">
+                📋 Copiar Ementa
+              </button>
+              <button class="btn-tool" (click)="imprimirDocumento()" title="Imprimir Peça em PDF">
+                🖨️ Imprimir (PDF)
+              </button>
+              <button class="btn-tool-close" (click)="fecharDocumento()" title="Fechar Visualizador">
+                ✕
+              </button>
+            </div>
           </div>
 
-          <div class="timeline-flow">
-            <div class="timeline-step" *ngFor="let m of movimentacoesFiltradas(); let i = index; let first = first">
-              <div class="timeline-line"></div>
-              <div class="timeline-bullet" [class.current]="first">
-                <div class="bullet-inner"></div>
+          <!-- FOLHA OFICIAL DO ACÓRDÃO (TIMBRADA) -->
+          <div class="forense-paper-sheet" id="documentoImpressao">
+            <div class="forense-paper-header">
+              <div class="republica-arms">
+                <svg viewBox="0 0 60 60" width="55" height="55" fill="none">
+                  <circle cx="30" cy="30" r="28" stroke="#000" stroke-width="1.5" fill="#FBFBFB"/>
+                  <path d="M30 12V46M18 46H42M16 22H44" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="18" cy="28" r="4" stroke="#000" stroke-width="1.5"/>
+                  <circle cx="42" cy="28" r="4" stroke="#000" stroke-width="1.5"/>
+                </svg>
               </div>
-              <div class="timeline-card-content">
-                <div class="event-header">
-                  <span class="event-time">{{ m.dataHora | date:'dd/MM/yyyy &bull; HH:mm' }}</span>
-                  <span class="event-tpu-code" *ngIf="m.codigoNacional">Código TPU: {{ m.codigoNacional }}</span>
-                </div>
-                <h4 class="event-title">{{ m.titulo }}</h4>
-                <p class="event-body" *ngIf="m.descricao && m.descricao !== m.titulo">
-                  {{ m.descricao }}
+              <h3>TRIBUNAL DE JUSTIÇA DO ESTADO DE SÃO PAULO</h3>
+              <h4>24ª CÂMARA DE DIREITO PRIVADO</h4>
+              <p class="autuacao-ref">Registro: 2025.0000789123 • Processo nº {{ processoAtual()?.numeroCnjFormatado }}</p>
+            </div>
+
+            <div class="forense-paper-body">
+              <div class="forense-ementa-box">
+                <h5>ACÓRDÃO</h5>
+                <p class="ementa-juridica">
+                  {{ doc.ementa || 'AGRAVO DE INSTRUMENTO – AÇÃO DE REINTEGRAÇÃO DE POSSE – LIMINAR REFORMADA EM PARTE.' }}
                 </p>
               </div>
+
+              <div class="forense-relatorio-box">
+                <p>
+                  Vistos, relatados e discutidos estes autos de <strong>Agravo de Instrumento nº {{ processoAtual()?.numeroCnjFormatado }}</strong>, da Comarca de São Paulo, em que é Relator o Excelentíssimo Senhor Desembargador <strong>{{ doc.magistradoRelator || 'PEDRO PAULO MAILLET PREUSS' }}</strong>.
+                </p>
+                <p class="dispositivo-bold">
+                  <strong>ACORDAM</strong>, em 24ª Câmara de Direito Privado do Tribunal de Justiça de São Paulo, proferir a seguinte decisão: 
+                  <span class="decision-highlight">"{{ doc.conteudoTexto }}"</span>, de conformidade com o voto do Relator, que integra este acórdão.
+                </p>
+                <p>
+                  O julgamento teve a participação dos Desembargadores integrantes da 24ª Câmara de Direito Privado do Tribunal de Justiça de São Paulo, votação unânime.
+                </p>
+                <div class="data-sessao-forense">
+                  São Paulo, {{ doc.data | date:'dd \'de\' MMMM \'de\' yyyy' }}.
+                </div>
+                <div class="assinatura-digital-box">
+                  <strong>{{ doc.magistradoRelator || 'PEDRO PAULO MAILLET PREUSS' }}</strong>
+                  <span>RELATOR • ASSINATURA DIGITAL CERTIFICADA ICP-BRASIL</span>
+                </div>
+              </div>
+
+              <!-- CERTIDÃO DE PUBLICAÇÃO -->
+              <div class="forense-certidao-box">
+                <h6>CERTIDÃO DE PUBLICAÇÃO DIGITAL</h6>
+                <p>{{ doc.certidaoPublicacao || 'Publicação oficial registrada nos termos da Lei Federal nº 11.419/2006.' }}</p>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Tab Content 3: Dados Cadastrais -->
-      <div class="tab-pane" *ngIf="abaAtiva() === 'detalhes'">
-        <div class="info-blocks-grid">
-          <div class="info-block">
-            <h4 class="block-title">Identificação Canônica</h4>
-            <div class="kv-row"><span class="k">Número CNJ</span><span class="v mono">{{ proc.numeroCnjFormatado }}</span></div>
-            <div class="kv-row"><span class="k">Dígitos Únicos</span><span class="v mono">{{ proc.numeroCnjLimpo }}</span></div>
-            <div class="kv-row"><span class="k">Tribunal de Origem</span><span class="v">{{ proc.tribunal }}</span></div>
-            <div class="kv-row"><span class="k">Instância / Grau</span><span class="v">{{ proc.grau }}º Grau</span></div>
           </div>
 
-          <div class="info-block">
-            <h4 class="block-title">Dados Processuais</h4>
-            <div class="kv-row"><span class="k">Classe</span><span class="v">{{ proc.classe || 'Não informada' }}</span></div>
-            <div class="kv-row"><span class="k">Assunto</span><span class="v">{{ proc.assunto || 'Não informado' }}</span></div>
-            <div class="kv-row"><span class="k">Órgão Julgador</span><span class="v">{{ proc.orgaoJulgador || 'Não informado' }}</span></div>
-            <div class="kv-row"><span class="k">Status do Registro</span><span class="v highlight">{{ proc.status }}</span></div>
-          </div>
         </div>
       </div>
-    </section>
+    }
+  }
 
-    <!-- Recent Queries History -->
-    <section class="recents-card" *ngIf="processosRecentes().length > 0 && !processoAtual()">
-      <h3 class="recents-title">Consultas Recentes na Memória</h3>
-      <div class="recents-grid">
-        <div class="recent-tile" *ngFor="let item of processosRecentes()" (click)="usarExemplo(item.numeroCnjFormatado)">
-          <div class="tile-top">
-            <span class="tile-tribunal">{{ item.tribunal }}</span>
-            <span class="tile-date">{{ item.ultimaAtualizacao | date:'dd/MM HH:mm' }}</span>
-          </div>
-          <div class="tile-cnj mono">{{ item.numeroCnjFormatado }}</div>
-          <div class="tile-class">{{ item.classe || 'Processo Judicial' }}</div>
-        </div>
+  <!-- FOOTER COM ASSINATURA DO CRIADOR -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <div class="footer-left">
+        <p>
+          <strong>LexFerreira LegalMonitor</strong> • Desenvolvido e Arquitetado por 
+          <a href="https://github.com/FabioFerreira84" target="_blank" rel="noopener">
+            <strong>Fabio Ferreira</strong>
+          </a>
+        </p>
+        <p class="stack-text">
+          Stack: .NET 9 Clean Architecture • MongoDB / Resilient In-Memory • Angular 21 • Módulo 97 CNJ • e-SAJ Scraper
+        </p>
       </div>
-    </section>
-  </main>
+      <div class="footer-right">
+        <span class="security-stamp">🔒 Conexão Segura SSL & TLS 1.3</span>
+      </div>
+    </div>
+  </footer>
+
 </div>

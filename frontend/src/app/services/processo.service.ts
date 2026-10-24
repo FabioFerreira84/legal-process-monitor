@@ -17,6 +17,10 @@ export class ProcessoService {
     return this.http.get<Processo>(url);
   }
 
+  ping(): Observable<{ status: string; timestamp: string }> {
+    return this.http.get<{ status: string; timestamp: string }>(`${this.apiUrl}/ping`);
+  }
+
   listarRecentes(limite = 20): Observable<Processo[]> {
     return this.http.get<Processo[]>(`${this.apiUrl}?limite=${limite}`);
   }

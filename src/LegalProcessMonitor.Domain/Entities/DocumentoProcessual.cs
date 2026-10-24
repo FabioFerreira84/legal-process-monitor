@@ -11,5 +11,7 @@ public class DocumentoProcessual
     public string ConteudoTexto { get; set; } = string.Empty;
     public string Situacao { get; set; } = string.Empty;
     public string? MagistradoRelator { get; set; }
+    public string? Ementa { get; set; }
+    public string? CertidaoPublicacao { get; set; }
     public string? UrlOrigem { get; set; }
 }
