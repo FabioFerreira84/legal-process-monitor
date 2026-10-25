@@ -8,6 +8,7 @@ using LegalProcessMonitor.Infrastructure.Connectors.DataJud;
 using LegalProcessMonitor.Infrastructure.Connectors.Djen;
 using LegalProcessMonitor.Infrastructure.Connectors.Esaj;
 using LegalProcessMonitor.Infrastructure.Connectors.Inteligencia;
+using LegalProcessMonitor.Infrastructure.Connectors.Rj;
 using LegalProcessMonitor.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -72,6 +73,11 @@ builder.Services.AddHttpClient<IDjenComunicacaoConnector, DjenComunicacaoConnect
 {
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+builder.Services.AddHttpClient<IRjTribunaisScraper, RjTribunaisScraper>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
 });
 builder.Services.AddSingleton<ITribunalDocumentScraper, EsajDocumentScraper>();
 builder.Services.AddSingleton<IEsajOabScraper, EsajOabScraper>();

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -6,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LegalProcessMonitor.Domain.Entities;
 using LegalProcessMonitor.Domain.Interfaces;
+using LegalProcessMonitor.Infrastructure.Connectors.Rj;
 using Microsoft.Extensions.Logging;
 
 namespace LegalProcessMonitor.Infrastructure.Connectors.Esaj;
@@ -13,11 +15,16 @@ namespace LegalProcessMonitor.Infrastructure.Connectors.Esaj;
 public class EsajOabScraper : IEsajOabScraper
 {
     private readonly IDjenComunicacaoConnector _djenConnector;
+    private readonly IRjTribunaisScraper _rjScraper;
     private readonly ILogger<EsajOabScraper> _logger;
 
-    public EsajOabScraper(IDjenComunicacaoConnector djenConnector, ILogger<EsajOabScraper> logger)
+    public EsajOabScraper(
+        IDjenComunicacaoConnector djenConnector,
+        IRjTribunaisScraper rjScraper,
+        ILogger<EsajOabScraper> logger)
     {
         _djenConnector = djenConnector;
+        _rjScraper = rjScraper;
         _logger = logger;
     }
 
@@ -59,7 +66,14 @@ public class EsajOabScraper : IEsajOabScraper
         // 1. Consulta Oficial na API Nacional do DJEN / Comunica PJe (CNJ)
         await _djenConnector.EnriquecerCarteiraPorOabAsync(carteira, numDigitos, uf, ct);
 
-        // 2. Se a UF possuir portal e-SAJ mapeado (SP, SC, MS, CE, AM, AL, AC), complementa com varredura direta (1º e 2º Grau)
+        // 2. Se a UF for RJ, aciona o scraper multi-tribunal do Rio de Janeiro (TJRJ + TRF2)
+        if (string.Equals(uf, "RJ", StringComparison.OrdinalIgnoreCase))
+        {
+            carteira.Tribunal = "TJRJ + TRF2 + TRT1 (Ecossistema Fluminense) + DJEN";
+            await _rjScraper.EnriquecerCarteiraRjAsync(carteira, numDigitos, ct);
+        }
+
+        // 3. Se a UF possuir portal e-SAJ mapeado (SP, SC, MS, CE, AM, AL, AC), complementa com varredura direta (1º e 2º Grau)
         if (temEsajEstadual)
         {
             try

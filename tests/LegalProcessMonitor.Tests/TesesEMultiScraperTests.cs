@@ -58,6 +58,26 @@ public sealed class TesesEMultiScraperTests : IDisposable
     }
 
     [Fact]
+    public void RjTribunaisScraper_DeveExtrairProcessosTjrjETrf2Corretamente()
+    {
+        var carteira = new AdvogadoCarteira { NumeroOab = "123456RJ" };
+        var htmlTjrj = "<html><body><div class='processo'>0012345-67.2024.8.19.0001</div><div>Nome do Advogado: <span>Dr. Fluminense da Silva</span></div></body></html>";
+        LegalProcessMonitor.Infrastructure.Connectors.Rj.RjTribunaisScraper.ExtrairProcessosTjrjHtml(htmlTjrj, carteira);
+
+        carteira.Processos.Should().ContainSingle();
+        carteira.Processos[0].NumeroCnjFormatado.Should().Be("0012345-67.2024.8.19.0001");
+        carteira.Processos[0].Tribunal.Should().Be("TJRJ");
+        carteira.NomeAdvogado.Should().Be("Dr. Fluminense da Silva");
+
+        var htmlTrf2 = "<html><body><tr><td>5001234-56.2024.4.02.5101</td></tr></body></html>";
+        LegalProcessMonitor.Infrastructure.Connectors.Rj.RjTribunaisScraper.ExtrairProcessosTrf2Html(htmlTrf2, carteira);
+
+        carteira.Processos.Should().HaveCount(2);
+        carteira.Processos[1].NumeroCnjFormatado.Should().Be("5001234-56.2024.4.02.5101");
+        carteira.Processos[1].Tribunal.Should().Be("TRF2");
+    }
+
+    [Fact]
     public async Task BancoDeTeses_DevePersistirPorTenantEIncrementarContadorDeUsosAoAplicarNoProcesso()
     {
         var repo = new SqliteWorkspaceRepository(_connString, semearDemoPadrao: true);
