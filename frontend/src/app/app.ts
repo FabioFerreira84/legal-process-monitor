@@ -10,12 +10,21 @@ import {
   ProcessoResumo,
   RiscoForense,
   TermoFatalCalculado,
-  ProcessoWatchlistItem
+  ProcessoWatchlistItem,
+  SuspensaoForenseLocal,
+  TarefaProcessual,
+  StatusTarefaColuna,
+  PrioridadeTarefa,
+  ItemRadarDjen,
+  ConfigRadarOab,
+  EstadoWorkspaceTenant
 } from './models/processo.model';
 import {
   calcularTermoFatalForense,
   extrairDataCivilSegura,
-  formatarDataBr
+  formatarDataBr,
+  gerarConteudoIcsPrazoFatal,
+  gerarLinkGoogleCalendarPrazoFatal
 } from './utils/calculadora-prazo';
 
 export interface CnjDecodificado {
@@ -51,10 +60,52 @@ export class App implements OnInit {
   erro = signal<string | null>(null);
   processoAtual = signal<Processo | null>(null);
   advogadoCarteira = signal<AdvogadoCarteira | null>(null);
-  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'inteligencia' | 'dados'>('capa');
+  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'inteligencia' | 'kanban' | 'dados'>('capa');
   filtroTextoTimeline = signal('');
   copiado = signal(false);
   whatsappCopiado = signal(false);
+
+  // ============================================================================
+  // ESTADO MULTI-TENANT SaaS (ISOLAMENTO POR ESCRITÓRIO / WORKSPACE)
+  // ============================================================================
+  tenantIdAtivo = signal<string>('escritorio-ferreira');
+  nomeEscritorioAtivo = signal<string>('Ferreira & Associados Advocacia');
+  workspacesPreset = signal<{ id: string; nome: string; oab: string }[]>([
+    { id: 'escritorio-ferreira', nome: 'Ferreira & Associados Advocacia', oab: '238470/SP' },
+    { id: 'banca-corporativa-sp', nome: 'Banca Corporativa Paulista (Tenant B)', oab: '131627/SP' },
+    { id: 'contencioso-tributario', nome: 'Contencioso Tributário Federal (Tenant C)', oab: '510501/SP' }
+  ]);
+  modalWorkspaceAberto = signal(false);
+  novoTenantIdInput = signal('');
+  novoTenantNomeInput = signal('');
+  novoTenantOabInput = signal('238470/SP');
+  webhookUrlInput = signal('');
+  telegramBotTokenInput = signal('');
+  telegramChatIdInput = signal('');
+  salvandoConfigWorkspace = signal(false);
+  feedbackWorkspaceMsg = signal<string | null>(null);
+
+  // Suspensões Forenses Locais do Escritório (Provimentos CSM / Feriados do Interior)
+  suspensoesLocais = signal<SuspensaoForenseLocal[]>([]);
+  novaSuspensaoDataInput = signal('2026-10-29');
+  novaSuspensaoDescricaoInput = signal('');
+  formSuspensaoAberto = signal(false);
+
+  // Quadro Kanban de Tarefas Processuais (Intimação -> Elaboração -> Revisão -> Protocolado)
+  tarefasKanban = signal<TarefaProcessual[]>([]);
+  novaTarefaTituloInput = signal('');
+  novaTarefaResponsavelInput = signal('Dr. Fabio Ferreira');
+  novaTarefaPrazoIsoInput = signal('2026-11-18');
+  novaTarefaPrioridadeInput = signal<PrioridadeTarefa>(3);
+  protocoloInputPorTarefa = signal<Record<string, string>>({});
+  tarefaCriadaFeedback = signal(false);
+
+  // Radar Proativo Diário DJEN & Alertas Webhook/Telegram
+  itensRadar = signal<ItemRadarDjen[]>([]);
+  radarDjenPainelAberto = signal(false);
+  sincronizandoRadarDjen = signal(false);
+  ultimoDiagnosticoRadar = signal<string | null>(null);
+  notasJuizoTenant = signal<Record<string, string>>({});
 
   // Controles interativos da Calculadora Forense de Termo Fatal (CPC/2015 + DJEN)
   prazoBaseCustomizado = signal<number | null>(null);
@@ -254,19 +305,25 @@ export class App implements OnInit {
     };
   });
 
-  // 2. CALCULADORA DINÂMICA DE TERMO FATAL (CPC/2015 + LEI 14.759/2023 + DJEN RES. CNJ 455/2022)
+  // 2. CALCULADORA DINÂMICA DE TERMO FATAL (CPC/2015 + LEI 14.759/2023 + DJEN RES. CNJ 455/2022 + SUSPENSÕES LOCAIS)
   termoFatalCalculado = computed<TermoFatalCalculado | null>(() => {
     const proc = this.processoAtual();
     const marco = this.marcoPublicacaoDetectado();
     if (!proc || !marco) return null;
 
     const diasBase = this.prazoBaseCustomizado() ?? marco.diasSugeridos;
+    const suspensoes = this.suspensoesLocais().map((s) => ({
+      data: s.data,
+      descricao: s.descricao
+    }));
+
     return calcularTermoFatalForense({
       dataMarco: marco.dataHora,
       diasPrazoBase: diasBase,
       ehDisponibilizacaoDjen: this.ehDisponibilizacaoDjenAtivo(),
       prazoEmDobro: this.prazoEmDobroAtivo(),
       siglaTribunal: proc.tribunal || 'TJSP',
+      suspensoesLocais: suspensoes,
       tipoAto:
         diasBase === 5
           ? 'Embargos de Declaração (5d)'
@@ -284,6 +341,10 @@ export class App implements OnInit {
 
     const trib = proc.tribunal || 'TJSP';
     const isDjen = this.ehDisponibilizacaoDjenAtivo();
+    const suspensoes = this.suspensoesLocais().map((s) => ({
+      data: s.data,
+      descricao: s.descricao
+    }));
 
     return {
       embargos5d: calcularTermoFatalForense({
@@ -292,6 +353,7 @@ export class App implements OnInit {
         ehDisponibilizacaoDjen: isDjen,
         prazoEmDobro: false,
         siglaTribunal: trib,
+        suspensoesLocais: suspensoes,
         tipoAto: 'Embargos de Declaração'
       }),
       recurso15d: calcularTermoFatalForense({
@@ -300,6 +362,7 @@ export class App implements OnInit {
         ehDisponibilizacaoDjen: isDjen,
         prazoEmDobro: false,
         siglaTribunal: trib,
+        suspensoesLocais: suspensoes,
         tipoAto: 'Recurso / Contrarrazões'
       }),
       dobro30d: calcularTermoFatalForense({
@@ -308,10 +371,33 @@ export class App implements OnInit {
         ehDisponibilizacaoDjen: isDjen,
         prazoEmDobro: true,
         siglaTribunal: trib,
+        suspensoesLocais: suspensoes,
         tipoAto: 'Fazenda / Defensoria / MP (Dobro)'
       })
     };
   });
+
+  // Link direto de 1 clique para Google Calendar
+  urlGoogleCalendarPrazo = computed(() => {
+    const proc = this.processoAtual();
+    const calculo = this.termoFatalCalculado();
+    if (!proc || !calculo) return 'https://calendar.google.com';
+
+    return gerarLinkGoogleCalendarPrazoFatal({
+      numeroProcesso: proc.numeroCnjFormatado,
+      classeProcessual: proc.classe || 'Prazo Processual',
+      orgaoJulgador: proc.orgaoJulgador || proc.tribunal,
+      siglaTribunal: proc.tribunal || 'TJSP',
+      calculo
+    });
+  });
+
+  // Colunas do Quadro Kanban de Tarefas Processuais
+  tarefasColunaIntimacao = computed(() => this.tarefasKanban().filter((t) => t.coluna === 0));
+  tarefasColunaElaboracao = computed(() => this.tarefasKanban().filter((t) => t.coluna === 1));
+  tarefasColunaRevisao = computed(() => this.tarefasKanban().filter((t) => t.coluna === 2));
+  tarefasColunaProtocolado = computed(() => this.tarefasKanban().filter((t) => t.coluna === 3));
+  totalRadarNaoLidas = computed(() => this.itensRadar().filter((i) => !i.lida).length);
 
   selecionarPrazoBase(dias: number) {
     this.prazoBaseCustomizado.set(dias);
@@ -558,15 +644,549 @@ export class App implements OnInit {
         this.fecharSpotlight();
       } else if (this.watchlistPainelAberto()) {
         this.watchlistPainelAberto.set(false);
+      } else if (this.radarDjenPainelAberto()) {
+        this.radarDjenPainelAberto.set(false);
+      } else if (this.modalWorkspaceAberto()) {
+        this.modalWorkspaceAberto.set(false);
       }
     }
   }
 
   ngOnInit() {
+    this.carregarTenantSalvo();
     this.carregarHistorico();
-    this.carregarWatchlist();
+    this.carregarWorkspaceMultiTenant(this.tenantIdAtivo());
     this.executarSilentPing();
     this.buscarProcesso(false, true);
+  }
+
+  // ============================================================================
+  // GESTÃO MULTI-TENANT SaaS (ISOLAMENTO POR ESCRITÓRIO NO SQLITE + CONTINGÊNCIA LOCAL)
+  // ============================================================================
+  private obterChaveLocalTenant(sufixo: string, tenantId = this.tenantIdAtivo()): string {
+    return `ferreira_saas_${tenantId}_${sufixo}`;
+  }
+
+  carregarTenantSalvo() {
+    try {
+      const salvo = localStorage.getItem('ferreira_saas_tenant_ativo');
+      if (salvo && /^[a-zA-Z0-9_-]{3,64}$/.test(salvo)) {
+        this.tenantIdAtivo.set(salvo);
+      }
+    } catch {}
+  }
+
+  selecionarTenantWorkspace(tenantId: string) {
+    const limpo = (tenantId || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-');
+    if (limpo.length < 3) return;
+
+    this.tenantIdAtivo.set(limpo);
+    try {
+      localStorage.setItem('ferreira_saas_tenant_ativo', limpo);
+    } catch {}
+
+    const preset = this.workspacesPreset().find((p) => p.id === limpo);
+    if (preset) {
+      this.nomeEscritorioAtivo.set(preset.nome);
+      this.novoTenantOabInput.set(preset.oab);
+    } else {
+      this.nomeEscritorioAtivo.set(`Escritório ${limpo}`);
+    }
+
+    this.carregarWorkspaceMultiTenant(limpo);
+  }
+
+  criarOuAlternarWorkspaceCustomizado() {
+    const idBruto = this.novoTenantIdInput().trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (idBruto.length < 3) return;
+
+    const nome = this.novoTenantNomeInput().trim() || `Escritório ${idBruto}`;
+    const oab = this.novoTenantOabInput().trim() || '238470/SP';
+
+    const listaAtual = this.workspacesPreset();
+    if (!listaAtual.some((w) => w.id === idBruto)) {
+      this.workspacesPreset.set([...listaAtual, { id: idBruto, nome, oab }]);
+    }
+
+    this.selecionarTenantWorkspace(idBruto);
+    this.salvarConfiguracaoWorkspace();
+    this.novoTenantIdInput.set('');
+    this.novoTenantNomeInput.set('');
+  }
+
+  carregarWorkspaceMultiTenant(tenantId: string) {
+    // 1. Hidratação imediata do cache isolado do tenant
+    this.hidratarContingenciaLocalTenant(tenantId);
+
+    // 2. Sincronização com o banco SQLite Multi-Tenant no Backend
+    this.processoService.obterEstadoWorkspace(tenantId).subscribe({
+      next: (estado: EstadoWorkspaceTenant) => {
+        this.aplicarEstadoWorkspace(estado);
+      },
+      error: () => {
+        // Mantém estado isolado por tenant já carregado
+      }
+    });
+  }
+
+  private aplicarEstadoWorkspace(estado: EstadoWorkspaceTenant) {
+    const tId = estado.tenantId;
+    if (estado.configuracao) {
+      this.nomeEscritorioAtivo.set(estado.configuracao.nomeEscritorio || `Workspace ${tId}`);
+      if (estado.configuracao.inscricoesOab?.length > 0) {
+        this.novoTenantOabInput.set(estado.configuracao.inscricoesOab.join(', '));
+      }
+      this.webhookUrlInput.set(estado.configuracao.webhookUrl || '');
+      this.telegramChatIdInput.set(estado.configuracao.telegramChatId || '');
+    }
+
+    const wl: ProcessoWatchlistItem[] = (estado.watchlist || []).map((w) => ({
+      numeroCnjFormatado: w.numeroProcesso,
+      numeroCnjLimpo: w.numeroProcesso.replace(/\D/g, ''),
+      tribunal: w.tribunal,
+      classe: w.classe,
+      dataSalvo: w.adicionadoEmUtc,
+      ultimoAndamentoTitulo: `${w.totalMovimentacoesConhecidas} movimentações monitoradas`,
+      notificacaoPendente: w.temNovidade
+    }));
+
+    this.watchlist.set(wl);
+    this.notasJuizoTenant.set(estado.notasJuizo || {});
+    this.suspensoesLocais.set(estado.suspensoesLocais || []);
+    this.tarefasKanban.set(estado.tarefasKanban || []);
+    this.itensRadar.set(estado.itensRadar || []);
+    this.persistirContingenciaLocalTenant(tId);
+  }
+
+  private hidratarContingenciaLocalTenant(tenantId: string) {
+    try {
+      const raw = localStorage.getItem(this.obterChaveLocalTenant('estado', tenantId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.watchlist.set(parsed.watchlist || []);
+        this.notasJuizoTenant.set(parsed.notasJuizo || {});
+        this.suspensoesLocais.set(parsed.suspensoesLocais || []);
+        this.tarefasKanban.set(parsed.tarefasKanban || []);
+        this.itensRadar.set(parsed.itensRadar || []);
+        if (parsed.nomeEscritorio) this.nomeEscritorioAtivo.set(parsed.nomeEscritorio);
+        return;
+      }
+    } catch {}
+
+    // Se for o escritório padrão e ainda não houver cache, popula estado inicial real
+    if (tenantId === 'escritorio-ferreira') {
+      this.watchlist.set([
+        {
+          numeroCnjFormatado: '2101760-84.2025.8.26.0000',
+          numeroCnjLimpo: '21017608420258260000',
+          tribunal: 'TJSP',
+          classe: 'Agravo de Instrumento',
+          dataSalvo: new Date().toISOString(),
+          ultimoAndamentoTitulo: 'Disponibilização DJEN (STJ) - ATA DE DISTRIBUIÇÃO',
+          notificacaoPendente: true
+        }
+      ]);
+      this.tarefasKanban.set([
+        {
+          id: 'kanban-stj-aresp-3319477',
+          tenantId: 'escritorio-ferreira',
+          numeroProcesso: '2101760-84.2025.8.26.0000',
+          titulo: 'Apresentar Contrarrazões / Memorial no AREsp 3319477/SP (STJ)',
+          descricao:
+            'Intimação DJEN ID 765092040 de 23/10/2026 — Distribuído ao Min. Antonio Carlos Ferreira.',
+          responsavel: 'Dr. Fabio Ferreira (OAB/SP 238.470)',
+          coluna: 0,
+          prioridade: 3,
+          prazoFatal: '2026-11-18',
+          diasPrazo: 15,
+          prazoEmDobro: false,
+          numeroProtocolo: null,
+          criadoEmUtc: new Date().toISOString(),
+          atualizadoEmUtc: new Date().toISOString()
+        }
+      ]);
+      this.itensRadar.set([
+        {
+          id: 'djen-765092040',
+          tenantId: 'escritorio-ferreira',
+          oabOrigem: '238470/SP',
+          numeroProcesso: '2101760-84.2025.8.26.0000',
+          tribunal: 'STJ',
+          orgaoJulgador: 'Presidência do STJ',
+          dataDisponibilizacao: '2026-10-23T12:00:00Z',
+          tipoComunicacao: 'Intimação de Distribuição (AREsp 3319477/SP)',
+          teorResumo:
+            'AREsp 3319477/SP (2026/0275833-5) — Distribuído em 22/10/2026 ao Min. Antonio Carlos Ferreira (DJEN ID 765092040).',
+          linkInteiroTeor:
+            'https://justica.web.stj.jus.br/api/pcp/documentos/pdf/dinamico/NDA3MTY0NzExMjAyNjAyNzU4MzM1MTc5MjY2ODY4MDk0NA==',
+          lida: false,
+          convertidaEmTarefa: true,
+          capturadoEmUtc: new Date().toISOString()
+        }
+      ]);
+      this.suspensoesLocais.set([]);
+      this.notasJuizoTenant.set({});
+    } else {
+      // Qualquer outro tenant inicia completamente limpo e isolado
+      this.watchlist.set([]);
+      this.tarefasKanban.set([]);
+      this.itensRadar.set([]);
+      this.suspensoesLocais.set([]);
+      this.notasJuizoTenant.set({});
+    }
+  }
+
+  private persistirContingenciaLocalTenant(tenantId = this.tenantIdAtivo()) {
+    try {
+      const payload = {
+        nomeEscritorio: this.nomeEscritorioAtivo(),
+        watchlist: this.watchlist(),
+        notasJuizo: this.notasJuizoTenant(),
+        suspensoesLocais: this.suspensoesLocais(),
+        tarefasKanban: this.tarefasKanban(),
+        itensRadar: this.itensRadar()
+      };
+      localStorage.setItem(this.obterChaveLocalTenant('estado', tenantId), JSON.stringify(payload));
+    } catch {}
+  }
+
+  salvarConfiguracaoWorkspace() {
+    const tenant = this.tenantIdAtivo();
+    const oabs = this.novoTenantOabInput()
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    this.salvandoConfigWorkspace.set(true);
+    this.feedbackWorkspaceMsg.set(null);
+
+    this.processoService
+      .atualizarConfigWorkspace(tenant, {
+        nomeEscritorio: this.nomeEscritorioAtivo(),
+        inscricoesOab: oabs,
+        webhookUrl: this.webhookUrlInput().trim() || null,
+        telegramBotToken: this.telegramBotTokenInput().trim() || null,
+        telegramChatId: this.telegramChatIdInput().trim() || null,
+        ativo: true
+      })
+      .subscribe({
+        next: () => {
+          this.salvandoConfigWorkspace.set(false);
+          this.persistirContingenciaLocalTenant(tenant);
+          this.feedbackWorkspaceMsg.set(
+            'Configurações Multi-Tenant e canais de alerta salvos no banco SQLite!'
+          );
+          setTimeout(() => this.feedbackWorkspaceMsg.set(null), 3500);
+        },
+        error: (err) => {
+          this.salvandoConfigWorkspace.set(false);
+          this.persistirContingenciaLocalTenant(tenant);
+          this.feedbackWorkspaceMsg.set(
+            err?.error?.mensagem || 'Configurações salvas localmente no Workspace.'
+          );
+        }
+      });
+  }
+
+  // ============================================================================
+  // SUSPENSÕES FORENSES LOCAIS & EXPORTADOR AGENDA .ICS (RFC 5545)
+  // ============================================================================
+  adicionarSuspensaoLocal() {
+    const dataIso = this.novaSuspensaoDataInput().trim();
+    const descricao = this.novaSuspensaoDescricaoInput().trim();
+    if (!dataIso || !descricao) return;
+
+    const proc = this.processoAtual();
+    const comarca = proc?.tribunal || 'TJSP';
+    const tenant = this.tenantIdAtivo();
+
+    const tempItem: SuspensaoForenseLocal = {
+      id: `susp-${Date.now()}`,
+      tenantId: tenant,
+      data: dataIso,
+      descricao,
+      comarcaOuTribunal: comarca,
+      criadoEmUtc: new Date().toISOString()
+    };
+
+    this.suspensoesLocais.set([...this.suspensoesLocais(), tempItem]);
+    this.novaSuspensaoDescricaoInput.set('');
+    this.persistirContingenciaLocalTenant(tenant);
+
+    this.processoService
+      .adicionarSuspensaoLocal(tenant, { dataIso, descricao, comarcaOuTribunal: comarca })
+      .subscribe({
+        next: (salva) => {
+          this.suspensoesLocais.set(
+            this.suspensoesLocais().map((s) => (s.id === tempItem.id ? salva : s))
+          );
+          this.persistirContingenciaLocalTenant(tenant);
+        },
+        error: () => {}
+      });
+  }
+
+  removerSuspensaoLocal(id: string) {
+    const tenant = this.tenantIdAtivo();
+    this.suspensoesLocais.set(this.suspensoesLocais().filter((s) => s.id !== id));
+    this.persistirContingenciaLocalTenant(tenant);
+
+    this.processoService.removerSuspensaoLocal(tenant, id).subscribe({ error: () => {} });
+  }
+
+  exportarPrazoIcs() {
+    const proc = this.processoAtual();
+    const calculo = this.termoFatalCalculado();
+    if (!proc || !calculo) return;
+
+    const conteudoIcs = gerarConteudoIcsPrazoFatal({
+      numeroProcesso: proc.numeroCnjFormatado,
+      classeProcessual: proc.classe || 'Prazo Processual',
+      orgaoJulgador: proc.orgaoJulgador || proc.tribunal,
+      siglaTribunal: proc.tribunal || 'TJSP',
+      calculo,
+      responsavel: this.nomeEscritorioAtivo()
+    });
+
+    const blob = new Blob([conteudoIcs], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `prazo-fatal-${proc.numeroCnjLimpo}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================================
+  // QUADRO KANBAN DE TAREFAS PROCESSUAIS (INTIMAÇÃO -> ELABORAÇÃO -> REVISÃO -> PROTOCOLADO)
+  // ============================================================================
+  criarTarefaAPartirDaCalculadora() {
+    const proc = this.processoAtual();
+    const calculo = this.termoFatalCalculado();
+    if (!proc || !calculo) return;
+
+    const partes = calculo.dataTermoFatal.split('/');
+    const prazoIso =
+      partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : '2026-11-18';
+
+    const tenant = this.tenantIdAtivo();
+    const nova: TarefaProcessual = {
+      id: `task-${Date.now()}`,
+      tenantId: tenant,
+      numeroProcesso: proc.numeroCnjFormatado,
+      titulo: `${calculo.tipoAto} — ${proc.classe || 'Processo'}`,
+      descricao: `Prazo calculado: ${calculo.diasUteisTotal} dias úteis (Publicação DJEN: ${calculo.dataPublicacaoDje} • Vencimento Fatal: ${calculo.dataTermoFatal}).`,
+      responsavel: this.novaTarefaResponsavelInput() || 'Advogado Responsável',
+      coluna: 0,
+      prioridade: calculo.diasUteisRestantes <= 5 ? 3 : 2,
+      prazoFatal: prazoIso,
+      diasPrazo: calculo.diasUteisTotal,
+      prazoEmDobro: calculo.prazoEmDobro,
+      numeroProtocolo: null,
+      criadoEmUtc: new Date().toISOString(),
+      atualizadoEmUtc: new Date().toISOString()
+    };
+
+    this.tarefasKanban.set([nova, ...this.tarefasKanban()]);
+    this.persistirContingenciaLocalTenant(tenant);
+    this.tarefaCriadaFeedback.set(true);
+    setTimeout(() => this.tarefaCriadaFeedback.set(false), 2800);
+
+    this.processoService
+      .salvarTarefaKanban(tenant, {
+        id: nova.id,
+        numeroProcesso: nova.numeroProcesso,
+        titulo: nova.titulo,
+        descricao: nova.descricao,
+        responsavel: nova.responsavel,
+        coluna: nova.coluna,
+        prioridade: nova.prioridade,
+        prazoFatalIso: nova.prazoFatal,
+        diasPrazo: nova.diasPrazo,
+        prazoEmDobro: nova.prazoEmDobro
+      })
+      .subscribe({ error: () => {} });
+  }
+
+  adicionarTarefaManualKanban() {
+    const titulo = this.novaTarefaTituloInput().trim();
+    if (!titulo) return;
+
+    const proc = this.processoAtual();
+    const tenant = this.tenantIdAtivo();
+    const nova: TarefaProcessual = {
+      id: `task-${Date.now()}`,
+      tenantId: tenant,
+      numeroProcesso: proc?.numeroCnjFormatado || this.numeroProcessoInput(),
+      titulo,
+      descricao: `Tarefa vinculada ao órgão ${proc?.orgaoJulgador || proc?.tribunal || 'TJSP'}.`,
+      responsavel: this.novaTarefaResponsavelInput().trim() || 'Advogado Responsável',
+      coluna: 0,
+      prioridade: this.novaTarefaPrioridadeInput(),
+      prazoFatal: this.novaTarefaPrazoIsoInput() || '2026-11-18',
+      diasPrazo: 15,
+      prazoEmDobro: false,
+      numeroProtocolo: null,
+      criadoEmUtc: new Date().toISOString(),
+      atualizadoEmUtc: new Date().toISOString()
+    };
+
+    this.tarefasKanban.set([nova, ...this.tarefasKanban()]);
+    this.novaTarefaTituloInput.set('');
+    this.persistirContingenciaLocalTenant(tenant);
+
+    this.processoService
+      .salvarTarefaKanban(tenant, {
+        id: nova.id,
+        numeroProcesso: nova.numeroProcesso,
+        titulo: nova.titulo,
+        descricao: nova.descricao,
+        responsavel: nova.responsavel,
+        coluna: nova.coluna,
+        prioridade: nova.prioridade,
+        prazoFatalIso: nova.prazoFatal,
+        diasPrazo: nova.diasPrazo,
+        prazoEmDobro: nova.prazoEmDobro
+      })
+      .subscribe({ error: () => {} });
+  }
+
+  moverTarefaKanban(tarefa: TarefaProcessual, novaColuna: StatusTarefaColuna) {
+    const tenant = this.tenantIdAtivo();
+    const protocoloDigitado = this.protocoloInputPorTarefa()[tarefa.id]?.trim();
+    const protocoloFinal =
+      novaColuna === 3
+        ? protocoloDigitado || tarefa.numeroProtocolo || `PROT-${Date.now().toString().slice(-7)}`
+        : tarefa.numeroProtocolo;
+
+    const atualizada: TarefaProcessual = {
+      ...tarefa,
+      coluna: novaColuna,
+      numeroProtocolo: protocoloFinal,
+      atualizadoEmUtc: new Date().toISOString()
+    };
+
+    this.tarefasKanban.set(
+      this.tarefasKanban().map((t) => (t.id === tarefa.id ? atualizada : t))
+    );
+    this.persistirContingenciaLocalTenant(tenant);
+
+    this.processoService
+      .salvarTarefaKanban(tenant, {
+        id: atualizada.id,
+        numeroProcesso: atualizada.numeroProcesso,
+        titulo: atualizada.titulo,
+        descricao: atualizada.descricao,
+        responsavel: atualizada.responsavel,
+        coluna: atualizada.coluna,
+        prioridade: atualizada.prioridade,
+        prazoFatalIso: atualizada.prazoFatal,
+        diasPrazo: atualizada.diasPrazo,
+        prazoEmDobro: atualizada.prazoEmDobro,
+        numeroProtocolo: atualizada.numeroProtocolo
+      })
+      .subscribe({ error: () => {} });
+  }
+
+  atualizarProtocoloInput(tarefaId: string, valor: string) {
+    this.protocoloInputPorTarefa.set({
+      ...this.protocoloInputPorTarefa(),
+      [tarefaId]: valor
+    });
+  }
+
+  removerTarefaKanban(id: string) {
+    const tenant = this.tenantIdAtivo();
+    this.tarefasKanban.set(this.tarefasKanban().filter((t) => t.id !== id));
+    this.persistirContingenciaLocalTenant(tenant);
+    this.processoService.removerTarefaKanban(tenant, id).subscribe({ error: () => {} });
+  }
+
+  // ============================================================================
+  // RADAR PROATIVO DIÁRIO DJEN & DISPARO DE WEBHOOK / TELEGRAM
+  // ============================================================================
+  sincronizarRadarDjenAgora() {
+    const tenant = this.tenantIdAtivo();
+    const oabPrimaria = this.novoTenantOabInput().split(/[,;]/)[0]?.trim() || '238470/SP';
+    this.sincronizandoRadarDjen.set(true);
+    this.ultimoDiagnosticoRadar.set(null);
+
+    this.processoService.sincronizarRadarDjen(tenant, oabPrimaria, true).subscribe({
+      next: (res) => {
+        this.sincronizandoRadarDjen.set(false);
+        this.itensRadar.set(res.itensRadar || []);
+        this.persistirContingenciaLocalTenant(tenant);
+        const msgAlerta = res.alerta ? ` • ${res.alerta.mensagemDiagnostico}` : '';
+        this.ultimoDiagnosticoRadar.set(
+          `Radar DJEN sincronizado (${res.novasPublicacoesInseridas} novas, ${res.totalNoRadar} no total)${msgAlerta}`
+        );
+      },
+      error: () => {
+        this.sincronizandoRadarDjen.set(false);
+        this.ultimoDiagnosticoRadar.set(
+          'Exibindo publicações DJEN em cache do Workspace (API em aquecimento).'
+        );
+      }
+    });
+  }
+
+  converterItemRadarEmTarefa(item: ItemRadarDjen) {
+    const tenant = this.tenantIdAtivo();
+    this.processoService
+      .converterRadarEmTarefa(tenant, item.id, {
+        diasPrazoBase: 15,
+        prazoEmDobro: false,
+        responsavel: `OAB ${item.oabOrigem}`
+      })
+      .subscribe({
+        next: (res) => {
+          this.tarefasKanban.set([
+            res.tarefa,
+            ...this.tarefasKanban().filter((t) => t.id !== res.tarefa.id)
+          ]);
+          this.itensRadar.set(
+            this.itensRadar().map((i) =>
+              i.id === item.id ? { ...i, lida: true, convertidaEmTarefa: true } : i
+            )
+          );
+          this.persistirContingenciaLocalTenant(tenant);
+          this.radarDjenPainelAberto.set(false);
+          this.abaAtiva.set('kanban');
+        },
+        error: () => {
+          // Fallback local imediato se offline
+          const nova: TarefaProcessual = {
+            id: `radar-task-${item.id}`,
+            tenantId: tenant,
+            numeroProcesso: item.numeroProcesso,
+            titulo: `Cumprir Intimação DJEN (${item.tipoComunicacao})`,
+            descricao: item.teorResumo,
+            responsavel: `OAB ${item.oabOrigem}`,
+            coluna: 0,
+            prioridade: 3,
+            prazoFatal: '2026-11-18',
+            diasPrazo: 15,
+            prazoEmDobro: false,
+            numeroProtocolo: null,
+            criadoEmUtc: new Date().toISOString(),
+            atualizadoEmUtc: new Date().toISOString()
+          };
+          this.tarefasKanban.set([nova, ...this.tarefasKanban()]);
+          this.itensRadar.set(
+            this.itensRadar().map((i) =>
+              i.id === item.id ? { ...i, lida: true, convertidaEmTarefa: true } : i
+            )
+          );
+          this.persistirContingenciaLocalTenant(tenant);
+          this.radarDjenPainelAberto.set(false);
+          this.abaAtiva.set('kanban');
+        }
+      });
   }
 
   executarSilentPing() {
@@ -626,10 +1246,15 @@ export class App implements OnInit {
     const proc = this.processoAtual();
     if (!proc) return;
 
+    const tenant = this.tenantIdAtivo();
     const atual = this.watchlist();
     if (this.estaNaWatchlist()) {
       const novo = atual.filter((w) => w.numeroCnjLimpo !== proc.numeroCnjLimpo);
-      this.salvarWatchlist(novo);
+      this.watchlist.set(novo);
+      this.persistirContingenciaLocalTenant(tenant);
+      this.processoService
+        .removerWatchlistTenant(tenant, proc.numeroCnjFormatado)
+        .subscribe({ error: () => {} });
     } else {
       const item: ProcessoWatchlistItem = {
         numeroCnjFormatado: proc.numeroCnjFormatado,
@@ -641,8 +1266,19 @@ export class App implements OnInit {
         ultimoAndamentoData: proc.movimentacoes[0]?.dataHora,
         notificacaoPendente: false
       };
-      this.salvarWatchlist([item, ...atual]);
+      this.watchlist.set([item, ...atual]);
+      this.persistirContingenciaLocalTenant(tenant);
       this.solicitarPermissaoNotificacao();
+      this.processoService
+        .salvarWatchlistTenant(tenant, {
+          numeroProcesso: proc.numeroCnjFormatado,
+          classe: proc.classe || 'Processo Judicial',
+          orgaoJulgador: proc.orgaoJulgador || proc.tribunal,
+          tribunal: proc.tribunal,
+          totalMovimentacoesConhecidas: proc.movimentacoes?.length || 0,
+          temNovidade: false
+        })
+        .subscribe({ error: () => {} });
     }
   }
 
@@ -711,13 +1347,18 @@ export class App implements OnInit {
   }
 
   private obterChaveNotaMagistrado(nome: string): string {
-    return `ferreira_nota_juizo_${nome.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    return `${this.tenantIdAtivo()}::${nome.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
   }
 
   carregarNotaEscritorio(nome: string) {
     try {
       const chave = this.obterChaveNotaMagistrado(nome);
-      this.notaEscritorioTexto.set(localStorage.getItem(chave) || '');
+      const notaDoTenant = this.notasJuizoTenant()[chave];
+      if (notaDoTenant !== undefined) {
+        this.notaEscritorioTexto.set(notaDoTenant);
+      } else {
+        this.notaEscritorioTexto.set(localStorage.getItem(`ferreira_nota_${chave}`) || '');
+      }
       this.notaSalvaFeedback.set(false);
     } catch {
       this.notaEscritorioTexto.set('');
@@ -728,10 +1369,18 @@ export class App implements OnInit {
     const mag = this.magistradoSelecionado();
     if (!mag) return;
     try {
+      const tenant = this.tenantIdAtivo();
       const chave = this.obterChaveNotaMagistrado(mag.nome);
-      localStorage.setItem(chave, this.notaEscritorioTexto());
+      const texto = this.notaEscritorioTexto();
+      localStorage.setItem(`ferreira_nota_${chave}`, texto);
+      this.notasJuizoTenant.set({ ...this.notasJuizoTenant(), [chave]: texto });
+      this.persistirContingenciaLocalTenant(tenant);
       this.notaSalvaFeedback.set(true);
       setTimeout(() => this.notaSalvaFeedback.set(false), 2500);
+
+      this.processoService
+        .salvarNotaJuizoTenant(tenant, chave, texto)
+        .subscribe({ error: () => {} });
     } catch {}
   }
 

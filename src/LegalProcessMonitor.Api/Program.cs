@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Threading.RateLimiting;
 using LegalProcessMonitor.Domain.Interfaces;
 using LegalProcessMonitor.Infrastructure.Configuration;
+using LegalProcessMonitor.Infrastructure.Connectors.Alerts;
 using LegalProcessMonitor.Infrastructure.Connectors.DataJud;
 using LegalProcessMonitor.Infrastructure.Connectors.Djen;
 using LegalProcessMonitor.Infrastructure.Connectors.Esaj;
@@ -68,8 +70,20 @@ builder.Services.AddHttpClient<IDjenComunicacaoConnector, DjenComunicacaoConnect
 builder.Services.AddSingleton<ITribunalDocumentScraper, EsajDocumentScraper>();
 builder.Services.AddSingleton<IEsajOabScraper, EsajOabScraper>();
 builder.Services.AddSingleton<IMagistradoRepository, InMemoryMagistradoRepository>();
+builder.Services.AddHttpClient<IWebhookAlertDispatcher, WebhookAlertDispatcher>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
 
-// Configuração de Persistência (MongoDB com Fallback gracioso In-Memory)
+// Persistência Relacional Multi-Tenant em SQLite (Modo WAL)
+var sqlitePath = builder.Configuration["Sqlite:DatabasePath"]
+    ?? Path.Combine(AppContext.BaseDirectory, "legalmonitor.db");
+var sqliteConnString = $"Data Source={sqlitePath}";
+
+builder.Services.AddSingleton<IWorkspaceRepository>(_ =>
+    new SqliteWorkspaceRepository(sqliteConnString, semearDemoPadrao: true));
+
+// Configuração de Persistência de Processos (MongoDB com Fallback Relacional Durável em SQLite)
 var mongoSettings = builder.Configuration.GetSection(MongoSettings.SectionName).Get<MongoSettings>() ?? new MongoSettings();
 builder.Services.AddSingleton<IProcessoRepository>(sp =>
 {
@@ -90,8 +104,8 @@ builder.Services.AddSingleton<IProcessoRepository>(sp =>
     }
     catch (Exception ex)
     {
-        logger.LogWarning("MongoDB offline no endereço configurado ({Msg}). Ativando repositório In-Memory.", ex.Message);
-        return new InMemoryProcessoRepository();
+        logger.LogInformation("MongoDB não configurado ({Msg}). Ativando repositório relacional SQLite durável em {SqlitePath}.", ex.Message, sqlitePath);
+        return new SqliteProcessoRepository(sqliteConnString);
     }
 });
 

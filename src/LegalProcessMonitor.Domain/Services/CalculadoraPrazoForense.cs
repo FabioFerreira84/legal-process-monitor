@@ -33,7 +33,8 @@ public static class CalculadoraPrazoForense
         bool ehDisponibilizacaoDjen = true,
         bool prazoEmDobro = false,
         string siglaTribunal = "TJSP",
-        DateOnly? dataReferenciaHoje = null)
+        DateOnly? dataReferenciaHoje = null,
+        IEnumerable<FeriadoOuSuspensao>? suspensoesLocais = null)
     {
         if (diasPrazoBase <= 0)
             diasPrazoBase = 15;
@@ -41,6 +42,7 @@ public static class CalculadoraPrazoForense
         var trib = string.IsNullOrWhiteSpace(siglaTribunal) ? "TJSP" : siglaTribunal.Trim().ToUpperInvariant();
         var diasTotal = prazoEmDobro ? diasPrazoBase * 2 : diasPrazoBase;
         var feriadosEncontrados = new List<FeriadoOuSuspensao>();
+        var mapaSuspensoesLocais = ConstruirMapaSuspensoes(suspensoesLocais);
 
         DateOnly dataDisponibilizacao = dataMarco;
         DateOnly dataPublicacao;
@@ -49,18 +51,18 @@ public static class CalculadoraPrazoForense
         {
             // Art. 224, § 2º CPC e art. 11, § 3º da Res. CNJ 455/2022:
             // Considera-se como data de publicação o primeiro dia útil seguinte ao da disponibilização.
-            dataPublicacao = ObterProximoDiaUtil(dataDisponibilizacao, trib, feriadosEncontrados);
+            dataPublicacao = ObterProximoDiaUtil(dataDisponibilizacao, trib, feriadosEncontrados, mapaSuspensoesLocais);
         }
         else
         {
             // Quando a data informada já é a publicação ou intimação direta, se cair em dia não útil prorroga-se (Art. 224, § 1º)
-            dataPublicacao = EhDiaUtilForense(dataMarco, trib, out _)
+            dataPublicacao = EhDiaUtilForense(dataMarco, trib, out _, mapaSuspensoesLocais)
                 ? dataMarco
-                : ObterProximoDiaUtil(dataMarco, trib, feriadosEncontrados);
+                : ObterProximoDiaUtil(dataMarco, trib, feriadosEncontrados, mapaSuspensoesLocais);
         }
 
         // Art. 224, § 3º CPC: A contagem do prazo terá início no primeiro dia útil que seguir ao da publicação.
-        var dataInicio = ObterProximoDiaUtil(dataPublicacao, trib, feriadosEncontrados);
+        var dataInicio = ObterProximoDiaUtil(dataPublicacao, trib, feriadosEncontrados, mapaSuspensoesLocais);
 
         // O dia do início já é o 1º dia útil do prazo; somamos (diasTotal - 1) dias úteis subsequentes.
         var dataTermoFatal = dataInicio;
@@ -69,18 +71,18 @@ public static class CalculadoraPrazoForense
         while (contados < diasTotal)
         {
             dataTermoFatal = dataTermoFatal.AddDays(1);
-            if (EhDiaUtilForense(dataTermoFatal, trib, out var motivo))
+            if (EhDiaUtilForense(dataTermoFatal, trib, out var motivo, mapaSuspensoesLocais))
             {
                 contados++;
             }
-            else if ( EhDiaDeSemana(dataTermoFatal) && !string.IsNullOrEmpty(motivo))
+            else if (EhDiaDeSemana(dataTermoFatal) && !string.IsNullOrEmpty(motivo))
             {
                 RegistrarFeriadoUnico(feriadosEncontrados, dataTermoFatal, motivo);
             }
         }
 
         var hoje = dataReferenciaHoje ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3));
-        var diasRestantes = CalcularDiasUteisRestantes(hoje, dataTermoFatal, trib);
+        var diasRestantes = CalcularDiasUteisRestantes(hoje, dataTermoFatal, trib, mapaSuspensoesLocais);
 
         var baseLegal = ConstruirBaseLegal(diasPrazoBase, ehDisponibilizacaoDjen, prazoEmDobro);
 
@@ -101,7 +103,11 @@ public static class CalculadoraPrazoForense
         };
     }
 
-    public static int CalcularDiasUteisRestantes(DateOnly dataReferencia, DateOnly dataTermoFatal, string siglaTribunal = "TJSP")
+    public static int CalcularDiasUteisRestantes(
+        DateOnly dataReferencia,
+        DateOnly dataTermoFatal,
+        string siglaTribunal = "TJSP",
+        IReadOnlyDictionary<DateOnly, string>? suspensoesLocais = null)
     {
         if (dataReferencia >= dataTermoFatal)
             return 0;
@@ -111,7 +117,7 @@ public static class CalculadoraPrazoForense
         while (d < dataTermoFatal)
         {
             d = d.AddDays(1);
-            if (EhDiaUtilForense(d, siglaTribunal, out _))
+            if (EhDiaUtilForense(d, siglaTribunal, out _, suspensoesLocais))
             {
                 cont++;
             }
@@ -119,7 +125,11 @@ public static class CalculadoraPrazoForense
         return cont;
     }
 
-    public static bool EhDiaUtilForense(DateOnly data, string siglaTribunal, out string? motivoNaoUtil)
+    public static bool EhDiaUtilForense(
+        DateOnly data,
+        string siglaTribunal,
+        out string? motivoNaoUtil,
+        IReadOnlyDictionary<DateOnly, string>? suspensoesLocais = null)
     {
         motivoNaoUtil = null;
 
@@ -131,6 +141,13 @@ public static class CalculadoraPrazoForense
         if (data.DayOfWeek == DayOfWeek.Sunday)
         {
             motivoNaoUtil = "Domingo (Art. 219 CPC)";
+            return false;
+        }
+
+        // 0. Suspensões locais / provimentos / indisponibilidades cadastradas pelo escritório
+        if (suspensoesLocais is not null && suspensoesLocais.TryGetValue(data, out var motivoSuspensaoLocal))
+        {
+            motivoNaoUtil = motivoSuspensaoLocal;
             return false;
         }
 
@@ -250,10 +267,14 @@ public static class CalculadoraPrazoForense
         return new DateOnly(ano, mes, dia);
     }
 
-    private static DateOnly ObterProximoDiaUtil(DateOnly dataBase, string siglaTribunal, List<FeriadoOuSuspensao> feriados)
+    private static DateOnly ObterProximoDiaUtil(
+        DateOnly dataBase,
+        string siglaTribunal,
+        List<FeriadoOuSuspensao> feriados,
+        IReadOnlyDictionary<DateOnly, string>? suspensoesLocais = null)
     {
         var cursor = dataBase.AddDays(1);
-        while (!EhDiaUtilForense(cursor, siglaTribunal, out var motivo))
+        while (!EhDiaUtilForense(cursor, siglaTribunal, out var motivo, suspensoesLocais))
         {
             if (EhDiaDeSemana(cursor) && !string.IsNullOrEmpty(motivo))
             {
@@ -262,6 +283,22 @@ public static class CalculadoraPrazoForense
             cursor = cursor.AddDays(1);
         }
         return cursor;
+    }
+
+    private static IReadOnlyDictionary<DateOnly, string>? ConstruirMapaSuspensoes(IEnumerable<FeriadoOuSuspensao>? suspensoesLocais)
+    {
+        if (suspensoesLocais is null)
+            return null;
+
+        var dict = new Dictionary<DateOnly, string>();
+        foreach (var item in suspensoesLocais)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Descricao))
+            {
+                dict[item.Data] = item.Descricao.Trim();
+            }
+        }
+        return dict.Count > 0 ? dict : null;
     }
 
     private static bool EhDiaDeSemana(DateOnly d) =>

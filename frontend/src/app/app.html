@@ -50,18 +50,42 @@
     </div>
 
     <div class="header-right">
+      <!-- SELETOR MULTI-TENANT SaaS (ESCRITÓRIO / WORKSPACE ISOLADO) -->
+      <button
+        class="watchlist-btn"
+        (click)="modalWorkspaceAberto.set(true)"
+        title="Alternar Escritório (Isolamento Multi-Tenant SQLite) e Configurar Alertas"
+        style="border-color: rgba(99, 102, 241, 0.45); background: rgba(99, 102, 241, 0.14);"
+      >
+        <span>🏢 {{ nomeEscritorioAtivo() }}</span>
+        <span class="watchlist-counter" style="background: #4f46e5;">{{ tenantIdAtivo() }}</span>
+      </button>
+
+      <!-- RADAR PROATIVO DIÁRIO DJEN -->
+      <button
+        class="watchlist-btn"
+        (click)="radarDjenPainelAberto.set(!radarDjenPainelAberto())"
+        title="Abrir Radar Diário de Publicações DJEN por OAB do Escritório"
+        style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.12);"
+      >
+        <span>📡 Radar DJEN</span>
+        @if (itensRadar().length > 0) {
+          <span class="watchlist-counter" style="background: #059669;">{{ itensRadar().length }}</span>
+        }
+      </button>
+
       <!-- STATUS DA NUVEM / PING -->
       <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'">
         <span class="status-pulse-dot"></span>
         @if (statusNuvem() === 'online') {
-          <span>Render Cloud • {{ tempoLatenciaNuvem() ? tempoLatenciaNuvem() + 'ms' : 'Ativo' }}</span>
+          <span>SQLite WAL • {{ tempoLatenciaNuvem() ? tempoLatenciaNuvem() + 'ms' : 'Ativo' }}</span>
         } @else {
-          <span>Aquecendo Nuvem...</span>
+          <span>Sincronizando...</span>
         }
       </div>
 
       <!-- WATCHLIST BUTTON -->
-      <button class="watchlist-btn" (click)="watchlistPainelAberto.set(!watchlistPainelAberto())" title="Abrir Processos Salvos na Watchlist">
+      <button class="watchlist-btn" (click)="watchlistPainelAberto.set(!watchlistPainelAberto())" title="Abrir Processos Salvos na Watchlist do Escritório">
         <span>📋 Watchlist</span>
         @if (watchlist().length > 0) {
           <span class="watchlist-counter">{{ watchlist().length }}</span>
@@ -420,8 +444,19 @@
             type="button"
           >
             <span class="tab-icon">🧠</span>
-            <span>Inteligência Forense</span>
-            <span class="tab-badge-glow purple">LegalOps</span>
+            <span>Inteligência & Prazos</span>
+            <span class="tab-badge-glow purple">CPC/2015 + .ICS</span>
+          </button>
+
+          <button
+            class="tab-button"
+            [class.active]="abaAtiva() === 'kanban'"
+            (click)="abaAtiva.set('kanban')"
+            type="button"
+          >
+            <span class="tab-icon">📋</span>
+            <span>Quadro Kanban LegalOps</span>
+            <span class="tab-counter highlight">{{ tarefasKanban().length }}</span>
           </button>
 
           <button
@@ -694,13 +729,105 @@
                     <div style="margin-top: 6px; color: #fcd34d;">
                       📅 <strong>Feriados / Suspensões deduzidos no período:</strong>
                       @for (fer of prazo.feriadosConsiderados; track fer.data) {
-                        <span style="display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 4px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.3);">
+                        <span style="display: inline-block; margin-left: 6px; margin-bottom: 4px; padding: 2px 7px; border-radius: 4px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.3);">
                           {{ fer.data }} — {{ fer.descricao }}
                         </span>
                       }
                     </div>
                   }
                 </div>
+
+                <!-- BARRA DE AÇÕES EXECUTIVAS DO PRAZO: AGENDA .ICS, GOOGLE CALENDAR, KANBAN & SUSPENSÕES LOCAIS -->
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.08); align-items: center;">
+                  <button
+                    type="button"
+                    (click)="exportarPrazoIcs()"
+                    style="padding: 8px 14px; border-radius: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.45); color: #93c5fd; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                  >
+                    📅 Exportar Agenda .ICS (Outlook / Apple • Alarmes D-2 e D-1)
+                  </button>
+
+                  <a
+                    [href]="urlGoogleCalendarPrazo()"
+                    target="_blank"
+                    rel="noopener"
+                    style="padding: 8px 14px; border-radius: 8px; background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; font-size: 0.82rem; font-weight: 600; text-decoration: none;"
+                  >
+                    🗓️ Adicionar ao Google Calendar (1 Clique) ↗
+                  </a>
+
+                  <button
+                    type="button"
+                    (click)="criarTarefaAPartirDaCalculadora()"
+                    style="padding: 8px 14px; border-radius: 8px; background: rgba(139, 92, 246, 0.22); border: 1px solid rgba(139, 92, 246, 0.5); color: #ddd6fe; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                  >
+                    📋 Enviar Prazo para o Quadro Kanban
+                  </button>
+
+                  <button
+                    type="button"
+                    (click)="formSuspensaoAberto.set(!formSuspensaoAberto())"
+                    style="padding: 8px 14px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); color: #fcd34d; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                  >
+                    ⚙️ Suspensões Locais / Provimentos ({{ suspensoesLocais().length }})
+                  </button>
+
+                  @if (tarefaCriadaFeedback()) {
+                    <span style="color: #10b981; font-size: 0.82rem; font-weight: 700;">
+                      ✓ Prazo enviado para o Quadro Kanban do Escritório!
+                    </span>
+                  }
+                </div>
+
+                <!-- GERENCIADOR DE SUSPENSÕES FORENSES LOCAIS / PROVIMENTOS AVULSOS DO ESCRITÓRIO -->
+                @if (formSuspensaoAberto()) {
+                  <div style="margin-bottom: 16px; padding: 14px; border-radius: 10px; background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(245, 158, 11, 0.35);">
+                    <div style="font-size: 0.84rem; color: #f8fafc; font-weight: 700; margin-bottom: 6px;">
+                      🏛️ Cadastro de Suspensões Forenses Locais & Indisponibilidades ({{ nomeEscritorioAtivo() }})
+                    </div>
+                    <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px;">
+                      Adicione feriados municipais do interior, suspensões por Provimento CSM ou certidões de indisponibilidade do sistema (Art. 224, § 1º CPC). A calculadora recalcula o termo fatal imediatamente.
+                    </p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                      <input
+                        type="date"
+                        [ngModel]="novaSuspensaoDataInput()"
+                        (ngModelChange)="novaSuspensaoDataInput.set($event)"
+                        style="padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.82rem;"
+                      />
+                      <input
+                        type="text"
+                        [ngModel]="novaSuspensaoDescricaoInput()"
+                        (ngModelChange)="novaSuspensaoDescricaoInput.set($event)"
+                        placeholder="Ex: Provimento CSM nº 2.750/2026 - Indisponibilidade e-SAJ ou Feriado Municipal de Guarulhos"
+                        style="flex: 1; min-width: 260px; padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.82rem;"
+                      />
+                      <button
+                        type="button"
+                        (click)="adicionarSuspensaoLocal()"
+                        style="padding: 7px 14px; border-radius: 6px; background: #d97706; border: none; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                      >
+                        + Registrar Suspensão
+                      </button>
+                    </div>
+
+                    @if (suspensoesLocais().length > 0) {
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        @for (susp of suspensoesLocais(); track susp.id) {
+                          <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 6px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.78rem; color: #fde68a;">
+                            <span><strong>{{ susp.data }}</strong> ({{ susp.comarcaOuTribunal }}): {{ susp.descricao }}</span>
+                            <button
+                              type="button"
+                              (click)="removerSuspensaoLocal(susp.id)"
+                              style="background: transparent; border: none; color: #f87171; cursor: pointer; font-weight: 700;"
+                              title="Remover suspensão"
+                            >✕</button>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
               }
 
               @if (simulacoesPrazo(); as sim) {
@@ -928,6 +1055,180 @@
               }
             </div>
 
+          </div>
+        }
+
+        <!-- ABA KANBAN: QUADRO DE GESTÃO DE PRAZOS & PROTOCOLOS DO ESCRITÓRIO -->
+        @if (abaAtiva() === 'kanban') {
+          <div class="inteligencia-tab-content animate-fade-in">
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">📋</span>
+                  <div>
+                    <h4>Quadro Kanban de Prazos & Tarefas Processuais • {{ nomeEscritorioAtivo() }}</h4>
+                    <span class="subtitle">Fluxo operacional isolado por escritório ({{ tenantIdAtivo() }}) e persistido em SQLite WAL: Intimação → Elaboração → Revisão → Protocolado</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="criarTarefaAPartirDaCalculadora()"
+                  style="padding: 8px 14px; border-radius: 8px; background: #4f46e5; border: none; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                >
+                  + Importar Prazo Atual da Calculadora
+                </button>
+              </div>
+
+              <!-- BARRA DE CRIAÇÃO MANUAL DE TAREFA -->
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08);">
+                <input
+                  type="text"
+                  [ngModel]="novaTarefaTituloInput()"
+                  (ngModelChange)="novaTarefaTituloInput.set($event)"
+                  placeholder="Nova tarefa processual (ex: Minutar Agravo Interno / Preparar Memoriais)..."
+                  style="flex: 2; min-width: 240px; padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.84rem;"
+                />
+                <input
+                  type="text"
+                  [ngModel]="novaTarefaResponsavelInput()"
+                  (ngModelChange)="novaTarefaResponsavelInput.set($event)"
+                  placeholder="Advogado(a) responsável"
+                  style="flex: 1; min-width: 170px; padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.84rem;"
+                />
+                <input
+                  type="date"
+                  [ngModel]="novaTarefaPrazoIsoInput()"
+                  (ngModelChange)="novaTarefaPrazoIsoInput.set($event)"
+                  style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.84rem;"
+                />
+                <button
+                  type="button"
+                  (click)="adicionarTarefaManualKanban()"
+                  style="padding: 8px 16px; border-radius: 6px; background: #10b981; border: none; color: #052e16; font-weight: 700; font-size: 0.84rem; cursor: pointer;"
+                >
+                  + Criar Tarefa
+                </button>
+              </div>
+
+              <!-- GRID DE 4 COLUNAS KANBAN -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
+                <!-- COLUNA 0: INTIMAÇÃO RECEBIDA -->
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                    <strong style="color: #fca5a5; font-size: 0.86rem;">🚨 1. Intimação Recebida</strong>
+                    <span style="padding: 2px 8px; border-radius: 99px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.76rem; font-weight: 700;">{{ tarefasColunaIntimacao().length }}</span>
+                  </div>
+                  @for (t of tarefasColunaIntimacao(); track t.id) {
+                    <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: #93c5fd; margin-bottom: 4px;">
+                        <span>{{ t.numeroProcesso }}</span>
+                        <button type="button" (click)="removerTarefaKanban(t.id)" style="background: none; border: none; color: #94a3b8; cursor: pointer;" title="Excluir tarefa">✕</button>
+                      </div>
+                      <strong style="display: block; color: #f8fafc; font-size: 0.86rem; margin-bottom: 6px;">{{ t.titulo }}</strong>
+                      <p style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 8px;">{{ t.descricao }}</p>
+                      <div style="font-size: 0.75rem; color: #fcd34d; margin-bottom: 8px;">
+                        ⏰ Prazo Fatal: <strong>{{ t.prazoFatal }}</strong> • 👤 {{ t.responsavel }}
+                      </div>
+                      <button type="button" (click)="moverTarefaKanban(t, 1)"
+                        style="width: 100%; padding: 6px; border-radius: 6px; background: rgba(59, 130, 246, 0.22); border: 1px solid rgba(59, 130, 246, 0.45); color: #93c5fd; font-size: 0.78rem; font-weight: 600; cursor: pointer;">
+                        Iniciar Elaboração →
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- COLUNA 1: EM ELABORAÇÃO -->
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                    <strong style="color: #93c5fd; font-size: 0.86rem;">✍️ 2. Em Elaboração (Minuta)</strong>
+                    <span style="padding: 2px 8px; border-radius: 99px; background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 0.76rem; font-weight: 700;">{{ tarefasColunaElaboracao().length }}</span>
+                  </div>
+                  @for (t of tarefasColunaElaboracao(); track t.id) {
+                    <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: #93c5fd; margin-bottom: 4px;">
+                        <span>{{ t.numeroProcesso }}</span>
+                        <button type="button" (click)="removerTarefaKanban(t.id)" style="background: none; border: none; color: #94a3b8; cursor: pointer;">✕</button>
+                      </div>
+                      <strong style="display: block; color: #f8fafc; font-size: 0.86rem; margin-bottom: 6px;">{{ t.titulo }}</strong>
+                      <p style="font-size: 0.78rem; color: #cbd5e1; margin-bottom: 8px;">{{ t.descricao }}</p>
+                      <div style="font-size: 0.75rem; color: #fcd34d; margin-bottom: 8px;">
+                        ⏰ Prazo Fatal: <strong>{{ t.prazoFatal }}</strong> • 👤 {{ t.responsavel }}
+                      </div>
+                      <div style="display: flex; gap: 6px;">
+                        <button type="button" (click)="moverTarefaKanban(t, 0)"
+                          style="padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; font-size: 0.76rem; cursor: pointer;">
+                          ←
+                        </button>
+                        <button type="button" (click)="moverTarefaKanban(t, 2)"
+                          style="flex: 1; padding: 6px; border-radius: 6px; background: rgba(245, 158, 11, 0.22); border: 1px solid rgba(245, 158, 11, 0.45); color: #fde68a; font-size: 0.78rem; font-weight: 600; cursor: pointer;">
+                          Enviar p/ Revisão →
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- COLUNA 2: EM REVISÃO -->
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                    <strong style="color: #fde68a; font-size: 0.86rem;">🔍 3. Revisão Sócio / Certificado</strong>
+                    <span style="padding: 2px 8px; border-radius: 99px; background: rgba(245, 158, 11, 0.2); color: #fde68a; font-size: 0.76rem; font-weight: 700;">{{ tarefasColunaRevisao().length }}</span>
+                  </div>
+                  @for (t of tarefasColunaRevisao(); track t.id) {
+                    <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: #93c5fd; margin-bottom: 4px;">
+                        <span>{{ t.numeroProcesso }}</span>
+                        <button type="button" (click)="removerTarefaKanban(t.id)" style="background: none; border: none; color: #94a3b8; cursor: pointer;">✕</button>
+                      </div>
+                      <strong style="display: block; color: #f8fafc; font-size: 0.86rem; margin-bottom: 6px;">{{ t.titulo }}</strong>
+                      <div style="font-size: 0.75rem; color: #fcd34d; margin-bottom: 8px;">
+                        ⏰ Prazo Fatal: <strong>{{ t.prazoFatal }}</strong> • 👤 {{ t.responsavel }}
+                      </div>
+                      <input
+                        type="text"
+                        [ngModel]="protocoloInputPorTarefa()[t.id] || ''"
+                        (ngModelChange)="atualizarProtocoloInput(t.id, $event)"
+                        placeholder="Nº Recibo Protocolo e-SAJ/PJe..."
+                        style="width: 100%; margin-bottom: 8px; padding: 6px 8px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.76rem;"
+                      />
+                      <div style="display: flex; gap: 6px;">
+                        <button type="button" (click)="moverTarefaKanban(t, 1)"
+                          style="padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; font-size: 0.76rem; cursor: pointer;">
+                          ←
+                        </button>
+                        <button type="button" (click)="moverTarefaKanban(t, 3)"
+                          style="flex: 1; padding: 6px; border-radius: 6px; background: rgba(16, 185, 129, 0.24); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; font-size: 0.78rem; font-weight: 700; cursor: pointer;">
+                          ✓ Confirmar Protocolo
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- COLUNA 3: PROTOCOLADO / CONCLUÍDO -->
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                    <strong style="color: #6ee7b7; font-size: 0.86rem;">✅ 4. Protocolado nos Autos</strong>
+                    <span style="padding: 2px 8px; border-radius: 99px; background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-size: 0.76rem; font-weight: 700;">{{ tarefasColunaProtocolado().length }}</span>
+                  </div>
+                  @for (t of tarefasColunaProtocolado(); track t.id) {
+                    <div style="background: rgba(6, 78, 59, 0.25); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: #6ee7b7; margin-bottom: 4px;">
+                        <span>{{ t.numeroProcesso }}</span>
+                        <button type="button" (click)="removerTarefaKanban(t.id)" style="background: none; border: none; color: #94a3b8; cursor: pointer;">✕</button>
+                      </div>
+                      <strong style="display: block; color: #f8fafc; font-size: 0.86rem; margin-bottom: 6px;">{{ t.titulo }}</strong>
+                      <div style="font-size: 0.76rem; color: #a7f3d0; margin-bottom: 4px;">
+                        🛡️ Recibo Protocolo: <strong>{{ t.numeroProtocolo || 'Certificado' }}</strong>
+                      </div>
+                      <div style="font-size: 0.74rem; color: #94a3b8;">
+                        👤 {{ t.responsavel }} • Prazo: {{ t.prazoFatal }}
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
           </div>
         }
 
@@ -1379,6 +1680,199 @@
               }
             </div>
           }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- DRAWER DO RADAR DIÁRIO PROATIVO DJEN POR OAB -->
+  @if (radarDjenPainelAberto()) {
+    <div class="watchlist-backdrop animate-fade-in" (click)="radarDjenPainelAberto.set(false)">
+      <div class="watchlist-drawer animate-slide-left" (click)="$event.stopPropagation()" style="max-width: 480px; width: 100%;">
+        <div class="drawer-header">
+          <div class="drawer-title-group">
+            <span class="icon">📡</span>
+            <div>
+              <h4>Radar Proativo DJEN • {{ nomeEscritorioAtivo() }}</h4>
+              <span class="sub">Intimações por OAB ({{ novoTenantOabInput() }}) • ComunicaAPI CNJ</span>
+            </div>
+          </div>
+          <button class="close-drawer-btn" (click)="radarDjenPainelAberto.set(false)" type="button">✕</button>
+        </div>
+
+        <div class="drawer-body">
+          <div style="margin-bottom: 14px; display: flex; gap: 8px;">
+            <button
+              type="button"
+              (click)="sincronizarRadarDjenAgora()"
+              [disabled]="sincronizandoRadarDjen()"
+              style="flex: 1; padding: 9px 12px; border-radius: 8px; background: #059669; border: none; color: #fff; font-weight: 700; font-size: 0.82rem; cursor: pointer;"
+            >
+              {{ sincronizandoRadarDjen() ? '⏳ Varrendo DJEN/CNJ e disparando alertas...' : '🔄 Varrer DJEN Agora & Disparar Alertas' }}
+            </button>
+            <button
+              type="button"
+              (click)="radarDjenPainelAberto.set(false); modalWorkspaceAberto.set(true)"
+              style="padding: 9px 12px; border-radius: 8px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.45); color: #c7d2fe; font-size: 0.8rem; cursor: pointer;"
+            >
+              ⚙️ Configurar Webhook
+            </button>
+          </div>
+
+          @if (ultimoDiagnosticoRadar()) {
+            <div style="margin-bottom: 12px; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.35); color: #a7f3d0; font-size: 0.78rem;">
+              {{ ultimoDiagnosticoRadar() }}
+            </div>
+          }
+
+          @if (itensRadar().length === 0) {
+            <div class="empty-watchlist">
+              <span class="empty-icon">📡</span>
+              <p>Nenhuma publicação do DJEN armazenada para este escritório.</p>
+              <small>Clique em <strong>Varrer DJEN Agora</strong> para buscar as comunicações da OAB {{ novoTenantOabInput() }}.</small>
+            </div>
+          } @else {
+            <div class="watchlist-items-list">
+              @for (item of itensRadar(); track item.id) {
+                <div class="watchlist-item-card" style="cursor: default;">
+                  <div class="item-top">
+                    <span class="badge-tribunal">{{ item.tribunal }} • OAB {{ item.oabOrigem }}</span>
+                    <span class="item-time">DJEN {{ item.dataDisponibilizacao | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                  <strong class="item-cnj">{{ item.numeroProcesso }}</strong>
+                  <span class="item-classe" style="color: #fcd34d; font-weight: 600;">{{ item.tipoComunicacao }}</span>
+                  <p style="font-size: 0.78rem; color: #cbd5e1; margin: 6px 0;">{{ item.teorResumo }}</p>
+                  <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button
+                      type="button"
+                      (click)="converterItemRadarEmTarefa(item)"
+                      style="flex: 1; padding: 6px 10px; border-radius: 6px; background: rgba(139, 92, 246, 0.25); border: 1px solid rgba(139, 92, 246, 0.5); color: #ddd6fe; font-size: 0.76rem; font-weight: 600; cursor: pointer;"
+                    >
+                      {{ item.convertidaEmTarefa ? '✓ Já no Kanban (Recriar)' : '📋 Converter em Prazo no Kanban' }}
+                    </button>
+                    <a
+                      [href]="item.linkInteiroTeor"
+                      target="_blank"
+                      rel="noopener"
+                      style="padding: 6px 10px; border-radius: 6px; background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; font-size: 0.76rem; text-decoration: none;"
+                    >
+                      Certidão ↗
+                    </a>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL DE GESTÃO MULTI-TENANT SaaS (ISOLAMENTO DE ESCRITÓRIO + WEBHOOK / TELEGRAM) -->
+  @if (modalWorkspaceAberto()) {
+    <div class="modal-backdrop animate-fade-in" (click)="modalWorkspaceAberto.set(false)">
+      <div class="magistrado-modal-card animate-slide-up" (click)="$event.stopPropagation()">
+        <div class="modal-close-header">
+          <span class="modal-badge-court">🏢 ARQUITETURA MULTI-TENANT SaaS • ISOLAMENTO POR ESCRITÓRIO (SQLITE WAL)</span>
+          <button class="close-btn" (click)="modalWorkspaceAberto.set(false)" type="button">✕</button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h4 style="color: #f8fafc; margin-bottom: 6px;">1. Alternar Escritório Ativo (Tenant Isolation)</h4>
+          <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px;">
+            Cada escritório possui Watchlist, Notas Internas de Juízo, Suspensões Forenses, Quadro Kanban e Radar DJEN estritamente isolados por <code>X-Tenant-Id</code>:
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+            @for (ws of workspacesPreset(); track ws.id) {
+              <button
+                type="button"
+                (click)="selecionarTenantWorkspace(ws.id)"
+                [style.background]="tenantIdAtivo() === ws.id ? 'rgba(79, 70, 229, 0.35)' : 'rgba(15, 23, 42, 0.8)'"
+                [style.borderColor]="tenantIdAtivo() === ws.id ? '#6366f1' : 'rgba(255,255,255,0.14)'"
+                style="padding: 8px 12px; border-radius: 8px; border: 1px solid; color: #f8fafc; font-size: 0.8rem; cursor: pointer; text-align: left;"
+              >
+                <strong>{{ ws.nome }}</strong>
+                <span style="display: block; font-size: 0.72rem; color: #94a3b8;">Tenant: {{ ws.id }} • OAB: {{ ws.oab }}</span>
+              </button>
+            }
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08);">
+            <input
+              type="text"
+              [ngModel]="novoTenantIdInput()"
+              (ngModelChange)="novoTenantIdInput.set($event)"
+              placeholder="Novo Tenant ID (ex: silva-advogados)"
+              style="flex: 1; min-width: 160px; padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.8rem;"
+            />
+            <input
+              type="text"
+              [ngModel]="novoTenantNomeInput()"
+              (ngModelChange)="novoTenantNomeInput.set($event)"
+              placeholder="Nome do Escritório"
+              style="flex: 1; min-width: 180px; padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.8rem;"
+            />
+            <button
+              type="button"
+              (click)="criarOuAlternarWorkspaceCustomizado()"
+              style="padding: 7px 14px; border-radius: 6px; background: #4f46e5; border: none; color: #fff; font-size: 0.8rem; font-weight: 600; cursor: pointer;"
+            >
+              + Criar / Acessar Tenant
+            </button>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 14px;">
+          <h4 style="color: #f8fafc; margin-bottom: 6px;">2. OABs Monitoradas & Alertas Externos do Escritório ({{ tenantIdAtivo() }})</h4>
+          <div style="display: grid; gap: 10px; margin-bottom: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.76rem; color: #94a3b8; margin-bottom: 4px;">Nome Institucional do Escritório:</label>
+              <input
+                type="text"
+                [ngModel]="nomeEscritorioAtivo()"
+                (ngModelChange)="nomeEscritorioAtivo.set($event)"
+                style="width: 100%; padding: 8px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.82rem;"
+              />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.76rem; color: #94a3b8; margin-bottom: 4px;">Inscrições OAB para o Radar Diário DJEN (separadas por vírgula):</label>
+              <input
+                type="text"
+                [ngModel]="novoTenantOabInput()"
+                (ngModelChange)="novoTenantOabInput.set($event)"
+                placeholder="Ex: 238470/SP, 131627/SP"
+                style="width: 100%; padding: 8px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.82rem;"
+              />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.76rem; color: #94a3b8; margin-bottom: 4px;">Webhook Corporativo HTTPS (Slack / Teams / Discord / N8N — protegido contra SSRF):</label>
+              <input
+                type="url"
+                [ngModel]="webhookUrlInput()"
+                (ngModelChange)="webhookUrlInput.set($event)"
+                placeholder="https://hooks.slack.com/services/..."
+                style="width: 100%; padding: 8px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.16); color: #f8fafc; font-size: 0.82rem;"
+              />
+            </div>
+          </div>
+
+          @if (feedbackWorkspaceMsg()) {
+            <div style="margin-bottom: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; font-size: 0.8rem;">
+              ✓ {{ feedbackWorkspaceMsg() }}
+            </div>
+          }
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button
+              type="button"
+              (click)="salvarConfiguracaoWorkspace()"
+              [disabled]="salvandoConfigWorkspace()"
+              style="padding: 8px 16px; border-radius: 8px; background: #10b981; border: none; color: #052e16; font-weight: 700; font-size: 0.82rem; cursor: pointer;"
+            >
+              Salvar Configurações do Tenant
+            </button>
+            <button class="btn-close-modal" (click)="modalWorkspaceAberto.set(false)" type="button">Fechar</button>
+          </div>
         </div>
       </div>
     </div>

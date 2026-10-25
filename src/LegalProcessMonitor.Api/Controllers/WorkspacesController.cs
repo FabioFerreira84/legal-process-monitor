@@ -1,0 +1,447 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using LegalProcessMonitor.Domain.Entities;
+using LegalProcessMonitor.Domain.Interfaces;
+using LegalProcessMonitor.Domain.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace LegalProcessMonitor.Api.Controllers;
+
+[ApiController]
+[Route("api/workspaces")]
+public sealed class WorkspacesController : ControllerBase
+{
+    private readonly IWorkspaceRepository _workspaceRepository;
+    private readonly IEsajOabScraper _oabScraper;
+    private readonly IWebhookAlertDispatcher _alertDispatcher;
+
+    public WorkspacesController(
+        IWorkspaceRepository workspaceRepository,
+        IEsajOabScraper oabScraper,
+        IWebhookAlertDispatcher alertDispatcher)
+    {
+        _workspaceRepository = workspaceRepository;
+        _oabScraper = oabScraper;
+        _alertDispatcher = alertDispatcher;
+    }
+
+    private string ResolverTenantId(string? queryTenantId = null)
+    {
+        var headerTenant = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var candidato = !string.IsNullOrWhiteSpace(headerTenant)
+            ? headerTenant
+            : !string.IsNullOrWhiteSpace(queryTenantId)
+                ? queryTenantId
+                : "escritorio-ferreira";
+
+        return TenantValidador.NormalizarEValidar(candidato);
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(EstadoWorkspaceTenant), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ObterEstado([FromQuery] string? tenantId = null, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId(tenantId);
+            var estado = await _workspaceRepository.ObterEstadoWorkspaceAsync(tenant, ct);
+            return Ok(estado);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record AtualizarConfigRadarRequest(
+        string NomeEscritorio,
+        List<string> InscricoesOab,
+        string? WebhookUrl,
+        string? TelegramBotToken,
+        string? TelegramChatId,
+        bool Ativo = true);
+
+    [HttpPut("config")]
+    public async Task<IActionResult> AtualizarConfig([FromBody] AtualizarConfigRadarRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var oabs = (req.InscricoesOab ?? new List<string>())
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Select(o => o.Trim().ToUpperInvariant())
+                .Distinct()
+                .ToList();
+
+            var config = new ConfigRadarOab(
+                TenantId: tenant,
+                NomeEscritorio: string.IsNullOrWhiteSpace(req.NomeEscritorio) ? $"Workspace {tenant}" : req.NomeEscritorio.Trim(),
+                InscricoesOab: oabs,
+                WebhookUrl: string.IsNullOrWhiteSpace(req.WebhookUrl) ? null : req.WebhookUrl.Trim(),
+                TelegramBotToken: string.IsNullOrWhiteSpace(req.TelegramBotToken) ? null : req.TelegramBotToken.Trim(),
+                TelegramChatId: string.IsNullOrWhiteSpace(req.TelegramChatId) ? null : req.TelegramChatId.Trim(),
+                Ativo: req.Ativo,
+                UltimaSincronizacaoUtc: DateTime.UtcNow);
+
+            var salvo = await _workspaceRepository.SalvarConfigRadarAsync(config, ct);
+            return Ok(salvo);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record SalvarWatchlistRequest(
+        string NumeroProcesso,
+        string Classe,
+        string OrgaoJulgador,
+        string Tribunal,
+        int TotalMovimentacoesConhecidas,
+        bool TemNovidade = false);
+
+    [HttpPost("watchlist")]
+    public async Task<IActionResult> SalvarWatchlist([FromBody] SalvarWatchlistRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var item = new ItemWatchlistTenant(
+                TenantId: tenant,
+                NumeroProcesso: req.NumeroProcesso,
+                Classe: req.Classe,
+                OrgaoJulgador: req.OrgaoJulgador,
+                Tribunal: req.Tribunal,
+                TotalMovimentacoesConhecidas: req.TotalMovimentacoesConhecidas,
+                AdicionadoEmUtc: DateTime.UtcNow,
+                TemNovidade: req.TemNovidade);
+
+            var salvo = await _workspaceRepository.SalvarItemWatchlistAsync(item, ct);
+            return Ok(salvo);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpDelete("watchlist/{numeroProcesso}")]
+    public async Task<IActionResult> RemoverWatchlist(string numeroProcesso, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var removido = await _workspaceRepository.RemoverItemWatchlistAsync(tenant, Uri.UnescapeDataString(numeroProcesso), ct);
+            return Ok(new { removido });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record SalvarNotaJuizoRequest(string ChaveUnidade, string ConteudoNota);
+
+    [HttpPut("notas-juizo")]
+    public async Task<IActionResult> SalvarNotaJuizo([FromBody] SalvarNotaJuizoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var salvo = await _workspaceRepository.SalvarNotaJuizoAsync(new NotaJuizoTenant(
+                TenantId: tenant,
+                ChaveUnidade: req.ChaveUnidade,
+                ConteudoNota: req.ConteudoNota,
+                AtualizadoEmUtc: DateTime.UtcNow), ct);
+
+            return Ok(salvo);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record CriarSuspensaoLocalRequest(string DataIso, string Descricao, string ComarcaOuTribunal = "TJSP");
+
+    [HttpPost("suspensoes")]
+    public async Task<IActionResult> AdicionarSuspensaoLocal([FromBody] CriarSuspensaoLocalRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (!DateOnly.TryParse(req.DataIso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var data))
+            {
+                return BadRequest(new { mensagem = "Data de suspensão inválida. Use o formato YYYY-MM-DD." });
+            }
+
+            if (string.IsNullOrWhiteSpace(req.Descricao))
+            {
+                return BadRequest(new { mensagem = "Informe a descrição/ato normativo da suspensão (ex: Provimento CSM ou Feriado Municipal)." });
+            }
+
+            var suspensao = new SuspensaoForenseLocal(
+                Id: Guid.NewGuid().ToString("N"),
+                TenantId: tenant,
+                Data: data,
+                Descricao: req.Descricao.Trim(),
+                ComarcaOuTribunal: string.IsNullOrWhiteSpace(req.ComarcaOuTribunal) ? "TJSP" : req.ComarcaOuTribunal.Trim().ToUpperInvariant(),
+                CriadoEmUtc: DateTime.UtcNow);
+
+            var salva = await _workspaceRepository.AdicionarSuspensaoLocalAsync(suspensao, ct);
+            return Ok(salva);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpDelete("suspensoes/{id}")]
+    public async Task<IActionResult> RemoverSuspensaoLocal(string id, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var removido = await _workspaceRepository.RemoverSuspensaoLocalAsync(tenant, id, ct);
+            return Ok(new { removido });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record SalvarTarefaKanbanRequest(
+        string? Id,
+        string NumeroProcesso,
+        string Titulo,
+        string? Descricao,
+        string? Responsavel,
+        StatusTarefaColuna Coluna,
+        PrioridadeTarefa Prioridade,
+        string PrazoFatalIso,
+        int DiasPrazo = 15,
+        bool PrazoEmDobro = false,
+        string? NumeroProtocolo = null);
+
+    [HttpPost("tarefas")]
+    public async Task<IActionResult> SalvarTarefa([FromBody] SalvarTarefaKanbanRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (string.IsNullOrWhiteSpace(req.Titulo))
+            {
+                return BadRequest(new { mensagem = "O título da tarefa processual é obrigatório." });
+            }
+
+            if (!DateOnly.TryParse(req.PrazoFatalIso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var prazoFatal))
+            {
+                prazoFatal = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15));
+            }
+
+            var tarefa = new TarefaProcessual(
+                Id: string.IsNullOrWhiteSpace(req.Id) ? Guid.NewGuid().ToString("N") : req.Id.Trim(),
+                TenantId: tenant,
+                NumeroProcesso: string.IsNullOrWhiteSpace(req.NumeroProcesso) ? "N/A" : req.NumeroProcesso.Trim(),
+                Titulo: req.Titulo.Trim(),
+                Descricao: req.Descricao?.Trim() ?? string.Empty,
+                Responsavel: string.IsNullOrWhiteSpace(req.Responsavel) ? "Advogado Responsável" : req.Responsavel.Trim(),
+                Coluna: req.Coluna,
+                Prioridade: req.Prioridade,
+                PrazoFatal: prazoFatal,
+                DiasPrazo: req.DiasPrazo <= 0 ? 15 : req.DiasPrazo,
+                PrazoEmDobro: req.PrazoEmDobro,
+                NumeroProtocolo: string.IsNullOrWhiteSpace(req.NumeroProtocolo) ? null : req.NumeroProtocolo.Trim(),
+                CriadoEmUtc: DateTime.UtcNow,
+                AtualizadoEmUtc: DateTime.UtcNow);
+
+            var salva = await _workspaceRepository.SalvarTarefaAsync(tarefa, ct);
+            return Ok(salva);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpDelete("tarefas/{id}")]
+    public async Task<IActionResult> RemoverTarefa(string id, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var removido = await _workspaceRepository.RemoverTarefaAsync(tenant, id, ct);
+            return Ok(new { removido });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record SincronizarRadarRequest(string? OabAdicional = null, bool DispararAlerta = true);
+
+    [HttpPost("radar/sincronizar")]
+    public async Task<IActionResult> SincronizarRadarDjen([FromBody] SincronizarRadarRequest? req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var estadoAtual = await _workspaceRepository.ObterEstadoWorkspaceAsync(tenant, ct);
+            var oabs = estadoAtual.Configuracao.InscricoesOab.ToList();
+
+            if (!string.IsNullOrWhiteSpace(req?.OabAdicional))
+            {
+                var oabNova = req.OabAdicional.Trim().ToUpperInvariant();
+                if (!oabs.Contains(oabNova))
+                {
+                    oabs.Add(oabNova);
+                }
+            }
+
+            if (oabs.Count == 0)
+            {
+                oabs.Add("238470/SP");
+            }
+
+            var novosItens = new List<ItemRadarDjen>();
+            foreach (var oab in oabs.Take(3))
+            {
+                var carteira = await _oabScraper.ConsultarProcessosPorOabAsync(oab, ct);
+                foreach (var proc in carteira.Processos.Take(25))
+                {
+                    var dataDisp = DateTime.UtcNow;
+                    if (!string.IsNullOrWhiteSpace(proc.DataRecebimento) &&
+                        DateTime.TryParseExact(proc.DataRecebimento, new[] { "dd/MM/yyyy", "yyyy-MM-dd" }, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dtParsed))
+                    {
+                        dataDisp = dtParsed;
+                    }
+
+                    var idDeterministico = $"djen-{Regex.Replace(proc.NumeroCnjFormatado ?? string.Empty, @"\D", "")}-{dataDisp:yyyyMMdd}";
+                    novosItens.Add(new ItemRadarDjen(
+                        Id: idDeterministico,
+                        TenantId: tenant,
+                        OabOrigem: oab,
+                        NumeroProcesso: proc.NumeroCnjFormatado ?? proc.NumeroCnjLimpo,
+                        Tribunal: proc.Tribunal ?? "TJSP",
+                        OrgaoJulgador: proc.Vara ?? proc.Foro ?? "Unidade Judiciária",
+                        DataDisponibilizacao: dataDisp,
+                        TipoComunicacao: proc.Classe ?? "Comunicação Processual DJEN",
+                        TeorResumo: proc.UltimaComunicacaoResumo ?? $"Publicação oficial localizada para {proc.NumeroCnjFormatado} ({proc.Papel}).",
+                        LinkInteiroTeor: proc.UrlOrigem ?? "https://comunica.pje.jus.br",
+                        Lida: false,
+                        ConvertidaEmTarefa: false,
+                        CapturadoEmUtc: DateTime.UtcNow));
+                }
+            }
+
+            var inseridos = await _workspaceRepository.SalvarItensRadarLoteAsync(tenant, novosItens, ct);
+
+            var configAtualizada = estadoAtual.Configuracao with
+            {
+                InscricoesOab = oabs,
+                UltimaSincronizacaoUtc = DateTime.UtcNow
+            };
+            await _workspaceRepository.SalvarConfigRadarAsync(configAtualizada, ct);
+
+            var todosRadar = await _workspaceRepository.ListarItensRadarAsync(tenant, ct);
+
+            ResultadoDisparoAlerta? alertaResultado = null;
+            if (req?.DispararAlerta != false)
+            {
+                alertaResultado = await _alertDispatcher.DispararAlertaRadarAsync(
+                    configAtualizada,
+                    todosRadar.Take(5).ToList(),
+                    ct);
+            }
+
+            return Ok(new
+            {
+                novasPublicacoesInseridas = inseridos,
+                totalNoRadar = todosRadar.Count,
+                configuracao = configAtualizada,
+                itensRadar = todosRadar,
+                alerta = alertaResultado
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record ConverterRadarEmTarefaRequest(
+        int DiasPrazoBase = 15,
+        bool PrazoEmDobro = false,
+        string? Responsavel = null);
+
+    [HttpPost("radar/{id}/converter-tarefa")]
+    public async Task<IActionResult> ConverterRadarEmTarefa(
+        string id,
+        [FromBody] ConverterRadarEmTarefaRequest? req,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var itens = await _workspaceRepository.ListarItensRadarAsync(tenant, ct);
+            var item = itens.FirstOrDefault(i => i.Id == id);
+            if (item is null)
+            {
+                return NotFound(new { mensagem = "Publicação do Radar DJEN não encontrada neste workspace." });
+            }
+
+            var suspensoes = await _workspaceRepository.ListarSuspensoesLocaisAsync(tenant, ct);
+            var feriadosLocais = suspensoes.Select(s => new FeriadoOuSuspensao(s.Data, s.Descricao)).ToList();
+
+            var diasBase = req?.DiasPrazoBase is > 0 ? req.DiasPrazoBase : 15;
+            var dobro = req?.PrazoEmDobro ?? false;
+
+            var calculo = CalculadoraPrazoForense.Calcular(
+                dataMarco: DateOnly.FromDateTime(item.DataDisponibilizacao),
+                diasPrazoBase: diasBase,
+                ehDisponibilizacaoDjen: true,
+                prazoEmDobro: dobro,
+                siglaTribunal: item.Tribunal,
+                suspensoesLocais: feriadosLocais);
+
+            var tarefa = new TarefaProcessual(
+                Id: $"radar-task-{item.Id}",
+                TenantId: tenant,
+                NumeroProcesso: item.NumeroProcesso,
+                Titulo: $"Cumprir Intimação DJEN ({item.TipoComunicacao})",
+                Descricao: item.TeorResumo,
+                Responsavel: string.IsNullOrWhiteSpace(req?.Responsavel) ? $"OAB {item.OabOrigem}" : req!.Responsavel.Trim(),
+                Coluna: StatusTarefaColuna.Intimacao,
+                Prioridade: PrioridadeTarefa.Critica,
+                PrazoFatal: calculo.DataTermoFatal,
+                DiasPrazo: calculo.DiasUteisTotal,
+                PrazoEmDobro: dobro,
+                NumeroProtocolo: null,
+                CriadoEmUtc: DateTime.UtcNow,
+                AtualizadoEmUtc: DateTime.UtcNow);
+
+            var tarefaSalva = await _workspaceRepository.SalvarTarefaAsync(tarefa, ct);
+            await _workspaceRepository.MarcarItemRadarLidoAsync(tenant, item.Id, convertidaEmTarefa: true, ct);
+
+            return Ok(new
+            {
+                tarefa = tarefaSalva,
+                calculoPrazo = calculo
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+}

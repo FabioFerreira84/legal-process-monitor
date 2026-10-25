@@ -117,4 +117,58 @@ public class CalculadoraPrazoForenseTests
         resultado.DiasUteisTotal.Should().Be(30);
         resultado.BaseLegal.Should().Contain("Art. 183");
     }
+
+    [Fact]
+    public void Calcular_ComSuspensaoLocalCustomizada_DevePularDiaERegistrarNoRelatorio()
+    {
+        var suspensoesLocais = new[]
+        {
+            new FeriadoOuSuspensao(new DateOnly(2026, 10, 29), "Provimento CSM nº 2.750/2026 - Indisponibilidade e-SAJ")
+        };
+
+        var resultado = CalculadoraPrazoForense.Calcular(
+            dataMarco: new DateOnly(2026, 10, 23),
+            diasPrazoBase: 15,
+            ehDisponibilizacaoDjen: true,
+            prazoEmDobro: false,
+            siglaTribunal: "TJSP",
+            dataReferenciaHoje: new DateOnly(2026, 10, 24),
+            suspensoesLocais: suspensoesLocais);
+
+        // Sem a suspensão de 29/10 o vencimento seria 18/11/2026 (quarta).
+        // Com 29/10 suspenso, avança 1 dia útil para 19/11/2026 (quinta-feira).
+        resultado.DataTermoFatal.Should().Be(new DateOnly(2026, 11, 19));
+        resultado.FeriadosConsiderados.Should().Contain(f =>
+            f.Data == new DateOnly(2026, 10, 29) &&
+            f.Descricao.Contains("Provimento CSM"));
+    }
+
+    [Fact]
+    public void GeradorCalendarioIcs_DeveGerarArquivoRfc5545ValidoComAlarmesD2ED1()
+    {
+        var calculo = CalculadoraPrazoForense.Calcular(
+            dataMarco: new DateOnly(2026, 10, 23),
+            diasPrazoBase: 15,
+            ehDisponibilizacaoDjen: true,
+            prazoEmDobro: false,
+            siglaTribunal: "TJSP",
+            dataReferenciaHoje: new DateOnly(2026, 10, 24));
+
+        var ics = GeradorCalendarioIcs.GerarEventoPrazoFatal(
+            numeroProcesso: "2101760-84.2025.8.26.0000",
+            classeProcessual: "Agravo de Instrumento",
+            orgaoJulgador: "24ª Câmara de Direito Privado",
+            calculo: calculo,
+            responsavel: "Dr. Fabio Ferreira");
+
+        ics.Should().StartWith("BEGIN:VCALENDAR");
+        ics.Should().Contain("VERSION:2.0");
+        ics.Should().Contain("BEGIN:VEVENT");
+        ics.Should().Contain("DTSTART;VALUE=DATE:20261118");
+        ics.Should().Contain("DTEND;VALUE=DATE:20261119");
+        ics.Should().Contain("2101760-84.2025.8.26.0000");
+        ics.Should().Contain("TRIGGER:-P2D");
+        ics.Should().Contain("TRIGGER:-P1D");
+        ics.Should().EndWith("END:VCALENDAR\r\n");
+    }
 }

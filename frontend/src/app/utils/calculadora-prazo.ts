@@ -77,11 +77,12 @@ export function formatarDataBr(d: Date): string {
 
 /**
  * Verifica se uma data é dia útil forense segundo os arts. 219 e 220 do CPC/2015,
- * Lei nº 14.759/2023 (20/novembro), Lei nº 5.010/1966 e feriados móveis/estaduais.
+ * Lei nº 14.759/2023 (20/novembro), Lei nº 5.010/1966 e feriados móveis/estaduais/suspensões locais.
  */
 export function ehDiaUtilForense(
   data: Date,
-  siglaTribunal = 'TJSP'
+  siglaTribunal = 'TJSP',
+  mapaSuspensoesLocais?: Map<string, string>
 ): { util: boolean; motivo?: string } {
   const diaSemana = data.getDay();
   if (diaSemana === 6) {
@@ -89,6 +90,11 @@ export function ehDiaUtilForense(
   }
   if (diaSemana === 0) {
     return { util: false, motivo: 'Domingo (Art. 219 CPC)' };
+  }
+
+  const dataStrBr = formatarDataBr(data);
+  if (mapaSuspensoesLocais && mapaSuspensoesLocais.has(dataStrBr)) {
+    return { util: false, motivo: mapaSuspensoesLocais.get(dataStrBr) };
   }
 
   const mes = data.getMonth() + 1;
@@ -164,14 +170,28 @@ export function ehDiaUtilForense(
   return { util: true };
 }
 
+function construirMapaSuspensoes(
+  suspensoes?: FeriadoConsiderado[]
+): Map<string, string> | undefined {
+  if (!suspensoes || suspensoes.length === 0) return undefined;
+  const mapa = new Map<string, string>();
+  for (const s of suspensoes) {
+    if (!s.data || !s.descricao) continue;
+    const d = extrairDataCivilSegura(s.data);
+    mapa.set(formatarDataBr(d), s.descricao.trim());
+  }
+  return mapa.size > 0 ? mapa : undefined;
+}
+
 function obterProximoDiaUtil(
   dataBase: Date,
   siglaTribunal: string,
-  feriadosEncontrados: FeriadoConsiderado[]
+  feriadosEncontrados: FeriadoConsiderado[],
+  mapaSuspensoesLocais?: Map<string, string>
 ): Date {
   let cursor = adicionarDiasCivis(dataBase, 1);
   while (true) {
-    const check = ehDiaUtilForense(cursor, siglaTribunal);
+    const check = ehDiaUtilForense(cursor, siglaTribunal, mapaSuspensoesLocais);
     if (check.util) {
       return cursor;
     }
@@ -189,7 +209,8 @@ function obterProximoDiaUtil(
 export function calcularDiasUteisRestantes(
   dataReferencia: Date,
   dataTermoFatal: Date,
-  siglaTribunal = 'TJSP'
+  siglaTribunal = 'TJSP',
+  mapaSuspensoesLocais?: Map<string, string>
 ): number {
   const ref = extrairDataCivilSegura(dataReferencia);
   const alvo = extrairDataCivilSegura(dataTermoFatal);
@@ -200,7 +221,7 @@ export function calcularDiasUteisRestantes(
   let cont = 0;
   while (cursor.getTime() < alvo.getTime()) {
     cursor = adicionarDiasCivis(cursor, 1);
-    if (ehDiaUtilForense(cursor, siglaTribunal).util) {
+    if (ehDiaUtilForense(cursor, siglaTribunal, mapaSuspensoesLocais).util) {
       cont++;
     }
   }
@@ -215,11 +236,13 @@ export function calcularTermoFatalForense(params: {
   siglaTribunal: string;
   tipoAto?: string;
   dataReferenciaHoje?: Date;
+  suspensoesLocais?: FeriadoConsiderado[];
 }): TermoFatalCalculado {
   const base = params.diasPrazoBase > 0 ? params.diasPrazoBase : 15;
   const trib = (params.siglaTribunal || 'TJSP').toUpperCase();
   const diasUteisTotal = params.prazoEmDobro ? base * 2 : base;
   const feriadosConsiderados: FeriadoConsiderado[] = [];
+  const mapaSuspensoes = construirMapaSuspensoes(params.suspensoesLocais);
 
   const dataDisp = extrairDataCivilSegura(params.dataMarco);
   let dataPublicacao: Date;
@@ -227,23 +250,23 @@ export function calcularTermoFatalForense(params: {
   if (params.ehDisponibilizacaoDjen) {
     // Art. 224, § 2º CPC e Res. CNJ 455/2022 art. 11, § 3º:
     // Publicação considera-se no 1º dia útil seguinte ao da disponibilização no DJEN.
-    dataPublicacao = obterProximoDiaUtil(dataDisp, trib, feriadosConsiderados);
+    dataPublicacao = obterProximoDiaUtil(dataDisp, trib, feriadosConsiderados, mapaSuspensoes);
   } else {
-    const checkMarco = ehDiaUtilForense(dataDisp, trib);
+    const checkMarco = ehDiaUtilForense(dataDisp, trib, mapaSuspensoes);
     dataPublicacao = checkMarco.util
       ? dataDisp
-      : obterProximoDiaUtil(dataDisp, trib, feriadosConsiderados);
+      : obterProximoDiaUtil(dataDisp, trib, feriadosConsiderados, mapaSuspensoes);
   }
 
   // Art. 224, § 3º CPC: Início do prazo no 1º dia útil seguinte à data da publicação.
-  const dataInicio = obterProximoDiaUtil(dataPublicacao, trib, feriadosConsiderados);
+  const dataInicio = obterProximoDiaUtil(dataPublicacao, trib, feriadosConsiderados, mapaSuspensoes);
 
   let dataTermoFatal = dataInicio;
   let contados = 1;
 
   while (contados < diasUteisTotal) {
     dataTermoFatal = adicionarDiasCivis(dataTermoFatal, 1);
-    const check = ehDiaUtilForense(dataTermoFatal, trib);
+    const check = ehDiaUtilForense(dataTermoFatal, trib, mapaSuspensoes);
     if (check.util) {
       contados++;
     } else {
@@ -261,7 +284,7 @@ export function calcularTermoFatalForense(params: {
     ? extrairDataCivilSegura(params.dataReferenciaHoje)
     : extrairDataCivilSegura(new Date());
 
-  const diasRestantes = calcularDiasUteisRestantes(hoje, dataTermoFatal, trib);
+  const diasRestantes = calcularDiasUteisRestantes(hoje, dataTermoFatal, trib, mapaSuspensoes);
 
   const ritoTexto =
     base === 5
@@ -288,3 +311,135 @@ export function calcularTermoFatalForense(params: {
     feriadosConsiderados
   };
 }
+
+function escaparTextoIcs(valor: string): string {
+  return (valor || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function formatarDataYyyyMmDd(d: Date): string {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}${mes}${dia}`;
+}
+
+/**
+ * Gera conteúdo de arquivo RFC 5545 (.ics) com alarmes proativos em D-2 e D-1.
+ */
+export function gerarConteudoIcsPrazoFatal(params: {
+  numeroProcesso: string;
+  classeProcessual: string;
+  orgaoJulgador: string;
+  siglaTribunal: string;
+  calculo: TermoFatalCalculado;
+  responsavel?: string;
+}): string {
+  const dataFatal = extrairDataCivilSegura(params.calculo.dataTermoFatal);
+  const dataFim = adicionarDiasCivis(dataFatal, 1);
+  const dtStart = formatarDataYyyyMmDd(dataFatal);
+  const dtEnd = formatarDataYyyyMmDd(dataFim);
+  const cnj = (params.numeroProcesso || 'Processo').trim();
+  const classe = (params.classeProcessual || 'Prazo Processual').trim();
+  const vara = (params.orgaoJulgador || params.siglaTribunal || 'TJSP').trim();
+  const trib = (params.siglaTribunal || 'TJSP').trim();
+  const resp = (params.responsavel || 'Advogado Responsável').trim();
+
+  const linhasDesc = [
+    `VENCIMENTO FATAL DE PRAZO PROCESSUAL (${params.calculo.diasUteisTotal} dias úteis)`,
+    `Processo CNJ: ${cnj}`,
+    `Classe: ${classe}`,
+    `Órgão Julgador: ${vara} (${trib})`,
+    `Ato/Rito: ${params.calculo.tipoAto}`,
+    `Responsável: ${resp}`,
+    '',
+    'MEMÓRIA DE CÁLCULO (CPC/2015):',
+    `- Disponibilização/Marco: ${params.calculo.dataDisponibilizacaoDjen}`,
+    `- Publicação Oficial (Art. 224 §2º): ${params.calculo.dataPublicacaoDje}`,
+    `- Início da Contagem (Art. 224 §3º): ${params.calculo.dataInicioPrazo}`,
+    `- Termo Final Fatal: ${params.calculo.dataTermoFatal}`,
+    `- Base Legal: ${params.calculo.baseLegal}`
+  ];
+
+  if (params.calculo.feriadosConsiderados.length > 0) {
+    linhasDesc.push('', 'Feriados / Suspensões Ignorados:');
+    for (const f of params.calculo.feriadosConsiderados) {
+      linhasDesc.push(`- ${f.data}: ${f.descricao}`);
+    }
+  }
+
+  const uid = `prazo-${cnj.replace(/\D/g, '')}-${dtStart}@legalprocessmonitor.jus`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//LegalProcessMonitor//Calculadora Forense CPC 2015//PT-BR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;VALUE=DATE:${dtStart}`,
+    `DTEND;VALUE=DATE:${dtEnd}`,
+    `SUMMARY:[PRAZO FATAL] ${escaparTextoIcs(cnj)} - ${escaparTextoIcs(classe)} (${params.calculo.diasUteisTotal}d úteis)`,
+    `LOCATION:${escaparTextoIcs(vara)} - ${escaparTextoIcs(trib)}`,
+    `DESCRIPTION:${escaparTextoIcs(linhasDesc.join('\n'))}`,
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'BEGIN:VALARM',
+    'TRIGGER:-P2D',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:Alerta D-2: Prazo fatal do processo ${escaparTextoIcs(cnj)} vence em 2 dias!`,
+    'END:VALARM',
+    'BEGIN:VALARM',
+    'TRIGGER:-P1D',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:URGENTE D-1: Prazo fatal do processo ${escaparTextoIcs(cnj)} vence AMANHÃ!`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    ''
+  ].join('\r\n');
+}
+
+/**
+ * Gera deep-link direto para adicionar o prazo fatal ao Google Calendar em 1 clique.
+ */
+export function gerarLinkGoogleCalendarPrazoFatal(params: {
+  numeroProcesso: string;
+  classeProcessual: string;
+  orgaoJulgador: string;
+  siglaTribunal: string;
+  calculo: TermoFatalCalculado;
+}): string {
+  const dataFatal = extrairDataCivilSegura(params.calculo.dataTermoFatal);
+  const dataFim = adicionarDiasCivis(dataFatal, 1);
+  const dates = `${formatarDataYyyyMmDd(dataFatal)}/${formatarDataYyyyMmDd(dataFim)}`;
+  const text = `[PRAZO FATAL] ${params.numeroProcesso} - ${params.calculo.tipoAto} (${params.calculo.diasUteisTotal}d úteis)`;
+  const details = [
+    `Processo CNJ: ${params.numeroProcesso}`,
+    `Classe: ${params.classeProcessual}`,
+    `Órgão Julgador: ${params.orgaoJulgador} (${params.siglaTribunal})`,
+    `Disponibilização DJEN: ${params.calculo.dataDisponibilizacaoDjen}`,
+    `Publicação Oficial: ${params.calculo.dataPublicacaoDje}`,
+    `Início do Prazo: ${params.calculo.dataInicioPrazo}`,
+    `Vencimento Fatal: ${params.calculo.dataTermoFatal}`,
+    `Base Legal: ${params.calculo.baseLegal}`
+  ].join('\n');
+  const location = `${params.orgaoJulgador} - ${params.siglaTribunal}`;
+
+  const query = new URLSearchParams({
+    action: 'TEMPLATE',
+    text,
+    dates,
+    details,
+    location
+  });
+
+  return `https://calendar.google.com/calendar/render?${query.toString()}`;
+}
+

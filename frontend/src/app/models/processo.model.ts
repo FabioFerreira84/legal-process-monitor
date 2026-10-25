@@ -133,3 +133,88 @@ export interface ProcessoWatchlistItem {
   ultimoAndamentoData?: string;
   notificacaoPendente?: boolean;
 }
+
+export type StatusTarefaColuna = 0 | 1 | 2 | 3; // 0=Intimacao, 1=Elaboracao, 2=Revisao, 3=Protocolado
+export type PrioridadeTarefa = 0 | 1 | 2 | 3; // 0=Baixa, 1=Media, 2=Alta, 3=Critica
+
+export interface SuspensaoForenseLocal {
+  id: string;
+  tenantId: string;
+  data: string; // YYYY-MM-DD
+  descricao: string;
+  comarcaOuTribunal: string;
+  criadoEmUtc: string;
+}
+
+export interface TarefaProcessual {
+  id: string;
+  tenantId: string;
+  numeroProcesso: string;
+  titulo: string;
+  descricao: string;
+  responsavel: string;
+  coluna: StatusTarefaColuna;
+  prioridade: PrioridadeTarefa;
+  prazoFatal: string; // YYYY-MM-DD
+  diasPrazo: number;
+  prazoEmDobro: boolean;
+  numeroProtocolo?: string | null;
+  criadoEmUtc: string;
+  atualizadoEmUtc: string;
+}
+
+export interface ConfigRadarOab {
+  tenantId: string;
+  nomeEscritorio: string;
+  inscricoesOab: string[];
+  webhookUrl?: string | null;
+  telegramBotToken?: string | null;
+  telegramChatId?: string | null;
+  ativo: boolean;
+  ultimaSincronizacaoUtc?: string | null;
+}
+
+export interface ItemRadarDjen {
+  id: string;
+  tenantId: string;
+  oabOrigem: string;
+  numeroProcesso: string;
+  tribunal: string;
+  orgaoJulgador: string;
+  dataDisponibilizacao: string;
+  tipoComunicacao: string;
+  teorResumo: string;
+  linkInteiroTeor: string;
+  lida: boolean;
+  convertidaEmTarefa: boolean;
+  capturadoEmUtc: string;
+}
+
+export interface ItemWatchlistTenant {
+  tenantId: string;
+  numeroProcesso: string;
+  classe: string;
+  orgaoJulgador: string;
+  tribunal: string;
+  totalMovimentacoesConhecidas: number;
+  adicionadoEmUtc: string;
+  temNovidade: boolean;
+}
+
+export interface EstadoWorkspaceTenant {
+  tenantId: string;
+  configuracao: ConfigRadarOab;
+  watchlist: ItemWatchlistTenant[];
+  notasJuizo: Record<string, string>;
+  suspensoesLocais: SuspensaoForenseLocal[];
+  tarefasKanban: TarefaProcessual[];
+  itensRadar: ItemRadarDjen[];
+}
+
+export interface ResultadoDisparoAlerta {
+  sucesso: boolean;
+  canal: string;
+  statusCode: number;
+  mensagemDiagnostico: string;
+}
+

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   ehDiaUtilForense,
   extrairDataCivilSegura,
-  calcularTermoFatalForense
+  calcularTermoFatalForense,
+  gerarConteudoIcsPrazoFatal,
+  gerarLinkGoogleCalendarPrazoFatal
 } from './calculadora-prazo.ts';
 
 describe('Calculadora de Prazo Forense (CPC/2015 + Lei 14.759/2023 + Res. CNJ 455/2022)', () => {
@@ -76,5 +78,60 @@ describe('Calculadora de Prazo Forense (CPC/2015 + Lei 14.759/2023 + Res. CNJ 45
 
     assert.equal(res.diasUteisTotal, 30);
     assert.match(res.baseLegal, /Art\. 183/);
+  });
+
+  it('deve pular suspensões locais customizadas pelo escritório e registrá-las na memória de cálculo', () => {
+    const res = calcularTermoFatalForense({
+      dataMarco: '2026-10-23',
+      diasPrazoBase: 15,
+      ehDisponibilizacaoDjen: true,
+      prazoEmDobro: false,
+      siglaTribunal: 'TJSP',
+      dataReferenciaHoje: new Date(2026, 9, 24, 12, 0, 0),
+      suspensoesLocais: [
+        { data: '2026-10-29', descricao: 'Provimento CSM - Indisponibilidade do Sistema' }
+      ]
+    });
+
+    assert.equal(res.dataTermoFatal, '19/11/2026');
+    assert.equal(
+      res.feriadosConsiderados.some((f) => f.data === '29/10/2026' && f.descricao.includes('Provimento CSM')),
+      true
+    );
+  });
+
+  it('deve gerar conteúdo .ICS RFC 5545 válido com VALARM D-2 e D-1 e link Google Calendar', () => {
+    const calculo = calcularTermoFatalForense({
+      dataMarco: '2026-10-23',
+      diasPrazoBase: 15,
+      ehDisponibilizacaoDjen: true,
+      prazoEmDobro: false,
+      siglaTribunal: 'TJSP',
+      dataReferenciaHoje: new Date(2026, 9, 24, 12, 0, 0)
+    });
+
+    const ics = gerarConteudoIcsPrazoFatal({
+      numeroProcesso: '2101760-84.2025.8.26.0000',
+      classeProcessual: 'Agravo de Instrumento',
+      orgaoJulgador: '24ª Câmara de Direito Privado',
+      siglaTribunal: 'TJSP',
+      calculo
+    });
+
+    assert.match(ics, /^BEGIN:VCALENDAR/);
+    assert.match(ics, /DTSTART;VALUE=DATE:20261118/);
+    assert.match(ics, /TRIGGER:-P2D/);
+    assert.match(ics, /TRIGGER:-P1D/);
+
+    const gcal = gerarLinkGoogleCalendarPrazoFatal({
+      numeroProcesso: '2101760-84.2025.8.26.0000',
+      classeProcessual: 'Agravo de Instrumento',
+      orgaoJulgador: '24ª Câmara de Direito Privado',
+      siglaTribunal: 'TJSP',
+      calculo
+    });
+
+    assert.match(gcal, /calendar\.google\.com\/calendar\/render\?action=TEMPLATE/);
+    assert.match(gcal, /dates=20261118%2F20261119/);
   });
 });

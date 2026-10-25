@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LegalProcessMonitor.Domain.Entities;
@@ -19,17 +21,20 @@ public class ProcessosController : ControllerBase
     private readonly IEnumerable<ITribunalDocumentScraper> _documentScrapers;
     private readonly IDjenComunicacaoConnector _djenConnector;
     private readonly IProcessoRepository _repository;
+    private readonly IWorkspaceRepository? _workspaceRepository;
 
     public ProcessosController(
         IEnumerable<ITribunalConnector> connectors,
         IEnumerable<ITribunalDocumentScraper> documentScrapers,
         IDjenComunicacaoConnector djenConnector,
-        IProcessoRepository repository)
+        IProcessoRepository repository,
+        IWorkspaceRepository? workspaceRepository = null)
     {
         _connectors = connectors;
         _documentScrapers = documentScrapers;
         _djenConnector = djenConnector;
         _repository = repository;
+        _workspaceRepository = workspaceRepository;
     }
 
     /// <summary>
@@ -42,15 +47,17 @@ public class ProcessosController : ControllerBase
     }
 
     /// <summary>
-    /// Calcula o termo fatal de um prazo processual em dias úteis segundo o CPC/2015, Lei 14.759/2023 e Resolução CNJ 455/2022 (DJEN).
+    /// Calcula o termo fatal de um prazo processual em dias úteis segundo o CPC/2015, Lei 14.759/2023 e Resolução CNJ 455/2022 (DJEN),
+    /// considerando também as suspensões locais cadastradas pelo escritório (TenantId).
     /// </summary>
     [HttpGet("calcular-prazo")]
-    public ActionResult<CalculoPrazoForenseResult> CalcularPrazo(
+    public async Task<ActionResult<CalculoPrazoForenseResult>> CalcularPrazo(
         [FromQuery] string dataMarco,
         [FromQuery] int diasUteis = 15,
         [FromQuery] bool ehDisponibilizacaoDjen = true,
         [FromQuery] bool prazoEmDobro = false,
-        [FromQuery] string tribunal = "TJSP")
+        [FromQuery] string tribunal = "TJSP",
+        CancellationToken ct = default)
     {
         if (!DateOnly.TryParseExact(dataMarco, new[] { "yyyy-MM-dd", "dd/MM/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var data))
         {
@@ -62,8 +69,88 @@ public class ProcessosController : ControllerBase
             return BadRequest(new { erro = "O prazo em dias úteis deve estar entre 1 e 180 dias." });
         }
 
-        var resultado = CalculadoraPrazoForense.Calcular(data, diasUteis, ehDisponibilizacaoDjen, prazoEmDobro, tribunal);
+        IReadOnlyList<FeriadoOuSuspensao>? feriadosLocais = null;
+        if (_workspaceRepository is not null)
+        {
+            var headerTenant = Request?.Headers["X-Tenant-Id"].FirstOrDefault();
+            var tenant = string.IsNullOrWhiteSpace(headerTenant) ? "escritorio-ferreira" : headerTenant.Trim();
+            try
+            {
+                var suspensoes = await _workspaceRepository.ListarSuspensoesLocaisAsync(tenant, ct);
+                feriadosLocais = suspensoes.Select(s => new FeriadoOuSuspensao(s.Data, s.Descricao)).ToList();
+            }
+            catch
+            {
+                // Ignora se tenantId inválido na consulta avulsa
+            }
+        }
+
+        var resultado = CalculadoraPrazoForense.Calcular(
+            dataMarco: data,
+            diasPrazoBase: diasUteis,
+            ehDisponibilizacaoDjen: ehDisponibilizacaoDjen,
+            prazoEmDobro: prazoEmDobro,
+            siglaTribunal: tribunal,
+            suspensoesLocais: feriadosLocais);
+
         return Ok(resultado);
+    }
+
+    /// <summary>
+    /// Exporta o vencimento fatal do prazo em arquivo iCalendar RFC 5545 (.ics) com alarmes D-2 e D-1.
+    /// </summary>
+    [HttpGet("{numeroProcesso}/exportar-ics")]
+    public async Task<IActionResult> ExportarCalendarioIcs(
+        string numeroProcesso,
+        [FromQuery] string dataMarco,
+        [FromQuery] int diasUteis = 15,
+        [FromQuery] bool ehDisponibilizacaoDjen = true,
+        [FromQuery] bool prazoEmDobro = false,
+        [FromQuery] string tribunal = "TJSP",
+        [FromQuery] string? classe = null,
+        [FromQuery] string? orgaoJulgador = null,
+        [FromQuery] string? responsavel = null,
+        CancellationToken ct = default)
+    {
+        if (!DateOnly.TryParseExact(dataMarco, new[] { "yyyy-MM-dd", "dd/MM/yyyy" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var data))
+        {
+            data = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3));
+        }
+
+        IReadOnlyList<FeriadoOuSuspensao>? feriadosLocais = null;
+        if (_workspaceRepository is not null)
+        {
+            var headerTenant = Request?.Headers["X-Tenant-Id"].FirstOrDefault();
+            var tenant = string.IsNullOrWhiteSpace(headerTenant) ? "escritorio-ferreira" : headerTenant.Trim();
+            try
+            {
+                var suspensoes = await _workspaceRepository.ListarSuspensoesLocaisAsync(tenant, ct);
+                feriadosLocais = suspensoes.Select(s => new FeriadoOuSuspensao(s.Data, s.Descricao)).ToList();
+            }
+            catch
+            {
+                // Ignora
+            }
+        }
+
+        var calculo = CalculadoraPrazoForense.Calcular(
+            dataMarco: data,
+            diasPrazoBase: Math.Clamp(diasUteis, 1, 180),
+            ehDisponibilizacaoDjen: ehDisponibilizacaoDjen,
+            prazoEmDobro: prazoEmDobro,
+            siglaTribunal: tribunal,
+            suspensoesLocais: feriadosLocais);
+
+        var ics = GeradorCalendarioIcs.GerarEventoPrazoFatal(
+            numeroProcesso: numeroProcesso,
+            classeProcessual: classe ?? "Prazo Processual",
+            orgaoJulgador: orgaoJulgador ?? tribunal,
+            calculo: calculo,
+            responsavel: responsavel);
+
+        var bytes = Encoding.UTF8.GetBytes(ics);
+        var nomeArquivo = $"prazo-{numeroProcesso.Replace(".", "").Replace("-", "")}.ics";
+        return File(bytes, "text/calendar; charset=utf-8", nomeArquivo);
     }
 
     /// <summary>
