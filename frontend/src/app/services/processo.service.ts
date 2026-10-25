@@ -1,9 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { switchMap, map, catchError } from 'rxjs/operators';
 import {
   Processo,
   AdvogadoCarteira,
+  ProcessoResumo,
   PerfilMagistrado,
   EstadoWorkspaceTenant,
   ConfigRadarOab,
@@ -47,7 +49,125 @@ export class ProcessoService {
 
   consultarCarteiraOab(numeroOab: string): Observable<AdvogadoCarteira> {
     const url = `${this.baseUrl}/advogados/${encodeURIComponent(numeroOab)}`;
-    return this.http.get<AdvogadoCarteira>(url);
+    return this.http.get<AdvogadoCarteira>(url).pipe(
+      switchMap(carteira => {
+        // Se a API backend encontrou processos normalmente, retorna direto
+        if (carteira && carteira.processos && carteira.processos.length > 0) {
+          return of(carteira);
+        }
+        // Se o backend retornou 0 processos ou bloqueio de WAF/CloudFront (servidores fora do BR como Render), consulta direto no DJEN com o IP do cliente
+        return this.consultarDjenDiretoNavegador(numeroOab, carteira);
+      }),
+      catchError(() => this.consultarDjenDiretoNavegador(numeroOab))
+    );
+  }
+
+  private consultarDjenDiretoNavegador(numeroOab: string, carteiraBase?: AdvogadoCarteira): Observable<AdvogadoCarteira> {
+    const oabLimpa = (numeroOab || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const numDigitos = oabLimpa.replace(/\D/g, '');
+    let uf = oabLimpa.replace(/[^A-Z]/g, '');
+    if (!uf) uf = 'SP';
+
+    if (!numDigitos) {
+      return of(carteiraBase || {
+        numeroOab,
+        tribunal: `DJEN/CNJ Nacional (${uf})`,
+        totalProcessos: 0,
+        totalComunicacoesDjen: 0,
+        dataConsulta: new Date().toISOString(),
+        processos: [],
+        avisosOuErros: ['Número de OAB inválido.']
+      });
+    }
+
+    const djenUrl = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroOab=${encodeURIComponent(numDigitos)}&ufOab=${encodeURIComponent(uf)}&itensPorPagina=100&pagina=1`;
+
+    return this.http.get<any>(djenUrl).pipe(
+      map(res => {
+        const carteira: AdvogadoCarteira = carteiraBase ? { ...carteiraBase } : {
+          numeroOab: `${numDigitos}${uf}`,
+          tribunal: uf === 'RJ' ? 'TJRJ + TRF2 + TRT1 (Ecossistema Fluminense) + DJEN' : `DJEN/CNJ Nacional (${uf})`,
+          totalProcessos: 0,
+          totalComunicacoesDjen: 0,
+          dataConsulta: new Date().toISOString(),
+          processos: [],
+          fontesConsultadas: [],
+          avisosOuErros: []
+        };
+
+        carteira.totalComunicacoesDjen = res.count || 0;
+        carteira.fontesConsultadas = carteira.fontesConsultadas || [];
+        if (!carteira.fontesConsultadas.includes('DJEN/CNJ Oficial (comunicaapi.pje.jus.br)')) {
+          carteira.fontesConsultadas.push('DJEN/CNJ Oficial (comunicaapi.pje.jus.br)');
+        }
+
+        const items: any[] = res.items || [];
+        const processosMapeados = new Map<string, ProcessoResumo>();
+
+        for (const item of items) {
+          const cnjLimpo = (item.numero_processo || '').replace(/\D/g, '');
+          const cnjMascara = item.numeroprocessocommascara || '';
+          if (!cnjLimpo || cnjLimpo.length !== 20) continue;
+
+          // Extrai o nome do advogado se ainda não tiver
+          if (!carteira.nomeAdvogado && Array.isArray(item.destinatarioadvogados)) {
+            for (const dest of item.destinatarioadvogados) {
+              const adv = dest.advogado;
+              if (adv && String(adv.numero_oab) === numDigitos && adv.nome) {
+                carteira.nomeAdvogado = adv.nome.trim();
+                break;
+              }
+            }
+          }
+
+          if (processosMapeados.has(cnjLimpo)) continue;
+
+          const siglaTribunal = item.siglaTribunal || 'TJSP';
+          const nomeClasse = item.nomeClasse || 'Processo Judicial';
+          const tipoDoc = item.tipoDocumento || '';
+          const nomeOrgao = item.nomeOrgao || '';
+          const dataDisp = item.datadisponibilizacao || '';
+          const link = item.link || '';
+          const texto = (item.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+          const grau = ['STJ', 'STF', 'TST'].includes(siglaTribunal) ? 3 :
+            (cnjLimpo.endsWith('0000') || /câmara|turma/i.test(nomeOrgao) ? 2 : 1);
+
+          processosMapeados.set(cnjLimpo, {
+            numeroCnjFormatado: cnjMascara || cnjLimpo,
+            numeroCnjLimpo: cnjLimpo,
+            tribunal: siglaTribunal,
+            grau,
+            classe: tipoDoc ? `${nomeClasse} (${tipoDoc})` : nomeClasse,
+            vara: nomeOrgao,
+            papel: `Intimado via DJEN (OAB ${numDigitos}/${uf})`,
+            dataRecebimento: dataDisp,
+            urlOrigem: link || 'https://comunica.pje.jus.br',
+            fonteDados: `DJEN/CNJ (${siglaTribunal})`,
+            ultimaComunicacaoResumo: texto.length > 250 ? texto.substring(0, 250) + '...' : texto
+          });
+        }
+
+        const novosProcessos = Array.from(processosMapeados.values());
+        carteira.processos = [...(carteira.processos || []), ...novosProcessos];
+        carteira.totalProcessos = carteira.processos.length;
+        // Limpa aviso de 403 se os processos foram recuperados com sucesso via navegador do cliente
+        carteira.avisosOuErros = (carteira.avisosOuErros || []).filter(e => !e.includes('403'));
+
+        return carteira;
+      }),
+      catchError(err => {
+        return of(carteiraBase || {
+          numeroOab,
+          tribunal: `DJEN/CNJ Nacional (${uf})`,
+          totalProcessos: 0,
+          totalComunicacoesDjen: 0,
+          dataConsulta: new Date().toISOString(),
+          processos: [],
+          avisosOuErros: [`Erro ao consultar DJEN/CNJ: ${err.message || 'Falha de conexão'}`]
+        });
+      })
+    );
   }
 
   obterMagistradoPorNome(nome: string, tribunal = 'TJSP'): Observable<PerfilMagistrado> {
