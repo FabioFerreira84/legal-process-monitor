@@ -800,14 +800,20 @@ public sealed class WorkspacesController : ControllerBase
             }
 
             var classe = !string.IsNullOrWhiteSpace(req.ClasseProcessual) ? req.ClasseProcessual : proc?.Classe;
-            var assunto = !string.IsNullOrWhiteSpace(req.AssuntoPrincipal) ? req.AssuntoPrincipal : proc?.Assuntos?.FirstOrDefault();
+            var assunto = !string.IsNullOrWhiteSpace(req.AssuntoPrincipal) ? req.AssuntoPrincipal : proc?.Assunto;
             var orgao = !string.IsNullOrWhiteSpace(req.OrgaoJulgador) ? req.OrgaoJulgador : proc?.OrgaoJulgador;
             var poloAtivo = !string.IsNullOrWhiteSpace(req.PoloAtivo)
                 ? req.PoloAtivo
-                : proc?.Partes?.FirstOrDefault(p => p.Polo.Contains("Ativo", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Agravante", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Autor", StringComparison.OrdinalIgnoreCase))?.Nome;
+                : proc?.Envolvidos?.FirstOrDefault(p =>
+                    (p.TipoPolo ?? "").Contains("Ativo", StringComparison.OrdinalIgnoreCase) ||
+                    (p.Papel ?? "").Contains("Agravante", StringComparison.OrdinalIgnoreCase) ||
+                    (p.Papel ?? "").Contains("Autor", StringComparison.OrdinalIgnoreCase))?.Nome;
             var poloPassivo = !string.IsNullOrWhiteSpace(req.PoloPassivo)
                 ? req.PoloPassivo
-                : proc?.Partes?.FirstOrDefault(p => p.Polo.Contains("Passivo", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Agravado", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Réu", StringComparison.OrdinalIgnoreCase))?.Nome;
+                : proc?.Envolvidos?.FirstOrDefault(p =>
+                    (p.TipoPolo ?? "").Contains("Passivo", StringComparison.OrdinalIgnoreCase) ||
+                    (p.Papel ?? "").Contains("Agravado", StringComparison.OrdinalIgnoreCase) ||
+                    (p.Papel ?? "").Contains("Réu", StringComparison.OrdinalIgnoreCase))?.Nome;
             var ultAndamento = !string.IsNullOrWhiteSpace(req.UltimoAndamento)
                 ? req.UltimoAndamento
                 : proc?.Movimentacoes?.OrderByDescending(m => m.DataHora).FirstOrDefault()?.Descricao;
