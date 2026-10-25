@@ -3,8 +3,20 @@ services:
     name: legal-process-monitor-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: free
-    region: ohio
+    plan: starter
+    healthCheckPath: /healthz
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: Sqlite__DatabasePath
+        value: /app/data/legalmonitor.db
+      - key: CORS_ALLOWED_ORIGINS
+        value: http://localhost:4200,https://fabioferreira84.github.io
+    disk:
+      name: sqlite-saas-data
+      mountPath: /app/data
+      sizeGB: 1

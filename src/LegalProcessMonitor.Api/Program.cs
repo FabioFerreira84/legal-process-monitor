@@ -46,15 +46,20 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// Configuração de CORS para o Frontend Angular (Localhost e GitHub Pages)
+// Configuração de CORS para o Frontend Angular (Localhost, GitHub Pages e domínios extras via CORS_ALLOWED_ORIGINS)
+var extraOrigins = (builder.Configuration["CORS_ALLOWED_ORIGINS"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+var allowedOrigins = new[] { "http://localhost:4200", "http://localhost:8080", "https://fabioferreira84.github.io" }
+    .Concat(extraOrigins)
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularDev", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:4200",
-                "https://fabioferreira84.github.io"
-              )
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -77,7 +82,12 @@ builder.Services.AddHttpClient<IWebhookAlertDispatcher, WebhookAlertDispatcher>(
 
 // Persistência Relacional Multi-Tenant em SQLite (Modo WAL)
 var sqlitePath = builder.Configuration["Sqlite:DatabasePath"]
-    ?? Path.Combine(AppContext.BaseDirectory, "legalmonitor.db");
+    ?? Path.Combine(AppContext.BaseDirectory, "data", "legalmonitor.db");
+var sqliteDir = Path.GetDirectoryName(sqlitePath);
+if (!string.IsNullOrWhiteSpace(sqliteDir))
+{
+    Directory.CreateDirectory(sqliteDir);
+}
 var sqliteConnString = $"Data Source={sqlitePath}";
 
 builder.Services.AddSingleton<IWorkspaceRepository>(_ =>
@@ -127,6 +137,21 @@ app.Use(async (context, next) =>
 
 app.UseCors("AllowAngularDev");
 app.UseRateLimiter();
+
+// Endpoint de Healthcheck para Docker / Render / Fly.io / Load Balancers
+app.MapGet("/healthz", async (IWorkspaceRepository workspaceRepo) =>
+{
+    var estado = await workspaceRepo.ObterEstadoWorkspaceAsync("escritorio-ferreira");
+    return Results.Ok(new
+    {
+        status = "healthy",
+        service = "LegalProcessMonitor.Api",
+        storage = "SQLite-WAL",
+        watchlistDemoItens = estado.Watchlist.Count,
+        timestampUtc = DateTime.UtcNow
+    });
+});
+
 app.MapControllers();
 
 app.Run();
