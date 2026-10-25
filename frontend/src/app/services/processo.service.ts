@@ -114,27 +114,24 @@ export class ProcessoService {
           });
 
           if (Array.isArray(item.destinatarios)) {
-            for (const dest of item.destinatarios) {
-              const nome = (dest.nome || '').replace(/^\d+\.\s*/, '').trim();
-              if (!nome) continue;
-              const polo = dest.polo === 'P' ? 'Passivo' : 'Ativo';
+            const segregados = this.segregarEnvolvidosEDestinatarios(
+              item.destinatarios,
+              item.destinatarioadvogados,
+              textoLimpo
+            );
 
-              if (!envolvidos.some(e => e.nome.toLowerCase() === nome.toLowerCase())) {
-                const advs: string[] = [];
-                if (Array.isArray(item.destinatarioadvogados)) {
-                  for (const da of item.destinatarioadvogados) {
-                    if (da.advogado?.nome) {
-                      advs.push(`${da.advogado.nome} (OAB ${da.advogado.numero_oab || ''}/${da.advogado.uf_oab || ''})`);
-                    }
-                  }
+            for (const env of segregados) {
+              const existente = envolvidos.find(e => e.nome.toLowerCase() === env.nome.toLowerCase());
+              if (!existente) {
+                envolvidos.push(env);
+              } else if (env.oab) {
+                const atuais = existente.oab ? existente.oab.split('; ') : [];
+                const novos = env.oab.split('; ');
+                const unicos = Array.from(new Set([...atuais, ...novos]));
+                existente.oab = unicos.join('; ');
+                if (env.papel && !existente.papel?.includes('Causa Própria')) {
+                  existente.papel = env.papel;
                 }
-
-                envolvidos.push({
-                  nome,
-                  tipoPolo: polo,
-                  papel: polo === 'Ativo' ? 'Polo Ativo' : 'Polo Passivo',
-                  oab: advs.length > 0 ? Array.from(new Set(advs)).join('; ') : undefined
-                });
               }
             }
           }
@@ -605,5 +602,165 @@ export class ProcessoService {
       `${this.baseUrl}/workspaces/processos/calculo-financeiro?${q.toString()}`,
       this.headersTenant(tenantId)
     );
+  }
+
+  private normalizarNome(texto?: string): string {
+    if (!texto) return '';
+    return texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  segregarEnvolvidosEDestinatarios(
+    destinatarios: Array<{ nome: string; polo: string }>,
+    destinatarioadvogados?: Array<any>,
+    textoPublicacao?: string
+  ): Envolvido[] {
+    const partes: Array<{ nome: string; polo: 'Ativo' | 'Passivo' }> = [];
+    if (Array.isArray(destinatarios)) {
+      for (const dest of destinatarios) {
+        const nomeLimpo = (dest.nome || '').replace(/^\d+\.\s*/, '').trim();
+        if (!nomeLimpo) continue;
+        const polo = dest.polo === 'P' ? 'Passivo' : 'Ativo';
+        if (!partes.some(p => p.nome.toLowerCase() === nomeLimpo.toLowerCase())) {
+          partes.push({ nome: nomeLimpo, polo });
+        }
+      }
+    }
+
+    if (partes.length === 0) return [];
+
+    interface AdvogadoInterno {
+      nome: string;
+      numOab?: string;
+      ufOab?: string;
+      formatado: string;
+      polo?: 'Ativo' | 'Passivo';
+      parteVinculada?: string;
+    }
+
+    const advogados: AdvogadoInterno[] = [];
+    if (Array.isArray(destinatarioadvogados)) {
+      for (const da of destinatarioadvogados) {
+        const adv = da.advogado;
+        if (!adv?.nome) continue;
+        const nomeTrim = adv.nome.trim();
+        const numOab = (adv.numero_oab || '').trim();
+        const uf = (adv.uf_oab || '').trim().toUpperCase();
+        const formatado = numOab
+          ? `${nomeTrim} (OAB ${numOab}${uf ? '/' + uf : ''})`
+          : nomeTrim;
+
+        if (!advogados.some(a => a.nome.toLowerCase() === nomeTrim.toLowerCase())) {
+          advogados.push({
+            nome: nomeTrim,
+            numOab,
+            ufOab: uf,
+            formatado
+          });
+        }
+      }
+    }
+
+    const textoNorm = this.normalizarNome(textoPublicacao);
+
+    // PASSO 1: Vínculo por Advocacia em Causa Própria ou correspondência de nome
+    for (const adv of advogados) {
+      const advNorm = this.normalizarNome(adv.nome);
+      const advTokens = advNorm.split(' ').filter(t => t.length > 2);
+
+      for (const parte of partes) {
+        const parteNorm = this.normalizarNome(parte.nome);
+        let coincide = advNorm === parteNorm;
+        if (!coincide && advTokens.length >= 2) {
+          coincide = parteNorm.includes(advTokens[0]) && parteNorm.includes(advTokens[advTokens.length - 1]);
+        }
+
+        if (coincide) {
+          adv.polo = parte.polo;
+          adv.parteVinculada = parte.nome;
+          break;
+        }
+      }
+    }
+
+    // PASSO 2: Análise contextual do texto da publicação judicial
+    if (textoNorm) {
+      for (const adv of advogados.filter(a => !a.polo)) {
+        const advNorm = this.normalizarNome(adv.nome);
+        const numOab = adv.numOab || '';
+
+        const regexAtivo = new RegExp(`(?:autor|autora|reclamante|agravante|exequente|embargante)[^.;\\n]{0,120}(?:${advNorm}|${numOab})`, 'i');
+        const regexAtivoInv = new RegExp(`(?:${advNorm}|${numOab})[^.;\\n]{0,120}(?:autor|autora|reclamante|agravante|exequente|embargante)`, 'i');
+
+        const regexPassivo = new RegExp(`(?:r[eé]u|reclamad[oa]|agravad[oa]|executad[oa]|embargad[oa]|shopee)[^.;\\n]{0,120}(?:${advNorm}|${numOab})`, 'i');
+        const regexPassivoInv = new RegExp(`(?:${advNorm}|${numOab})[^.;\\n]{0,120}(?:r[eé]u|reclamad[oa]|agravad[oa]|executad[oa]|embargad[oa]|shopee)`, 'i');
+
+        if (regexAtivo.test(textoNorm) || regexAtivoInv.test(textoNorm)) {
+          adv.polo = 'Ativo';
+        } else if (regexPassivo.test(textoNorm) || regexPassivoInv.test(textoNorm)) {
+          adv.polo = 'Passivo';
+        }
+      }
+    }
+
+    // PASSO 3: Princípio da Segregação de Patrocínio (Um advogado não defende polos opostos)
+    const advsAtivo = advogados.filter(a => a.polo === 'Ativo');
+    const advsPassivo = advogados.filter(a => a.polo === 'Passivo');
+    const advsSemPolo = advogados.filter(a => !a.polo);
+
+    if (advsAtivo.length > 0 && advsPassivo.length === 0 && partes.some(p => p.polo === 'Passivo')) {
+      for (const rem of advsSemPolo) {
+        rem.polo = 'Passivo';
+      }
+    } else if (advsPassivo.length > 0 && advsAtivo.length === 0 && partes.some(p => p.polo === 'Ativo')) {
+      for (const rem of advsSemPolo) {
+        rem.polo = 'Ativo';
+      }
+    }
+
+    // PASSO 4: Montagem da lista final de Envolvidos
+    const resultado: Envolvido[] = [];
+    for (const parte of partes) {
+      const parteNorm = this.normalizarNome(parte.nome);
+
+      // Advogados vinculados especificamente a esta parte por nome
+      let advsDaParte = advogados
+        .filter(a => a.parteVinculada && this.normalizarNome(a.parteVinculada) === parteNorm)
+        .map(a => a.formatado);
+
+      // Se não houver por nome, busca os advogados do mesmo polo
+      if (advsDaParte.length === 0) {
+        advsDaParte = advogados
+          .filter(a => a.polo === parte.polo)
+          .map(a => a.formatado);
+      }
+
+      // Fallback se não foi possível segregar polo de nenhum advogado
+      if (advsDaParte.length === 0 && advsAtivo.length === 0 && advsPassivo.length === 0 && advogados.length > 0) {
+        advsDaParte = advogados.map(a => a.formatado);
+      }
+
+      const causaPropria = advsDaParte.some(a => this.normalizarNome(a).includes(parteNorm));
+      let papel: string;
+      if (parte.polo === 'Ativo') {
+        papel = causaPropria ? 'Autora (Causa Própria)' : 'Autor(a) / Exequente';
+      } else {
+        papel = 'Réu / Executado';
+      }
+
+      resultado.push({
+        nome: parte.nome,
+        tipoPolo: parte.polo,
+        papel,
+        oab: advsDaParte.length > 0 ? Array.from(new Set(advsDaParte)).join('; ') : undefined
+      });
+    }
+
+    return resultado;
   }
 }

@@ -659,15 +659,15 @@
                 @for (env of proc.envolvidos; track env.nome) {
                   <div class="parte-card" [class.polo-ativo]="env.tipoPolo === 'Ativo'" [class.polo-passivo]="env.tipoPolo === 'Passivo'">
                     <div class="parte-polo-badge">
-                      <span>{{ env.tipoPolo === 'Ativo' ? 'POLO ATIVO' : 'POLO PASSIVO' }}</span>
-                      <small>({{ env.papel || (env.tipoPolo === 'Ativo' ? 'Agravante' : 'Agravado') }})</small>
+                      <span class="polo-tag">{{ env.tipoPolo === 'Ativo' ? 'POLO ATIVO' : 'POLO PASSIVO' }}</span>
+                      <small class="papel-tag">({{ env.papel || (env.tipoPolo === 'Ativo' ? 'Autor(a)' : 'Réu') }})</small>
                     </div>
                     <div class="parte-nome-info">
                       <strong class="nome">{{ env.nome }}</strong>
-                      <div class="qualificacao-sub">Pessoa Jurídica / Representação Regular nos Autos</div>
+                      <div class="qualificacao-sub">{{ obterQualificacaoParte(env.nome) }}</div>
                       <div class="advogado-row">
-                        <span class="adv-icon">⚖️ Advogado(a):</span>
-                        <span class="adv-nome">{{ env.oab || 'Patrono com Procuração Ad Judicia' }}</span>
+                        <span class="adv-icon">⚖️ {{ env.papel?.includes('Causa Própria') ? 'Patrona em Causa Própria:' : (env.tipoPolo === 'Ativo' ? 'Patrono(a) do Autor:' : 'Advogado(a) de Defesa:') }}</span>
+                        <span class="adv-nome">{{ env.oab || 'Patrono Habilitado nos Autos com Procuração' }}</span>
                       </div>
                       <div class="intimacao-eletronica-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
                         <span><span class="check-icon">✓</span> Intimação Eletrônica Ativa via Portal do Tribunal</span>

@@ -1673,6 +1673,17 @@ export class App implements OnInit {
   }
 
   // ============================================================================
+  // QUALIFICAÇÃO E ENVOLVIDOS (PJ vs PF)
+  // ============================================================================
+  obterQualificacaoParte(nome: string): string {
+    if (!nome) return 'Qualificação Processual Regular';
+    const isPj = /\b(ltda|s\.a|s\/a|eireli|me|epp|banco|tecnologia|moveis|comercio|servicos|seguradora|instituto|municipio|estado|uniao|telecomunicacoes|cia|distribuidora|varejo|shps|marabu)\b/i.test(nome);
+    return isPj
+      ? 'Pessoa Jurídica • Representação Regular nos Autos'
+      : 'Pessoa Física • Qualificação Regular / Capacidade Plena';
+  }
+
+  // ============================================================================
   // FICHA PATRIMONIAL / QSA DA PARTE ADVERSA + FERIADOS OFICIAIS (BRASILAPI + QUERIDO DIÁRIO)
   // ============================================================================
   abrirFichaPatrimonialParte(nomeOuCnpj?: string) {

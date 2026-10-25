@@ -164,50 +164,16 @@ public class DjenComunicacaoConnector : IDjenComunicacaoConnector
                 });
             }
 
-            // Se o processo ainda não possui partes ou tem apenas placeholder LGPD, extrai destinatários e advogados reais do DJEN
+            // Se o processo ainda não possui partes ou tem apenas placeholder LGPD, extrai destinatários e advogados segregados do DJEN
             if (processo.Envolvidos.Count == 0 || processo.Envolvidos.All(e => e.Nome.Contains("Sigilo", StringComparison.OrdinalIgnoreCase)))
             {
-                var advogadosFormatados = new List<string>();
-                if (item.TryGetProperty("destinatarioadvogados", out var advsArray) && advsArray.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var advItem in advsArray.EnumerateArray())
-                    {
-                        if (advItem.TryGetProperty("advogado", out var advObj) && advObj.ValueKind == JsonValueKind.Object)
-                        {
-                            var nomeAdv = advObj.TryGetProperty("nome", out var na) ? na.GetString() : null;
-                            var numOab = advObj.TryGetProperty("numero_oab", out var no) ? no.GetString() : null;
-                            var uf = advObj.TryGetProperty("uf_oab", out var uo) ? uo.GetString() : null;
-                            if (!string.IsNullOrWhiteSpace(nomeAdv))
-                            {
-                                advogadosFormatados.Add(!string.IsNullOrWhiteSpace(numOab) ? $"{nomeAdv} - OAB {numOab}{uf}" : nomeAdv);
-                            }
-                        }
-                    }
-                }
-
                 if (item.TryGetProperty("destinatarios", out var destArray) && destArray.ValueKind == JsonValueKind.Array)
                 {
-                    var novosEnvolvidos = new List<Envolvido>();
-                    foreach (var dest in destArray.EnumerateArray())
+                    item.TryGetProperty("destinatarioadvogados", out var advsArray);
+                    var segregados = SegregarEnvolvidosEDestinatarios(destArray, advsArray, textoLimpo);
+                    if (segregados.Count > 0)
                     {
-                        var nomeParte = dest.TryGetProperty("nome", out var np) ? np.GetString() : null;
-                        var poloSigla = dest.TryGetProperty("polo", out var pl) ? pl.GetString() : "A";
-                        if (string.IsNullOrWhiteSpace(nomeParte)) continue;
-
-                        var nomeLimpo = Regex.Replace(nomeParte, @"^\d+\.\s*", "").Trim();
-                        var polo = string.Equals(poloSigla, "P", StringComparison.OrdinalIgnoreCase) ? "Passivo" : "Ativo";
-                        novosEnvolvidos.Add(new Envolvido
-                        {
-                            Nome = nomeLimpo,
-                            TipoPolo = polo,
-                            Papel = polo == "Ativo" ? "Polo Ativo" : "Polo Passivo",
-                            Oab = advogadosFormatados.Count > 0 ? string.Join("; ", advogadosFormatados.Distinct()) : null
-                        });
-                    }
-
-                    if (novosEnvolvidos.Count > 0)
-                    {
-                        processo.Envolvidos = novosEnvolvidos;
+                        processo.Envolvidos = segregados;
                     }
                 }
             }
@@ -341,5 +307,218 @@ public class DjenComunicacaoConnector : IDjenComunicacaoConnector
         if (m2.Success) return m2.Groups[1].Value.Trim();
 
         return null;
+    }
+
+    private sealed class AdvogadoInfoDjen
+    {
+        public string Nome { get; set; } = string.Empty;
+        public string? NumOab { get; set; }
+        public string? UfOab { get; set; }
+        public string Formatado { get; set; } = string.Empty;
+        public string? Polo { get; set; }
+        public string? ParteVinculada { get; set; }
+    }
+
+    private sealed class ParteInfoDjen
+    {
+        public string Nome { get; set; } = string.Empty;
+        public string Polo { get; set; } = "Ativo";
+    }
+
+    public static string NormalizarNome(string? texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return string.Empty;
+        var norm = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in norm)
+        {
+            var uc = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (uc != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch))
+                    sb.Append(char.ToLowerInvariant(ch));
+            }
+        }
+        return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+    }
+
+    public static List<Envolvido> SegregarEnvolvidosEDestinatarios(
+        JsonElement destArray, 
+        JsonElement advsArray, 
+        string? textoPublicacao = null)
+    {
+        var partes = new List<ParteInfoDjen>();
+        if (destArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var dest in destArray.EnumerateArray())
+            {
+                var nomeParte = dest.TryGetProperty("nome", out var np) ? np.GetString() : null;
+                var poloSigla = dest.TryGetProperty("polo", out var pl) ? pl.GetString() : "A";
+                if (string.IsNullOrWhiteSpace(nomeParte)) continue;
+
+                var nomeLimpo = Regex.Replace(nomeParte, @"^\d+\.\s*", "").Trim();
+                var polo = string.Equals(poloSigla, "P", StringComparison.OrdinalIgnoreCase) ? "Passivo" : "Ativo";
+                if (!partes.Any(p => p.Nome.Equals(nomeLimpo, StringComparison.OrdinalIgnoreCase)))
+                {
+                    partes.Add(new ParteInfoDjen { Nome = nomeLimpo, Polo = polo });
+                }
+            }
+        }
+
+        if (partes.Count == 0) return new List<Envolvido>();
+
+        var advogados = new List<AdvogadoInfoDjen>();
+        if (advsArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var advItem in advsArray.EnumerateArray())
+            {
+                if (advItem.TryGetProperty("advogado", out var advObj) && advObj.ValueKind == JsonValueKind.Object)
+                {
+                    var nomeAdv = advObj.TryGetProperty("nome", out var na) ? na.GetString() : null;
+                    var numOab = advObj.TryGetProperty("numero_oab", out var no) ? no.GetString() : null;
+                    var uf = advObj.TryGetProperty("uf_oab", out var uo) ? uo.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(nomeAdv))
+                    {
+                        var nomeTrim = nomeAdv.Trim();
+                        var formatado = !string.IsNullOrWhiteSpace(numOab)
+                            ? $"{nomeTrim} (OAB {numOab}{(string.IsNullOrWhiteSpace(uf) ? "" : $"/{uf}")})"
+                            : nomeTrim;
+
+                        if (!advogados.Any(a => a.Nome.Equals(nomeTrim, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            advogados.Add(new AdvogadoInfoDjen
+                            {
+                                Nome = nomeTrim,
+                                NumOab = numOab,
+                                UfOab = uf,
+                                Formatado = formatado
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        var textoNorm = NormalizarNome(textoPublicacao);
+
+        // PASSO 1: Vínculo por Causa Própria ou correspondência de nome
+        foreach (var adv in advogados)
+        {
+            var advNorm = NormalizarNome(adv.Nome);
+            var advTokens = advNorm.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(t => t.Length > 2).ToArray();
+
+            foreach (var parte in partes)
+            {
+                var parteNorm = NormalizarNome(parte.Nome);
+                bool coincide = advNorm == parteNorm;
+                if (!coincide && advTokens.Length >= 2)
+                {
+                    coincide = parteNorm.Contains(advTokens[0]) && parteNorm.Contains(advTokens[^1]);
+                }
+
+                if (coincide)
+                {
+                    adv.Polo = parte.Polo;
+                    adv.ParteVinculada = parte.Nome;
+                    break;
+                }
+            }
+        }
+
+        // PASSO 2: Análise contextual do texto da publicação
+        if (!string.IsNullOrWhiteSpace(textoNorm))
+        {
+            foreach (var adv in advogados.Where(a => string.IsNullOrEmpty(a.Polo)))
+            {
+                var advNorm = NormalizarNome(adv.Nome);
+                var numOab = adv.NumOab ?? "";
+
+                var regexAtivo = new Regex($@"(?:autor|autora|reclamante|agravante|exequente|embargante)[^.;\n]{{0,120}}(?:{Regex.Escape(advNorm)}|{Regex.Escape(numOab)})", RegexOptions.IgnoreCase);
+                var regexAtivoInv = new Regex($@"(?:{Regex.Escape(advNorm)}|{Regex.Escape(numOab)})[^.;\n]{{0,120}}(?:autor|autora|reclamante|agravante|exequente|embargante)", RegexOptions.IgnoreCase);
+
+                var regexPassivo = new Regex($@"(?:r[eé]u|reclamad[oa]|agravad[oa]|executad[oa]|embargad[oa]|shopee)[^.;\n]{{0,120}}(?:{Regex.Escape(advNorm)}|{Regex.Escape(numOab)})", RegexOptions.IgnoreCase);
+                var regexPassivoInv = new Regex($@"(?:{Regex.Escape(advNorm)}|{Regex.Escape(numOab)})[^.;\n]{{0,120}}(?:r[eé]u|reclamad[oa]|agravad[oa]|executad[oa]|embargad[oa]|shopee)", RegexOptions.IgnoreCase);
+
+                if (regexAtivo.IsMatch(textoNorm) || regexAtivoInv.IsMatch(textoNorm))
+                {
+                    adv.Polo = "Ativo";
+                }
+                else if (regexPassivo.IsMatch(textoNorm) || regexPassivoInv.IsMatch(textoNorm))
+                {
+                    adv.Polo = "Passivo";
+                }
+            }
+        }
+
+        // PASSO 3: Princípio da Segregação de Patrocínio (Um advogado não defende polos opostos)
+        var advsAtivo = advogados.Where(a => a.Polo == "Ativo").ToList();
+        var advsPassivo = advogados.Where(a => a.Polo == "Passivo").ToList();
+        var advsSemPolo = advogados.Where(a => string.IsNullOrEmpty(a.Polo)).ToList();
+
+        if (advsAtivo.Count > 0 && advsPassivo.Count == 0 && partes.Any(p => p.Polo == "Passivo"))
+        {
+            foreach (var rem in advsSemPolo)
+            {
+                rem.Polo = "Passivo";
+            }
+        }
+        else if (advsPassivo.Count > 0 && advsAtivo.Count == 0 && partes.Any(p => p.Polo == "Ativo"))
+        {
+            foreach (var rem in advsSemPolo)
+            {
+                rem.Polo = "Ativo";
+            }
+        }
+
+        // PASSO 4: Montagem da lista final de Envolvidos
+        var resultado = new List<Envolvido>();
+        foreach (var parte in partes)
+        {
+            var parteNorm = NormalizarNome(parte.Nome);
+
+            // Advogados especificamente vinculados a esta parte por nome
+            var advsDaParte = advogados
+                .Where(a => a.ParteVinculada != null && NormalizarNome(a.ParteVinculada) == parteNorm)
+                .Select(a => a.Formatado)
+                .Distinct()
+                .ToList();
+
+            // Se não tiver por nome, busca os advogados do mesmo polo
+            if (advsDaParte.Count == 0)
+            {
+                advsDaParte = advogados
+                    .Where(a => a.Polo == parte.Polo)
+                    .Select(a => a.Formatado)
+                    .Distinct()
+                    .ToList();
+            }
+
+            // Fallback caso não tenha sido possível segregar polo de nenhum advogado
+            if (advsDaParte.Count == 0 && advsAtivo.Count == 0 && advsPassivo.Count == 0 && advogados.Count > 0)
+            {
+                advsDaParte = advogados.Select(a => a.Formatado).Distinct().ToList();
+            }
+
+            bool causaPropria = advsDaParte.Any(a => NormalizarNome(a).Contains(parteNorm));
+            string papel;
+            if (parte.Polo == "Ativo")
+            {
+                papel = causaPropria ? "Autora (Causa Própria)" : "Autor(a) / Exequente";
+            }
+            else
+            {
+                papel = "Réu / Executado";
+            }
+
+            resultado.Add(new Envolvido
+            {
+                Nome = parte.Nome,
+                TipoPolo = parte.Polo,
+                Papel = papel,
+                Oab = advsDaParte.Count > 0 ? string.Join("; ", advsDaParte) : null
+            });
+        }
+
+        return resultado;
     }
 }

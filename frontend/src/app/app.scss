@@ -1165,44 +1165,90 @@
         background: var(--bg-surface-elevated);
         border: 1px solid var(--border-subtle);
         border-radius: 12px;
+        transition: all 0.2s ease-in-out;
 
         &.polo-ativo {
           border-left: 4px solid #10B981;
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+          .polo-tag {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+          }
+          .papel-tag {
+            color: #6ee7b7;
+          }
         }
 
         &.polo-passivo {
           border-left: 4px solid #6366F1;
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+          .polo-tag {
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+          }
+          .papel-tag {
+            color: #cbd5e1;
+          }
         }
 
         .parte-polo-badge {
           display: flex;
           align-items: center;
-          gap: 0.45rem;
-          font-size: 0.72rem;
-          font-weight: 800;
-          letter-spacing: 0.05em;
-          color: var(--text-muted);
-          margin-bottom: 0.5rem;
+          gap: 0.5rem;
+          margin-bottom: 0.65rem;
+
+          .polo-tag {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+          }
+
+          .papel-tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+          }
         }
 
         .parte-nome-info {
           .nome {
             display: block;
-            font-size: 1rem;
+            font-size: 1.05rem;
             color: #F8FAFC;
             font-weight: 700;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
+          }
+
+          .qualificacao-sub {
+            font-size: 0.75rem;
+            color: #94A3B8;
+            margin-bottom: 0.65rem;
           }
 
           .advogado-row {
             display: flex;
-            align-items: center;
-            gap: 0.45rem;
-            font-size: 0.8rem;
+            align-items: flex-start;
+            gap: 0.5rem;
+            font-size: 0.82rem;
             color: var(--text-secondary);
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.6rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
 
             .adv-icon {
               color: var(--accent-gold);
+              font-weight: 700;
+              flex-shrink: 0;
+            }
+
+            .adv-nome {
+              color: #E2E8F0;
+              font-weight: 600;
+              line-height: 1.45;
             }
           }
         }
