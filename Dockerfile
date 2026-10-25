@@ -9,17 +9,13 @@ COPY LegalProcessMonitor.sln ./
 COPY src/LegalProcessMonitor.Domain/LegalProcessMonitor.Domain.csproj src/LegalProcessMonitor.Domain/
 COPY src/LegalProcessMonitor.Infrastructure/LegalProcessMonitor.Infrastructure.csproj src/LegalProcessMonitor.Infrastructure/
 COPY src/LegalProcessMonitor.Api/LegalProcessMonitor.Api.csproj src/LegalProcessMonitor.Api/
-COPY src/LegalProcessMonitor.Worker/LegalProcessMonitor.Worker.csproj src/LegalProcessMonitor.Worker/
 COPY tests/LegalProcessMonitor.Tests/LegalProcessMonitor.Tests.csproj tests/LegalProcessMonitor.Tests/
 
 RUN dotnet restore LegalProcessMonitor.sln
 
 # Copiar código-fonte e publicar em modo Release
 COPY src/ src/
-RUN dotnet publish src/LegalProcessMonitor.Api/LegalProcessMonitor.Api.csproj \
-    -c Release \
-    -o /app/publish \
-    --no-restore
+RUN dotnet publish src/LegalProcessMonitor.Api/LegalProcessMonitor.Api.csproj -c Release -o /app/publish
 
 # ==============================================================================
 # Stage 2: Production Runtime (ASP.NET Core 9 Debian Slim - Compatível com Render Free & Docker Compose)
