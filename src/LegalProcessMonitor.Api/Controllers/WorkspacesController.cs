@@ -20,15 +20,21 @@ public sealed class WorkspacesController : ControllerBase
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IEsajOabScraper _oabScraper;
     private readonly IWebhookAlertDispatcher _alertDispatcher;
+    private readonly IProcessoRepository? _processoRepository;
+    private readonly IInteligenciaPublicaConnector? _inteligenciaConnector;
 
     public WorkspacesController(
         IWorkspaceRepository workspaceRepository,
         IEsajOabScraper oabScraper,
-        IWebhookAlertDispatcher alertDispatcher)
+        IWebhookAlertDispatcher alertDispatcher,
+        IProcessoRepository? processoRepository = null,
+        IInteligenciaPublicaConnector? inteligenciaConnector = null)
     {
         _workspaceRepository = workspaceRepository;
         _oabScraper = oabScraper;
         _alertDispatcher = alertDispatcher;
+        _processoRepository = processoRepository;
+        _inteligenciaConnector = inteligenciaConnector;
     }
 
     private string ResolverTenantId(string? queryTenantId = null)
@@ -437,6 +443,260 @@ public sealed class WorkspacesController : ControllerBase
             {
                 tarefa = tarefaSalva,
                 calculoPrazo = calculo
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    // =========================================================================
+    // BANCO DE TESES JURÍDICAS MULTI-TENANT & MOTOR DE RECOMENDAÇÃO TÁTICA
+    // =========================================================================
+    public sealed record SalvarTeseJuridicaRequest(
+        string? Id,
+        string Titulo,
+        string AreaDireito,
+        List<string>? EventosGatilho,
+        string FundamentacaoLegal,
+        string PrecedenteChave,
+        string ModeloArgumentacao,
+        int TotalUsos = 0,
+        string? UltimoProcessoAplicado = null);
+
+    [HttpGet("teses")]
+    public async Task<IActionResult> ListarTeses(CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var teses = await _workspaceRepository.ListarTesesJuridicasAsync(tenant, ct);
+            var aplicacoes = await _workspaceRepository.ListarAplicacoesTesesAsync(tenant, null, ct);
+            return Ok(new { teses, aplicacoes });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpPost("teses")]
+    public async Task<IActionResult> SalvarTese([FromBody] SalvarTeseJuridicaRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (string.IsNullOrWhiteSpace(req.Titulo))
+            {
+                return BadRequest(new { mensagem = "O título da tese jurídica é obrigatório." });
+            }
+
+            var gatilhos = (req.EventosGatilho ?? new List<string>())
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .Select(g => g.Trim())
+                .Distinct()
+                .ToList();
+
+            var tese = new TeseJuridicaTenant(
+                Id: string.IsNullOrWhiteSpace(req.Id) ? $"tese-{Guid.NewGuid():N}" : req.Id.Trim(),
+                TenantId: tenant,
+                Titulo: req.Titulo.Trim(),
+                AreaDireito: string.IsNullOrWhiteSpace(req.AreaDireito) ? "Contencioso Cível" : req.AreaDireito.Trim(),
+                EventosGatilho: gatilhos,
+                FundamentacaoLegal: req.FundamentacaoLegal?.Trim() ?? string.Empty,
+                PrecedenteChave: req.PrecedenteChave?.Trim() ?? string.Empty,
+                ModeloArgumentacao: req.ModeloArgumentacao?.Trim() ?? string.Empty,
+                TotalUsos: Math.Max(0, req.TotalUsos),
+                UltimoProcessoAplicado: req.UltimoProcessoAplicado,
+                AtualizadoEmUtc: DateTime.UtcNow);
+
+            var salva = await _workspaceRepository.SalvarTeseJuridicaAsync(tese, ct);
+            return Ok(salva);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpDelete("teses/{id}")]
+    public async Task<IActionResult> RemoverTese(string id, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var removido = await _workspaceRepository.RemoverTeseJuridicaAsync(tenant, id, ct);
+            return Ok(new { removido });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record AplicarTeseProcessoRequest(
+        string TeseId,
+        string NumeroProcesso,
+        string? EventoContexto = null,
+        string? ResultadoEsperadoOuObtido = null,
+        string? Responsavel = null,
+        bool CriarTarefaKanban = false,
+        string? PrazoFatalIso = null);
+
+    [HttpPost("teses/aplicar")]
+    public async Task<IActionResult> AplicarTeseNoProcesso([FromBody] AplicarTeseProcessoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (string.IsNullOrWhiteSpace(req.TeseId) || string.IsNullOrWhiteSpace(req.NumeroProcesso))
+            {
+                return BadRequest(new { mensagem = "Informe a tese (TeseId) e o número do processo (NumeroProcesso)." });
+            }
+
+            var teses = await _workspaceRepository.ListarTesesJuridicasAsync(tenant, ct);
+            var tese = teses.FirstOrDefault(t => t.Id == req.TeseId);
+            var tituloTese = tese?.Titulo ?? req.TeseId;
+
+            var aplicacao = new AplicacaoTeseProcesso(
+                Id: $"aplic-{Guid.NewGuid():N}",
+                TenantId: tenant,
+                TeseId: req.TeseId.Trim(),
+                TituloTese: tituloTese,
+                NumeroProcesso: req.NumeroProcesso.Trim(),
+                EventoContexto: string.IsNullOrWhiteSpace(req.EventoContexto) ? "Aplicação tática em manifestação/recurso" : req.EventoContexto.Trim(),
+                ResultadoEsperadoOuObtido: string.IsNullOrWhiteSpace(req.ResultadoEsperadoOuObtido) ? "Tese vinculada à minuta em elaboração" : req.ResultadoEsperadoOuObtido.Trim(),
+                Responsavel: string.IsNullOrWhiteSpace(req.Responsavel) ? "Advogado Responsável" : req.Responsavel.Trim(),
+                AplicadaEmUtc: DateTime.UtcNow);
+
+            var registrada = await _workspaceRepository.RegistrarAplicacaoTeseAsync(aplicacao, ct);
+
+            TarefaProcessual? tarefaCriada = null;
+            if (req.CriarTarefaKanban)
+            {
+                if (!DateOnly.TryParse(req.PrazoFatalIso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var prazoFatal))
+                {
+                    prazoFatal = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15));
+                }
+
+                var novaTarefa = new TarefaProcessual(
+                    Id: $"tese-task-{Guid.NewGuid():N}",
+                    TenantId: tenant,
+                    NumeroProcesso: req.NumeroProcesso.Trim(),
+                    Titulo: $"Peticionar com Tese: {tituloTese}",
+                    Descricao: tese != null
+                        ? $"Fundamentação: {tese.FundamentacaoLegal}\nPrecedente: {tese.PrecedenteChave}\n\n{tese.ModeloArgumentacao}"
+                        : aplicacao.EventoContexto,
+                    Responsavel: aplicacao.Responsavel,
+                    Coluna: StatusTarefaColuna.Elaboracao,
+                    Prioridade: PrioridadeTarefa.Critica,
+                    PrazoFatal: prazoFatal,
+                    DiasPrazo: 15,
+                    PrazoEmDobro: false,
+                    NumeroProtocolo: null,
+                    CriadoEmUtc: DateTime.UtcNow,
+                    AtualizadoEmUtc: DateTime.UtcNow);
+
+                tarefaCriada = await _workspaceRepository.SalvarTarefaAsync(novaTarefa, ct);
+            }
+
+            var tesesAtualizadas = await _workspaceRepository.ListarTesesJuridicasAsync(tenant, ct);
+            return Ok(new
+            {
+                aplicacao = registrada,
+                tarefaKanban = tarefaCriada,
+                teses = tesesAtualizadas
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpGet("teses/recomendar/{numeroProcesso}")]
+    public async Task<IActionResult> RecomendarTesesParaProcesso(string numeroProcesso, CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var digitos = Regex.Replace(Uri.UnescapeDataString(numeroProcesso ?? ""), @"\D", "");
+            var teses = await _workspaceRepository.ListarTesesJuridicasAsync(tenant, ct);
+            var historico = await _workspaceRepository.ListarAplicacoesTesesAsync(tenant, null, ct);
+
+            Processo? processo = null;
+            if (_processoRepository != null && !string.IsNullOrWhiteSpace(digitos))
+            {
+                processo = await _processoRepository.ObterPorNumeroAsync(digitos, ct);
+            }
+
+            if (processo is null)
+            {
+                return NotFound(new { mensagem = "Processo não encontrado no cache para análise de recomendação." });
+            }
+
+            var recomendacoes = MotorRecomendacaoTese.RecomendarParaProcesso(processo, teses, historico);
+            return Ok(recomendacoes);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    // =========================================================================
+    // FICHA PATRIMONIAL / QSA DA PARTE ADVERSA + FERIADOS AUTOMÁTICOS
+    // =========================================================================
+    [HttpGet("partes/ficha-patrimonial")]
+    public async Task<IActionResult> ConsultarFichaPatrimonial(
+        [FromQuery] string termo,
+        [FromQuery] string? comarca = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(termo))
+        {
+            return BadRequest(new { mensagem = "Informe a razão social ou CNPJ da parte processual." });
+        }
+
+        if (_inteligenciaConnector is null)
+        {
+            return StatusCode(503, new { mensagem = "Conector de inteligência pública não configurado." });
+        }
+
+        var ficha = await _inteligenciaConnector.ConsultarFichaPatrimonialParteAsync(termo, comarca, ct);
+        return Ok(ficha);
+    }
+
+    public sealed record SincronizarFeriadosRequest(int Ano = 2026, string SiglaTribunal = "TJSP");
+
+    [HttpPost("suspensoes/sincronizar-oficiais")]
+    public async Task<IActionResult> SincronizarFeriadosOficiais(
+        [FromBody] SincronizarFeriadosRequest? req,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (_inteligenciaConnector is null)
+            {
+                return StatusCode(503, new { mensagem = "Conector de inteligência pública não configurado." });
+            }
+
+            var ano = req?.Ano is >= 2024 and <= 2030 ? req.Ano : DateTime.UtcNow.Year;
+            var sigla = string.IsNullOrWhiteSpace(req?.SiglaTribunal) ? "TJSP" : req!.SiglaTribunal.Trim().ToUpperInvariant();
+
+            var feriados = await _inteligenciaConnector.ObterFeriadosOficiaisAnoAsync(tenant, ano, sigla, ct);
+            foreach (var f in feriados)
+            {
+                await _workspaceRepository.AdicionarSuspensaoLocalAsync(f, ct);
+            }
+
+            var todas = await _workspaceRepository.ListarSuspensoesLocaisAsync(tenant, ct);
+            return Ok(new
+            {
+                sincronizados = feriados.Count,
+                suspensoesLocais = todas
             });
         }
         catch (ArgumentException ex)

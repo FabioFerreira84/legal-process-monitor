@@ -51,6 +51,17 @@ export interface Processo {
   documentosPublicos?: DocumentoProcessual[];
 }
 
+export interface JulgamentoRealMagistrado {
+  numeroProcesso: string;
+  tribunal: string;
+  classe: string;
+  orgaoJulgador: string;
+  dataPublicacao: string;
+  ementaResumo: string;
+  fonteOficial: string;
+  urlOrigem: string;
+}
+
 export interface PerfilMagistrado {
   id: string;
   nome: string;
@@ -69,6 +80,7 @@ export interface PerfilMagistrado {
   tendenciaHonorarios: string;
   dicasPeticionamento: string[];
   precedenteMarcante?: string;
+  julgamentosReaisRecentes?: JulgamentoRealMagistrado[];
 }
 
 export interface ProcessoResumo {
@@ -201,6 +213,73 @@ export interface ItemWatchlistTenant {
   temNovidade: boolean;
 }
 
+export interface TeseJuridicaTenant {
+  id: string;
+  tenantId: string;
+  titulo: string;
+  areaDireito: string;
+  eventosGatilho: string[];
+  fundamentacaoLegal: string;
+  precedenteChave: string;
+  modeloArgumentacao: string;
+  totalUsos: number;
+  ultimoProcessoAplicado?: string | null;
+  atualizadoEmUtc: string;
+}
+
+export interface AplicacaoTeseProcesso {
+  id: string;
+  tenantId: string;
+  teseId: string;
+  tituloTese: string;
+  numeroProcesso: string;
+  eventoContexto: string;
+  resultadoEsperadoOuObtido: string;
+  responsavel: string;
+  aplicadaEmUtc: string;
+}
+
+export interface RecomendacaoTeseResult {
+  tese: TeseJuridicaTenant;
+  scoreAderencia: number;
+  nivelAderencia: string;
+  motivoEnquadramento: string;
+  termosDetectadosNoProcesso: string[];
+  jaUtilizadaNesteProcesso: boolean;
+}
+
+export interface SocioEmpresaQsa {
+  nome: string;
+  qualificacao: string;
+  faixaEtaria: string;
+}
+
+export interface PublicacaoDiarioMunicipal {
+  municipio: string;
+  uf: string;
+  dataPublicacao: string;
+  excertoTexto: string;
+  urlDiario: string;
+}
+
+export interface FichaPatrimonialParte {
+  termoConsultado: string;
+  cnpjFormatado?: string | null;
+  razaoSocial: string;
+  nomeFantasia: string;
+  situacaoCadastral: string;
+  capitalSocial: number;
+  porteEmpresa: string;
+  naturezaJuridica: string;
+  atividadePrincipalCnae: string;
+  enderecoDiligenciaCitacao: string;
+  municipioUf: string;
+  quadroSocietario: SocioEmpresaQsa[];
+  mencoesDiariosMunicipais: PublicacaoDiarioMunicipal[];
+  fonteDados: string;
+  consultadoEmUtc: string;
+}
+
 export interface EstadoWorkspaceTenant {
   tenantId: string;
   configuracao: ConfigRadarOab;
@@ -209,6 +288,8 @@ export interface EstadoWorkspaceTenant {
   suspensoesLocais: SuspensaoForenseLocal[];
   tarefasKanban: TarefaProcessual[];
   itensRadar: ItemRadarDjen[];
+  tesesJuridicas?: TeseJuridicaTenant[];
+  historicoAplicacoesTeses?: AplicacaoTeseProcesso[];
 }
 
 export interface ResultadoDisparoAlerta {

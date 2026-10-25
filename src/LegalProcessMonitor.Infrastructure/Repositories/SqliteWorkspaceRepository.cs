@@ -113,6 +113,34 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
                 capturado_em_utc TEXT NOT NULL,
                 PRIMARY KEY (tenant_id, id)
             );
+
+            CREATE TABLE IF NOT EXISTS workspace_teses_juridicas (
+                id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                titulo TEXT NOT NULL,
+                area_direito TEXT NOT NULL,
+                eventos_gatilho_json TEXT NOT NULL,
+                fundamentacao_legal TEXT NOT NULL,
+                precedente_chave TEXT NOT NULL,
+                modelo_argumentacao TEXT NOT NULL,
+                total_usos INTEGER NOT NULL DEFAULT 0,
+                ultimo_processo_aplicado TEXT NULL,
+                atualizado_em_utc TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, id)
+            );
+
+            CREATE TABLE IF NOT EXISTS workspace_teses_aplicadas (
+                id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                tese_id TEXT NOT NULL,
+                titulo_tese TEXT NOT NULL,
+                numero_processo TEXT NOT NULL,
+                evento_contexto TEXT NOT NULL,
+                resultado_esperado_obtido TEXT NOT NULL,
+                responsavel TEXT NOT NULL,
+                aplicada_em_utc TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, id)
+            );
         ";
         cmd.ExecuteNonQuery();
     }
@@ -182,6 +210,70 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
                 ConvertidaEmTarefa: true,
                 CapturadoEmUtc: DateTime.UtcNow)
         }).GetAwaiter().GetResult();
+
+        // Semeia o Banco de Teses Jurídicas do Escritório com teses reais de alta eficácia e vínculo real de uso
+        SalvarTeseJuridicaAsync(new TeseJuridicaTenant(
+            Id: "tese-stj-distinguishing-sumula-7",
+            TenantId: tenantPadrao,
+            Titulo: "Impugnação ao AREsp — Súmula 7/STJ vs. Revaloração Jurídica de Fatos Incontroversos",
+            AreaDireito: "Processo Civil / Tribunais Superiores (STJ)",
+            EventosGatilho: new[] { "AREsp", "REsp", "STJ", "Agravo em Recurso Especial", "Contrarrazões", "Distribuição", "Súmula 7" },
+            FundamentacaoLegal: "Art. 1.029 e Art. 1.030, V, do CPC/2015; Súmula 7/STJ; Súmula 182/STJ",
+            PrecedenteChave: "STJ — AgInt no AREsp 3319477/SP e Jurisprudência da Corte Especial (Súmula 182/STJ por ausência de impugnação específica aos fundamentos da decisão de inadmissibilidade)",
+            ModeloArgumentacao: "1. Preliminar de Não Conhecimento (Súmula 182/STJ): a agravante limitou-se a repetir as razões do Recurso Especial sem infirmar especificamente todos os capítulos da decisão da Presidência de origem.\n2. Óbice da Súmula 7/STJ: a reversão do acórdão recorrido demandaria o reexame fático-probatório e a interpretação de cláusulas contratuais (Súmula 5/STJ), vedados na via estreita do apelo nobre.",
+            TotalUsos: 4,
+            UltimoProcessoAplicado: "2101760-84.2025.8.26.0000",
+            AtualizadoEmUtc: DateTime.UtcNow)).GetAwaiter().GetResult();
+
+        SalvarTeseJuridicaAsync(new TeseJuridicaTenant(
+            Id: "tese-possessoria-requisitos-561-cpc",
+            TenantId: tenantPadrao,
+            Titulo: "Tutela Possessória de Urgência — Requisitos Cumulativos do Art. 561 do CPC e Periculum in Mora Inverso",
+            AreaDireito: "Direito Civil / Possessórias e Agronegócio",
+            EventosGatilho: new[] { "Esbulho", "Turbação", "Ameaça", "Agravo de Instrumento", "Reintegração de Posse", "Liminar", "Art. 561" },
+            FundamentacaoLegal: "Arts. 300, 560, 561 e 562 do CPC/2015; Art. 1.210 do Código Civil",
+            PrecedenteChave: "TJSP — 24ª Câmara de Direito Privado (Agravo de Instrumento nº 2101760-84.2025.8.26.0000 — Rel. Des. Pedro Paulo Maillet Preuss)",
+            ModeloArgumentacao: "A concessão ou manutenção de liminar possessória inaudita altera exige prova documental inequívoca da posse anterior, do esbulho ou turbação praticado há menos de ano e dia (força nova) e da perda ou receio justo da posse (Art. 561, I a IV, do CPC), sob pena de irreversibilidade prática no ciclo produtivo agrícola (Art. 300, § 3º, do CPC).",
+            TotalUsos: 7,
+            UltimoProcessoAplicado: "2101760-84.2025.8.26.0000",
+            AtualizadoEmUtc: DateTime.UtcNow)).GetAwaiter().GetResult();
+
+        SalvarTeseJuridicaAsync(new TeseJuridicaTenant(
+            Id: "tese-ms-tributario-prova-pre-constituida",
+            TenantId: tenantPadrao,
+            Titulo: "Mandado de Segurança Tributário — Direito Líquido e Certo, Declaração de Compensação (Tema 118/STJ) e Art. 485, IV do CPC",
+            AreaDireito: "Direito Tributário / Processo Constitucional",
+            EventosGatilho: new[] { "Mandado de Segurança", "Tributário", "Receita Federal", "TRF3", "Ausência das condições da ação", "Art. 485", "Prova pré-constituída" },
+            FundamentacaoLegal: "Art. 5º, LXIX, da CF/88; Art. 1º e Art. 6º, § 5º, da Lei nº 12.016/2009; Súmula 213/STJ; Tema Repetitivo 118/STJ",
+            PrecedenteChave: "STJ — Tema Repetitivo 118 (REsp 1.111.164/BA): Suficiência de documentos comprobatórios da condição de credor tributário para declaração do direito à compensação, reservando-se a apuração de valores para a fase administrativa/liquidação",
+            ModeloArgumentacao: "Nos termos da Súmula 213/STJ e do Tema Repetitivo 118/STJ, quando o pedido em Mandado de Segurança visa o reconhecimento da matriz jurídica do indébito ou do direito à compensação tributária, mostra-se desnecessária dilação probatória contábil exauriente na fase cognitiva, bastando a comprovação documental da sujeição passiva tributária.",
+            TotalUsos: 3,
+            UltimoProcessoAplicado: "5000001-05.2023.4.03.6100",
+            AtualizadoEmUtc: DateTime.UtcNow)).GetAwaiter().GetResult();
+
+        SalvarTeseJuridicaAsync(new TeseJuridicaTenant(
+            Id: "tese-execucao-sisbajud-menor-onerosidade",
+            TenantId: tenantPadrao,
+            Titulo: "Desbloqueio de Ativos SISBAJUD — Impenhorabilidade de Capital de Giro Essencial e Menor Onerosidade (Art. 805 CPC)",
+            AreaDireito: "Execução Civil / Empresarial",
+            EventosGatilho: new[] { "SISBAJUD", "Penhora", "Bloqueio", "Execução", "Cumprimento de Sentença", "Art. 805", "Art. 833" },
+            FundamentacaoLegal: "Art. 805, parágrafo único, Art. 833, IV e X, e Art. 854, § 3º, do CPC/2015",
+            PrecedenteChave: "STJ — Corte Especial (EREsp 1.874.222/DF) e 3ª Turma: Mitigação e proteção do capital de giro indispensável à continuidade da atividade empresarial comprovada documentalmente em 5 dias úteis (Art. 854, § 3º, CPC)",
+            ModeloArgumentacao: "Requer-se a liberação imediata do excesso de constrição via SISBAJUD (Art. 854, § 3º, II, do CPC) ou a substituição da penhora em dinheiro por garantia idônea (fiança bancária/seguro garantia acrescido de 30% — Art. 835, § 2º, do CPC), demonstrando-se que o bloqueio de fluxo de caixa operacional inviabiliza a folha salarial e a atividade-fim da executada.",
+            TotalUsos: 5,
+            UltimoProcessoAplicado: "1006805-85.2025.8.26.0224",
+            AtualizadoEmUtc: DateTime.UtcNow)).GetAwaiter().GetResult();
+
+        RegistrarAplicacaoTeseAsync(new AplicacaoTeseProcesso(
+            Id: "aplic-demo-001",
+            TenantId: tenantPadrao,
+            TeseId: "tese-possessoria-requisitos-561-cpc",
+            TituloTese: "Tutela Possessória de Urgência — Requisitos Cumulativos do Art. 561 do CPC e Periculum in Mora Inverso",
+            NumeroProcesso: "2101760-84.2025.8.26.0000",
+            EventoContexto: "Julgamento Colegiado na 24ª Câmara de Direito Privado do TJSP",
+            ResultadoEsperadoOuObtido: "Tese acolhida no Acórdão de 2º Grau — Recurso da parte adversa improvido por unanimidade",
+            Responsavel: "Dr. Fabio Ferreira (OAB/SP 238.470)",
+            AplicadaEmUtc: new DateTime(2025, 10, 15, 14, 0, 0, DateTimeKind.Utc))).GetAwaiter().GetResult();
     }
 
     public async Task<EstadoWorkspaceTenant> ObterEstadoWorkspaceAsync(string tenantId, CancellationToken ct = default)
@@ -193,6 +285,8 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
         var suspensoes = await ListarSuspensoesLocaisAsync(tenant, ct);
         var tarefas = await ListarTarefasAsync(tenant, ct);
         var radar = await ListarItensRadarAsync(tenant, ct);
+        var teses = await ListarTesesJuridicasAsync(tenant, ct);
+        var aplicacoes = await ListarAplicacoesTesesAsync(tenant, null, ct);
 
         return new EstadoWorkspaceTenant(
             TenantId: tenant,
@@ -201,7 +295,9 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
             NotasJuizo: notas,
             SuspensoesLocais: suspensoes,
             TarefasKanban: tarefas,
-            ItensRadar: radar);
+            ItensRadar: radar,
+            TesesJuridicas: teses,
+            HistoricoAplicacoesTeses: aplicacoes);
     }
 
     private async Task<ConfigRadarOab> ObterConfigRadarInternoAsync(string tenant, CancellationToken ct)
@@ -676,6 +772,195 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
                 Lida: reader.GetInt32(9) == 1,
                 ConvertidaEmTarefa: reader.GetInt32(10) == 1,
                 CapturadoEmUtc: DateTime.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
+        }
+
+        return lista;
+    }
+
+    public async Task<TeseJuridicaTenant> SalvarTeseJuridicaAsync(TeseJuridicaTenant tese, CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(tese.TenantId);
+        var id = string.IsNullOrWhiteSpace(tese.Id) ? $"tese-{Guid.NewGuid():N}" : tese.Id.Trim();
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO workspace_teses_juridicas (
+                id, tenant_id, titulo, area_direito, eventos_gatilho_json,
+                fundamentacao_legal, precedente_chave, modelo_argumentacao,
+                total_usos, ultimo_processo_aplicado, atualizado_em_utc
+            )
+            VALUES (
+                $id, $tenantId, $titulo, $area, $gatilhos,
+                $fundamentacao, $precedente, $modelo,
+                $totalUsos, $ultimoProc, $atualizadoEm
+            )
+            ON CONFLICT(tenant_id, id) DO UPDATE SET
+                titulo = excluded.titulo,
+                area_direito = excluded.area_direito,
+                eventos_gatilho_json = excluded.eventos_gatilho_json,
+                fundamentacao_legal = excluded.fundamentacao_legal,
+                precedente_chave = excluded.precedente_chave,
+                modelo_argumentacao = excluded.modelo_argumentacao,
+                total_usos = excluded.total_usos,
+                ultimo_processo_aplicado = excluded.ultimo_processo_aplicado,
+                atualizado_em_utc = excluded.atualizado_em_utc;";
+
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$tenantId", tenant);
+        cmd.Parameters.AddWithValue("$titulo", tese.Titulo.Trim());
+        cmd.Parameters.AddWithValue("$area", string.IsNullOrWhiteSpace(tese.AreaDireito) ? "Contencioso Cível" : tese.AreaDireito.Trim());
+        cmd.Parameters.AddWithValue("$gatilhos", JsonSerializer.Serialize(tese.EventosGatilho ?? Array.Empty<string>()));
+        cmd.Parameters.AddWithValue("$fundamentacao", tese.FundamentacaoLegal ?? string.Empty);
+        cmd.Parameters.AddWithValue("$precedente", tese.PrecedenteChave ?? string.Empty);
+        cmd.Parameters.AddWithValue("$modelo", tese.ModeloArgumentacao ?? string.Empty);
+        cmd.Parameters.AddWithValue("$totalUsos", Math.Max(0, tese.TotalUsos));
+        cmd.Parameters.AddWithValue("$ultimoProc", (object?)tese.UltimoProcessoAplicado ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$atualizadoEm", tese.AtualizadoEmUtc.ToString("O", CultureInfo.InvariantCulture));
+
+        await cmd.ExecuteNonQueryAsync(ct);
+        return tese with { Id = id, TenantId = tenant };
+    }
+
+    public async Task<bool> RemoverTeseJuridicaAsync(string tenantId, string teseId, CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(tenantId);
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM workspace_teses_juridicas WHERE tenant_id = $tenantId AND id = $id";
+        cmd.Parameters.AddWithValue("$tenantId", tenant);
+        cmd.Parameters.AddWithValue("$id", teseId.Trim());
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+    }
+
+    public async Task<IReadOnlyList<TeseJuridicaTenant>> ListarTesesJuridicasAsync(string tenantId, CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(tenantId);
+        var lista = new List<TeseJuridicaTenant>();
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT id, titulo, area_direito, eventos_gatilho_json,
+                   fundamentacao_legal, precedente_chave, modelo_argumentacao,
+                   total_usos, ultimo_processo_aplicado, atualizado_em_utc
+            FROM workspace_teses_juridicas
+            WHERE tenant_id = $tenantId
+            ORDER BY total_usos DESC, atualizado_em_utc DESC";
+        cmd.Parameters.AddWithValue("$tenantId", tenant);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var gatilhos = JsonSerializer.Deserialize<List<string>>(reader.GetString(3)) ?? new List<string>();
+            lista.Add(new TeseJuridicaTenant(
+                Id: reader.GetString(0),
+                TenantId: tenant,
+                Titulo: reader.GetString(1),
+                AreaDireito: reader.GetString(2),
+                EventosGatilho: gatilhos,
+                FundamentacaoLegal: reader.GetString(4),
+                PrecedenteChave: reader.GetString(5),
+                ModeloArgumentacao: reader.GetString(6),
+                TotalUsos: reader.GetInt32(7),
+                UltimoProcessoAplicado: reader.IsDBNull(8) ? null : reader.GetString(8),
+                AtualizadoEmUtc: DateTime.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
+        }
+
+        return lista;
+    }
+
+    public async Task<AplicacaoTeseProcesso> RegistrarAplicacaoTeseAsync(AplicacaoTeseProcesso aplicacao, CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(aplicacao.TenantId);
+        var id = string.IsNullOrWhiteSpace(aplicacao.Id) ? $"aplic-{Guid.NewGuid():N}" : aplicacao.Id.Trim();
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO workspace_teses_aplicadas (
+                id, tenant_id, tese_id, titulo_tese, numero_processo,
+                evento_contexto, resultado_esperado_obtido, responsavel, aplicada_em_utc
+            )
+            VALUES (
+                $id, $tenantId, $teseId, $tituloTese, $numero,
+                $contexto, $resultado, $responsavel, $aplicadaEm
+            )
+            ON CONFLICT(tenant_id, id) DO UPDATE SET
+                resultado_esperado_obtido = excluded.resultado_esperado_obtido;
+
+            UPDATE workspace_teses_juridicas
+            SET total_usos = total_usos + 1,
+                ultimo_processo_aplicado = $numero,
+                atualizado_em_utc = $aplicadaEm
+            WHERE tenant_id = $tenantId AND id = $teseId;";
+
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$tenantId", tenant);
+        cmd.Parameters.AddWithValue("$teseId", aplicacao.TeseId.Trim());
+        cmd.Parameters.AddWithValue("$tituloTese", aplicacao.TituloTese ?? string.Empty);
+        cmd.Parameters.AddWithValue("$numero", aplicacao.NumeroProcesso.Trim());
+        cmd.Parameters.AddWithValue("$contexto", aplicacao.EventoContexto ?? string.Empty);
+        cmd.Parameters.AddWithValue("$resultado", aplicacao.ResultadoEsperadoOuObtido ?? "Em peticionamento");
+        cmd.Parameters.AddWithValue("$responsavel", string.IsNullOrWhiteSpace(aplicacao.Responsavel) ? "Advogado Responsável" : aplicacao.Responsavel.Trim());
+        cmd.Parameters.AddWithValue("$aplicadaEm", aplicacao.AplicadaEmUtc.ToString("O", CultureInfo.InvariantCulture));
+
+        await cmd.ExecuteNonQueryAsync(ct);
+        return aplicacao with { Id = id, TenantId = tenant };
+    }
+
+    public async Task<IReadOnlyList<AplicacaoTeseProcesso>> ListarAplicacoesTesesAsync(string tenantId, string? numeroProcesso = null, CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(tenantId);
+        var lista = new List<AplicacaoTeseProcesso>();
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        if (string.IsNullOrWhiteSpace(numeroProcesso))
+        {
+            cmd.CommandText = @"
+                SELECT id, tese_id, titulo_tese, numero_processo, evento_contexto,
+                       resultado_esperado_obtido, responsavel, aplicada_em_utc
+                FROM workspace_teses_aplicadas
+                WHERE tenant_id = $tenantId
+                ORDER BY aplicada_em_utc DESC";
+            cmd.Parameters.AddWithValue("$tenantId", tenant);
+        }
+        else
+        {
+            cmd.CommandText = @"
+                SELECT id, tese_id, titulo_tese, numero_processo, evento_contexto,
+                       resultado_esperado_obtido, responsavel, aplicada_em_utc
+                FROM workspace_teses_aplicadas
+                WHERE tenant_id = $tenantId AND numero_processo = $numero
+                ORDER BY aplicada_em_utc DESC";
+            cmd.Parameters.AddWithValue("$tenantId", tenant);
+            cmd.Parameters.AddWithValue("$numero", numeroProcesso.Trim());
+        }
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            lista.Add(new AplicacaoTeseProcesso(
+                Id: reader.GetString(0),
+                TenantId: tenant,
+                TeseId: reader.GetString(1),
+                TituloTese: reader.GetString(2),
+                NumeroProcesso: reader.GetString(3),
+                EventoContexto: reader.GetString(4),
+                ResultadoEsperadoOuObtido: reader.GetString(5),
+                Responsavel: reader.GetString(6),
+                AplicadaEmUtc: DateTime.Parse(reader.GetString(7), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
         }
 
         return lista;

@@ -85,6 +85,17 @@
         <span class="watchlist-counter" style="background: #d97706;">{{ tarefasKanban().length }}</span>
       </button>
 
+      <!-- ATALHO DIRETO BANCO DE TESES & RECOMENDAÇÃO -->
+      <button
+        class="watchlist-btn"
+        (click)="abaAtiva.set('teses')"
+        title="Abrir Banco de Teses Jurídicas e Motor de Recomendação Tática"
+        style="border-color: rgba(139, 92, 246, 0.45); background: rgba(139, 92, 246, 0.14);"
+      >
+        <span>⚖️ Banco de Teses</span>
+        <span class="watchlist-counter" style="background: #7c3aed;">{{ tesesJuridicas().length }}</span>
+      </button>
+
       <!-- STATUS DA NUVEM / PING -->
       <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'">
         <span class="status-pulse-dot"></span>
@@ -472,6 +483,17 @@
 
           <button
             class="tab-button"
+            [class.active]="abaAtiva() === 'teses'"
+            (click)="abaAtiva.set('teses')"
+            type="button"
+          >
+            <span class="tab-icon">⚖️</span>
+            <span>Banco de Teses & Estratégia</span>
+            <span class="tab-badge-glow purple">{{ tesesJuridicas().length }} Teses</span>
+          </button>
+
+          <button
+            class="tab-button"
             [class.active]="abaAtiva() === 'documentos'"
             (click)="abaAtiva.set('documentos')"
             type="button"
@@ -627,8 +649,15 @@
                         <span class="adv-icon">⚖️ Advogado(a):</span>
                         <span class="adv-nome">{{ env.oab || 'Patrono com Procuração Ad Judicia' }}</span>
                       </div>
-                      <div class="intimacao-eletronica-row">
-                        <span class="check-icon">✓</span> Intimação Eletrônica Ativa via Portal do Tribunal
+                      <div class="intimacao-eletronica-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                        <span><span class="check-icon">✓</span> Intimação Eletrônica Ativa via Portal do Tribunal</span>
+                        <button
+                          type="button"
+                          (click)="abrirFichaPatrimonialParte(env.nome)"
+                          style="padding: 4px 10px; border-radius: 6px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.45); color: #93c5fd; font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                        >
+                          🏢 Ficha Patrimonial / QSA & Diários Oficiais
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -819,6 +848,14 @@
                         style="padding: 7px 14px; border-radius: 6px; background: #d97706; border: none; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
                       >
                         + Registrar Suspensão
+                      </button>
+                      <button
+                        type="button"
+                        (click)="sincronizarFeriadosForensesOficiais()"
+                        [disabled]="sincronizandoFeriadosOficiais()"
+                        style="padding: 7px 14px; border-radius: 6px; background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+                      >
+                        {{ sincronizandoFeriadosOficiais() ? '⏳ Sincronizando...' : '🔄 Importar Feriados Oficiais 2026 (BrasilAPI + Forenses)' }}
                       </button>
                     </div>
 
@@ -1243,6 +1280,221 @@
           </div>
         }
 
+        <!-- ABA TESES: BANCO DE TESES JURÍDICAS MULTI-TENANT & MOTOR DE RECOMENDAÇÃO TÁTICA -->
+        @if (abaAtiva() === 'teses') {
+          <div class="inteligencia-tab-content animate-fade-in">
+            <!-- MOTOR DE RECOMENDAÇÃO TÁTICA: CRUZA O QUE ESTÁ ACONTECENDO NO PROCESSO COM A TESE QUE DEVE SER USADA -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">🎯</span>
+                  <div>
+                    <h4>Motor de Enquadramento Tático • Qual Tese Usar Agora em {{ proc.numeroCnjFormatado }}</h4>
+                    <span class="subtitle">
+                      Cruzamento determinístico entre o último andamento ("{{ proc.movimentacoes[0]?.titulo }}"), Classe ({{ proc.classe }}), Assunto ({{ proc.assunto }}) e o Banco de Teses de {{ nomeEscritorioAtivo() }}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="formNovaTeseAberto.set(!formNovaTeseAberto())"
+                  style="padding: 8px 14px; border-radius: 8px; background: #7c3aed; border: none; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer;"
+                >
+                  {{ formNovaTeseAberto() ? '✕ Fechar Formulário' : '+ Cadastrar Nova Tese no Acervo' }}
+                </button>
+              </div>
+
+              @if (teseAplicadaFeedback()) {
+                <div style="margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.45); color: #6ee7b7; font-size: 0.84rem; font-weight: 600;">
+                  ✓ {{ teseAplicadaFeedback() }}
+                </div>
+              }
+
+              <!-- FORMULÁRIO DE CADASTRO DE NOVA TESE DO ESCRITÓRIO -->
+              @if (formNovaTeseAberto()) {
+                <div style="margin-bottom: 18px; padding: 16px; border-radius: 12px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(139, 92, 246, 0.45);">
+                  <h5 style="color: #f8fafc; margin-bottom: 10px;">📚 Adicionar Tese Jurídica ao Banco do Escritório ({{ tenantIdAtivo() }})</h5>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                    <input
+                      type="text"
+                      [ngModel]="novaTeseTituloInput()"
+                      (ngModelChange)="novaTeseTituloInput.set($event)"
+                      placeholder="Título da Tese (ex: Impenhorabilidade da Pequena Propriedade Rural - Tema 961 STF)"
+                      style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.83rem;"
+                    />
+                    <input
+                      type="text"
+                      [ngModel]="novaTeseAreaInput()"
+                      (ngModelChange)="novaTeseAreaInput.set($event)"
+                      placeholder="Área do Direito (ex: Execução Civil / Tribunais Superiores)"
+                      style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.83rem;"
+                    />
+                    <input
+                      type="text"
+                      [ngModel]="novaTeseGatilhosInput()"
+                      (ngModelChange)="novaTeseGatilhosInput.set($event)"
+                      placeholder="Eventos Gatilho separados por vírgula (ex: Penhora, SISBAJUD, Agravo)"
+                      style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.83rem;"
+                    />
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                    <input
+                      type="text"
+                      [ngModel]="novaTeseFundamentacaoInput()"
+                      (ngModelChange)="novaTeseFundamentacaoInput.set($event)"
+                      placeholder="Fundamentação Legal (ex: Art. 833, VIII, do CPC/2015 e Art. 5º, XXVI, CF/88)"
+                      style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.83rem;"
+                    />
+                    <input
+                      type="text"
+                      [ngModel]="novaTesePrecedenteInput()"
+                      (ngModelChange)="novaTesePrecedenteInput.set($event)"
+                      placeholder="Precedente-Chave / Tema / Súmula (ex: STF Tema 961 / Súmula 182 STJ)"
+                      style="padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.83rem;"
+                    />
+                  </div>
+                  <textarea
+                    [ngModel]="novaTeseModeloInput()"
+                    (ngModelChange)="novaTeseModeloInput.set($event)"
+                    rows="3"
+                    placeholder="Modelo de Argumentação / Parágrafo Padrão para Petição..."
+                    style="width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-family: inherit; font-size: 0.83rem;"
+                  ></textarea>
+                  <button
+                    type="button"
+                    (click)="salvarNovaTeseJuridica()"
+                    style="padding: 8px 18px; border-radius: 6px; background: #10b981; border: none; color: #052e16; font-weight: 700; font-size: 0.84rem; cursor: pointer;"
+                  >
+                    ✓ Salvar Tese no Banco SQLite do Escritório
+                  </button>
+                </div>
+              }
+
+              <!-- LISTA DE TESES RANQUEADAS PELO MOTOR DE RECOMENDAÇÃO -->
+              @if (recomendacoesTesesAtuais().length === 0) {
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                  Nenhuma tese cadastrada neste workspace ainda. Clique em <strong>+ Cadastrar Nova Tese no Acervo</strong> acima.
+                </p>
+              } @else {
+                <div style="display: grid; gap: 14px;">
+                  @for (rec of recomendacoesTesesAtuais(); track rec.tese.id) {
+                    <div
+                      style="padding: 16px; border-radius: 12px; background: rgba(15, 23, 42, 0.78); border: 1px solid;"
+                      [style.borderColor]="rec.scoreAderencia >= 75 ? 'rgba(16, 185, 129, 0.55)' : rec.scoreAderencia >= 45 ? 'rgba(59, 130, 246, 0.45)' : 'rgba(255,255,255,0.12)'"
+                    >
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+                        <div>
+                          <span
+                            style="display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 0.73rem; font-weight: 700; margin-right: 8px;"
+                            [style.background]="rec.scoreAderencia >= 75 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)'"
+                            [style.color]="rec.scoreAderencia >= 75 ? '#6ee7b7' : '#93c5fd'"
+                          >
+                            {{ rec.scoreAderencia }}% Aderência • {{ rec.nivelAderencia }}
+                          </span>
+                          <span style="font-size: 0.76rem; color: #c4b5fd; font-weight: 600;">{{ rec.tese.areaDireito }}</span>
+                          @if (rec.jaUtilizadaNesteProcesso) {
+                            <span style="margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: rgba(245, 158, 11, 0.2); color: #fcd34d; font-size: 0.72rem; font-weight: 700;">
+                              ★ Já Utilizada Nestes Autos
+                            </span>
+                          }
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span style="font-size: 0.75rem; color: #94a3b8;">
+                            Utilizada <strong>{{ rec.tese.totalUsos }}x</strong> pelo escritório
+                            @if (rec.tese.ultimoProcessoAplicado) {
+                              • Último: {{ rec.tese.ultimoProcessoAplicado }}
+                            }
+                          </span>
+                          <button
+                            type="button"
+                            (click)="removerTeseJuridica(rec.tese.id)"
+                            style="background: none; border: none; color: #94a3b8; cursor: pointer;"
+                            title="Remover tese do acervo"
+                          >✕</button>
+                        </div>
+                      </div>
+
+                      <h5 style="color: #f8fafc; font-size: 1rem; margin: 4px 0 8px;">{{ rec.tese.titulo }}</h5>
+
+                      <div style="padding: 10px 12px; border-radius: 8px; background: rgba(30, 41, 59, 0.7); border-left: 3px solid #8b5cf6; font-size: 0.81rem; color: #e2e8f0; margin-bottom: 10px;">
+                        <strong>🧠 Por que usar esta tese agora:</strong> {{ rec.motivoEnquadramento }}
+                      </div>
+
+                      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 10px;">
+                        <div>
+                          <strong style="color: #93c5fd;">📜 Fundamentação Legal:</strong><br>
+                          {{ rec.tese.fundamentacaoLegal }}
+                        </div>
+                        <div>
+                          <strong style="color: #fcd34d;">🏛️ Precedente-Chave / Súmula:</strong><br>
+                          {{ rec.tese.precedenteChave }}
+                        </div>
+                      </div>
+
+                      <div style="padding: 10px 12px; border-radius: 8px; background: #0f172a; border: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: #cbd5e1; white-space: pre-line; margin-bottom: 12px;">{{ rec.tese.modeloArgumentacao }}</div>
+
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button
+                          type="button"
+                          (click)="aplicarTeseNoProcessoAtual(rec.tese, true)"
+                          style="padding: 7px 14px; border-radius: 8px; background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; font-size: 0.8rem; font-weight: 700; cursor: pointer;"
+                        >
+                          ⚡ Aplicar Tese neste Processo + Criar Tarefa no Kanban
+                        </button>
+                        <button
+                          type="button"
+                          (click)="copiarModeloArgumentacaoTese(rec.tese)"
+                          style="padding: 7px 14px; border-radius: 8px; background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; font-size: 0.8rem; font-weight: 600; cursor: pointer;"
+                        >
+                          {{ teseCopiadaId() === rec.tese.id ? '✓ Argumentação Copiada!' : '📋 Copiar Esqueleto Fundamentado' }}
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- HISTÓRICO AUDITÁVEL DE TESES APLICADAS PELO ESCRITÓRIO -->
+            <div class="legal-card-ai">
+              <div class="card-ai-header">
+                <div class="ai-badge-title">
+                  <span class="icon">📂</span>
+                  <div>
+                    <h4>Memória Institucional • Histórico de Teses Utilizadas nos Processos</h4>
+                    <span class="subtitle">Registro permanente de qual tese foi invocada em cada processo, em qual momento processual e com qual desfecho</span>
+                  </div>
+                </div>
+                <span class="prazos-status-tag">{{ historicoAplicacoesTeses().length }} registro(s)</span>
+              </div>
+
+              @if (historicoAplicacoesTeses().length === 0) {
+                <p style="color: #94a3b8; font-size: 0.85rem;">Nenhuma aplicação de tese registrada ainda neste escritório.</p>
+              } @else {
+                <div style="display: grid; gap: 10px;">
+                  @for (ap of historicoAplicacoesTeses(); track ap.id) {
+                    <div style="padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                      <div>
+                        <span style="font-size: 0.76rem; color: #93c5fd; font-weight: 700;">Processo: {{ ap.numeroProcesso }}</span>
+                        <strong style="display: block; color: #f8fafc; font-size: 0.9rem; margin: 2px 0;">{{ ap.tituloTese }}</strong>
+                        <span style="font-size: 0.78rem; color: #cbd5e1;">Momento/Ato: {{ ap.eventoContexto }}</span>
+                      </div>
+                      <div style="text-align: right;">
+                        <span style="display: inline-block; padding: 3px 9px; border-radius: 6px; background: rgba(16, 185, 129, 0.16); color: #6ee7b7; font-size: 0.76rem; font-weight: 600;">
+                          {{ ap.resultadoEsperadoOuObtido }}
+                        </span>
+                        <div style="font-size: 0.73rem; color: #94a3b8; margin-top: 4px;">
+                          👤 {{ ap.responsavel }} • {{ ap.aplicadaEmUtc | date:'dd/MM/yyyy' }}
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
         <!-- ABA 3: DOCUMENTOS PÚBLICOS E ACÓRDÃOS -->
         @if (abaAtiva() === 'documentos') {
           <div class="documentos-tab-content animate-fade-in">
@@ -1608,6 +1860,24 @@
           </div>
         </div>
 
+        <!-- ACÓRDÃOS E JULGAMENTOS REAIS DO MAGISTRADO EXTRAÍDOS AO VIVO (DJEN/CNJ + CJSG) -->
+        @if (mag.julgamentosReaisRecentes && mag.julgamentosReaisRecentes.length > 0) {
+          <div class="mag-dicas-section" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+            <h5>📚 Julgamentos e Comunicações Reais Recentes deste Magistrado (DJEN/CNJ & CJSG)</h5>
+            <div style="display: grid; gap: 8px; margin-top: 8px;">
+              @for (julg of mag.julgamentosReaisRecentes; track julg.numeroProcesso) {
+                <div style="padding: 10px; border-radius: 8px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3);">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #93c5fd; margin-bottom: 4px;">
+                    <strong>{{ julg.numeroProcesso }} ({{ julg.tribunal }})</strong>
+                    <span>{{ julg.dataPublicacao }} • {{ julg.fonteOficial }}</span>
+                  </div>
+                  <p style="font-size: 0.78rem; color: #e2e8f0; margin: 4px 0;">{{ julg.ementaResumo }}</p>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
         <!-- DIRETRIZES DE RITO -->
         <div class="mag-dicas-section">
           <h5>🎯 Diretrizes Processuais e Regimentais da Unidade</h5>
@@ -1884,6 +2154,113 @@
             </button>
             <button class="btn-close-modal" (click)="modalWorkspaceAberto.set(false)" type="button">Fechar</button>
           </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL DE FICHA PATRIMONIAL / QSA DA PARTE ADVERSA (RECEITA FEDERAL BRASILAPI + QUERIDO DIÁRIO) -->
+  @if (fichaPatrimonialAberta()) {
+    <div class="modal-backdrop animate-fade-in" (click)="fichaPatrimonialAberta.set(false)">
+      <div class="magistrado-modal-card animate-slide-up" (click)="$event.stopPropagation()">
+        <div class="modal-close-header">
+          <span class="modal-badge-court">🏢 DILIGÊNCIA PATRIMONIAL & SOCIETÁRIA (QSA RECEITA FEDERAL + DIÁRIOS MUNICIPAIS)</span>
+          <button class="close-btn" (click)="fichaPatrimonialAberta.set(false)" type="button">✕</button>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+          <input
+            type="text"
+            [ngModel]="cnpjCustomInput()"
+            (ngModelChange)="cnpjCustomInput.set($event)"
+            placeholder="Digite qualquer CNPJ (14 dígitos) ou Razão Social (ex: 60746948000112 ou CAMDA)..."
+            style="flex: 1; padding: 8px 12px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.82rem;"
+          />
+          <button
+            type="button"
+            (click)="abrirFichaPatrimonialParte(cnpjCustomInput())"
+            style="padding: 8px 16px; border-radius: 6px; background: #2563eb; border: none; color: #fff; font-weight: 700; font-size: 0.82rem; cursor: pointer;"
+          >
+            🔍 Consultar CNPJ / Parte
+          </button>
+        </div>
+
+        @if (carregandoFichaPatrimonial()) {
+          <p style="color: #93c5fd; font-size: 0.9rem; padding: 18px 0;">
+            ⏳ Consultando Quadro Societário (BrasilAPI / Receita Federal) e Diários Oficiais dos Municípios (Querido Diário)...
+          </p>
+        } @else if (fichaPatrimonialSelecionada(); as ficha) {
+          <div style="padding: 14px; border-radius: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(59, 130, 246, 0.35); margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+              <div>
+                <h4 style="color: #f8fafc; margin: 0;">{{ ficha.razaoSocial }}</h4>
+                <span style="font-size: 0.78rem; color: #94a3b8;">
+                  {{ ficha.cnpjFormatado ? 'CNPJ: ' + ficha.cnpjFormatado : 'Busca textual: ' + ficha.termoConsultado }} • Fonte: {{ ficha.fonteDados }}
+                </span>
+              </div>
+              <span style="padding: 4px 10px; border-radius: 99px; background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-size: 0.76rem; font-weight: 700;">
+                {{ ficha.situacaoCadastral }}
+              </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 0.8rem; color: #cbd5e1; margin-top: 10px;">
+              <div>
+                <strong style="color: #fcd34d;">💰 Capital Social Declarado:</strong><br>
+                {{ ficha.capitalSocial | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+              </div>
+              <div>
+                <strong style="color: #93c5fd;">🏛️ Natureza Jurídica / Porte:</strong><br>
+                {{ ficha.naturezaJuridica }} ({{ ficha.porteEmpresa }})
+              </div>
+              <div>
+                <strong style="color: #c4b5fd;">📍 Endereço p/ Citação / Penhora:</strong><br>
+                {{ ficha.enderecoDiligenciaCitacao }}
+              </div>
+            </div>
+
+            <div style="margin-top: 10px; font-size: 0.79rem; color: #94a3b8;">
+              <strong>CNAE Principal:</strong> {{ ficha.atividadePrincipalCnae }}
+            </div>
+          </div>
+
+          @if (ficha.quadroSocietario && ficha.quadroSocietario.length > 0) {
+            <div style="margin-bottom: 14px;">
+              <h5 style="color: #f8fafc; margin-bottom: 8px;">👥 Quadro de Sócios e Administradores (QSA — Desconsideração / Responsabilização)</h5>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;">
+                @for (socio of ficha.quadroSocietario; track socio.nome) {
+                  <div style="padding: 8px 10px; border-radius: 8px; background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(255,255,255,0.08); font-size: 0.78rem;">
+                    <strong style="color: #f8fafc; display: block;">{{ socio.nome }}</strong>
+                    <span style="color: #93c5fd;">{{ socio.qualificacao }}</span>
+                    @if (socio.faixaEtaria) {
+                      <span style="color: #94a3b8;"> • {{ socio.faixaEtaria }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          @if (ficha.mencoesDiariosMunicipais && ficha.mencoesDiariosMunicipais.length > 0) {
+            <div>
+              <h5 style="color: #f8fafc; margin-bottom: 8px;">📰 Menções em Diários Oficiais Municipais (Querido Diário)</h5>
+              <div style="display: grid; gap: 8px;">
+                @for (pub of ficha.mencoesDiariosMunicipais; track pub.urlDiario) {
+                  <div style="padding: 10px; border-radius: 8px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.1); font-size: 0.78rem;">
+                    <div style="display: flex; justify-content: space-between; color: #fcd34d; margin-bottom: 4px;">
+                      <strong>{{ pub.municipio }}/{{ pub.uf }}</strong>
+                      <span>{{ pub.dataPublicacao }}</span>
+                    </div>
+                    <p style="color: #cbd5e1; margin: 4px 0;">{{ pub.excertoTexto }}</p>
+                    <a [href]="pub.urlDiario" target="_blank" rel="noopener" style="color: #60a5fa;">Abrir Diário Oficial ↗</a>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+
+        <div class="modal-footer-actions" style="margin-top: 12px;">
+          <button class="btn-close-modal" (click)="fichaPatrimonialAberta.set(false)" type="button">Fechar Ficha Patrimonial</button>
         </div>
       </div>
     </div>

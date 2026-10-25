@@ -17,7 +17,11 @@ import {
   PrioridadeTarefa,
   ItemRadarDjen,
   ConfigRadarOab,
-  EstadoWorkspaceTenant
+  EstadoWorkspaceTenant,
+  TeseJuridicaTenant,
+  AplicacaoTeseProcesso,
+  RecomendacaoTeseResult,
+  FichaPatrimonialParte
 } from './models/processo.model';
 import {
   calcularTermoFatalForense,
@@ -61,7 +65,7 @@ export class App implements OnInit {
   erro = signal<string | null>(null);
   processoAtual = signal<Processo | null>(null);
   advogadoCarteira = signal<AdvogadoCarteira | null>(null);
-  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'inteligencia' | 'kanban' | 'dados'>('capa');
+  abaAtiva = signal<'capa' | 'documentos' | 'timeline' | 'inteligencia' | 'kanban' | 'teses' | 'dados'>('capa');
   filtroTextoTimeline = signal('');
   copiado = signal(false);
   whatsappCopiado = signal(false);
@@ -107,6 +111,26 @@ export class App implements OnInit {
   sincronizandoRadarDjen = signal(false);
   ultimoDiagnosticoRadar = signal<string | null>(null);
   notasJuizoTenant = signal<Record<string, string>>({});
+
+  // Banco de Teses Jurídicas Multi-Tenant & Motor de Recomendação Tática
+  tesesJuridicas = signal<TeseJuridicaTenant[]>([]);
+  historicoAplicacoesTeses = signal<AplicacaoTeseProcesso[]>([]);
+  formNovaTeseAberto = signal(false);
+  novaTeseTituloInput = signal('');
+  novaTeseAreaInput = signal('Processo Civil / Tribunais Superiores');
+  novaTeseGatilhosInput = signal('AREsp, Súmula 7, Agravo');
+  novaTeseFundamentacaoInput = signal('');
+  novaTesePrecedenteInput = signal('');
+  novaTeseModeloInput = signal('');
+  teseAplicadaFeedback = signal<string | null>(null);
+  teseCopiadaId = signal<string | null>(null);
+
+  // Ficha Patrimonial / QSA da Parte Adversa + Sincronizador de Feriados
+  fichaPatrimonialAberta = signal(false);
+  carregandoFichaPatrimonial = signal(false);
+  fichaPatrimonialSelecionada = signal<FichaPatrimonialParte | null>(null);
+  cnpjCustomInput = signal('');
+  sincronizandoFeriadosOficiais = signal(false);
 
   // Controles interativos da Calculadora Forense de Termo Fatal (CPC/2015 + DJEN)
   prazoBaseCustomizado = signal<number | null>(null);
@@ -630,6 +654,124 @@ export class App implements OnInit {
     return this.watchlist().some((w) => w.numeroCnjLimpo === proc.numeroCnjLimpo);
   });
 
+  // 5. MOTOR DE RECOMENDAÇÃO TÁTICA DE TESES (CRUZA O QUE ESTÁ ACONTECENDO NO PROCESSO COM O BANCO DE TESES DO ESCRITÓRIO)
+  recomendacoesTesesAtuais = computed<RecomendacaoTeseResult[]>(() => {
+    const proc = this.processoAtual();
+    const teses = this.tesesJuridicas();
+    const historico = this.historicoAplicacoesTeses();
+    if (!proc || !teses || teses.length === 0) return [];
+
+    const norm = (s?: string | null) =>
+      (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const cnjLimpo = (proc.numeroCnjLimpo || proc.numeroCnjFormatado || '').replace(/\D/g, '');
+    const ultMov = proc.movimentacoes?.[0];
+    const topMovs = (proc.movimentacoes || [])
+      .slice(0, 6)
+      .map((m) => `${m.titulo} ${m.descricao}`)
+      .join(' | ');
+    const topDocs = (proc.documentosPublicos || [])
+      .slice(0, 4)
+      .map((d) => `${d.tipo} ${d.titulo} ${d.ementa}`)
+      .join(' | ');
+
+    const corpus = norm(
+      `${proc.tribunal} ${proc.classe} ${proc.assunto} ${proc.orgaoJulgador} ${proc.status} ${topMovs} ${topDocs}`
+    );
+    const recente = norm(
+      `${ultMov?.titulo || ''} ${ultMov?.descricao || ''} ${proc.classe || ''} ${proc.assunto || ''}`
+    );
+
+    const lista: RecomendacaoTeseResult[] = teses.map((tese) => {
+      let score = 0;
+      const termosDetectados: string[] = [];
+
+      for (const gat of tese.eventosGatilho || []) {
+        const gNorm = norm(gat);
+        if (!gNorm) continue;
+        if (recente.includes(gNorm)) {
+          score += 32;
+          termosDetectados.push(gat);
+        } else if (corpus.includes(gNorm)) {
+          score += 18;
+          termosDetectados.push(gat);
+        } else {
+          const tokens = gNorm.split(/\s+/).filter((tk) => tk.length >= 4);
+          if (tokens.length > 0 && tokens.every((tk) => corpus.includes(tk))) {
+            score += 22;
+            termosDetectados.push(gat);
+          }
+        }
+      }
+
+      const area = norm(tese.areaDireito);
+      if (corpus.includes('tributar') && area.includes('tributar')) score += 18;
+      if (
+        (corpus.includes('esbulho') || corpus.includes('posse') || corpus.includes('possessor')) &&
+        (area.includes('possessor') || area.includes('civil') || area.includes('agronegocio'))
+      ) {
+        score += 18;
+      }
+      if (
+        (corpus.includes('aresp') || corpus.includes('resp') || corpus.includes('stj') || corpus.includes('agravo')) &&
+        (area.includes('superiores') || area.includes('processo civil') || area.includes('recursal'))
+      ) {
+        score += 16;
+      }
+      if (
+        (corpus.includes('sisbajud') || corpus.includes('penhora') || corpus.includes('execucao')) &&
+        area.includes('execu')
+      ) {
+        score += 20;
+      }
+
+      const jaUsada = historico.some(
+        (h) =>
+          h.teseId === tese.id &&
+          h.numeroProcesso.replace(/\D/g, '') === cnjLimpo &&
+          cnjLimpo.length > 0
+      );
+
+      if (jaUsada) score += 15;
+      else if (tese.totalUsos > 0) score += Math.min(8, tese.totalUsos * 2);
+
+      score = Math.max(12, Math.min(99, score));
+      const nivelAderencia =
+        score >= 75
+          ? 'Recomendação Crítica (Alta Aderência)'
+          : score >= 45
+            ? 'Recomendada para o Ato Atual'
+            : 'Tese Subsidiária / Preventiva';
+
+      let motivo = '';
+      if (jaUsada) {
+        motivo += 'Tese já aplicada anteriormente nestes autos pelo escritório. ';
+      }
+      if (termosDetectados.length > 0) {
+        motivo += `Enquadramento direto detectado pelos gatilhos [${termosDetectados.slice(0, 4).join(', ')}] diante do andamento "${ultMov?.titulo || proc.classe}". `;
+      } else {
+        motivo += `Tese de apoio compatível com ${proc.classe || 'o feito'} (${tese.areaDireito}). `;
+      }
+      if (tese.precedenteChave) {
+        motivo += `Precedente: ${tese.precedenteChave}.`;
+      }
+
+      return {
+        tese,
+        scoreAderencia: score,
+        nivelAderencia,
+        motivoEnquadramento: motivo.trim(),
+        termosDetectadosNoProcesso: termosDetectados,
+        jaUtilizadaNesteProcesso: jaUsada
+      };
+    });
+
+    return lista.sort((a, b) => b.scoreAderencia - a.scoreAderencia || b.tese.totalUsos - a.tese.totalUsos);
+  });
+
   // Atalhos Globais de Teclado
   @HostListener('window:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
@@ -759,7 +901,72 @@ export class App implements OnInit {
     this.suspensoesLocais.set(estado.suspensoesLocais || []);
     this.tarefasKanban.set(estado.tarefasKanban || []);
     this.itensRadar.set(estado.itensRadar || []);
+    if (estado.tesesJuridicas) this.tesesJuridicas.set(estado.tesesJuridicas);
+    if (estado.historicoAplicacoesTeses) {
+      this.historicoAplicacoesTeses.set(estado.historicoAplicacoesTeses);
+    }
     this.persistirContingenciaLocalTenant(tId);
+  }
+
+  private obterTesesPadraoDemo(): TeseJuridicaTenant[] {
+    return [
+      {
+        id: 'tese-stj-distinguishing-sumula-7',
+        tenantId: 'escritorio-ferreira',
+        titulo: 'Impugnação ao AREsp — Súmula 7/STJ vs. Revaloração Jurídica e Súmula 182/STJ',
+        areaDireito: 'Processo Civil / Tribunais Superiores (STJ)',
+        eventosGatilho: ['AREsp', 'REsp', 'STJ', 'Agravo em Recurso Especial', 'Contrarrazões', 'Distribuição', 'Súmula 7'],
+        fundamentacaoLegal: 'Art. 1.029 e Art. 1.030, V, do CPC/2015; Súmulas 5, 7 e 182 do STJ',
+        precedenteChave: 'STJ — AREsp 3319477/SP (Presidência Min. Antonio Carlos Ferreira) e Corte Especial (Súmula 182/STJ)',
+        modeloArgumentacao:
+          '1. Preliminar de Não Conhecimento (Súmula 182/STJ): a agravante limitou-se a repetir as razões do Recurso Especial sem infirmar especificamente todos os capítulos da decisão de inadmissibilidade.\n2. Óbice da Súmula 7/STJ: a reversão do acórdão recorrido demandaria reexame fático-probatório, vedado na via especial.',
+        totalUsos: 4,
+        ultimoProcessoAplicado: '2101760-84.2025.8.26.0000',
+        atualizadoEmUtc: new Date().toISOString()
+      },
+      {
+        id: 'tese-possessoria-requisitos-561-cpc',
+        tenantId: 'escritorio-ferreira',
+        titulo: 'Tutela Possessória de Urgência — Requisitos Cumulativos do Art. 561 do CPC e Periculum in Mora Inverso',
+        areaDireito: 'Direito Civil / Possessórias e Agronegócio',
+        eventosGatilho: ['Esbulho', 'Turbação', 'Ameaça', 'Agravo de Instrumento', 'Reintegração de Posse', 'Liminar', 'Art. 561'],
+        fundamentacaoLegal: 'Arts. 300, 560, 561 e 562 do CPC/2015; Art. 1.210 do Código Civil',
+        precedenteChave: 'TJSP — 24ª Câmara de Direito Privado (Agravo nº 2101760-84.2025.8.26.0000 — Rel. Des. Pedro Paulo Maillet Preuss)',
+        modeloArgumentacao:
+          'A concessão ou reforma de liminar possessória exige prova documental inequívoca da posse anterior e do esbulho ou turbação há menos de ano e dia (Art. 561, I a IV, do CPC), sob pena de periculum in mora inverso na atividade cooperativa agrícola.',
+        totalUsos: 7,
+        ultimoProcessoAplicado: '2101760-84.2025.8.26.0000',
+        atualizadoEmUtc: new Date().toISOString()
+      },
+      {
+        id: 'tese-ms-tributario-prova-pre-constituida',
+        tenantId: 'escritorio-ferreira',
+        titulo: 'Mandado de Segurança Tributário — Direito Líquido e Certo, Tema 118/STJ e Art. 485, IV do CPC',
+        areaDireito: 'Direito Tributário / Processo Constitucional',
+        eventosGatilho: ['Mandado de Segurança', 'Tributário', 'Receita Federal', 'TRF3', 'Ausência das condições da ação', 'Art. 485'],
+        fundamentacaoLegal: 'Art. 5º, LXIX, CF/88; Lei nº 12.016/2009; Súmula 213/STJ; Tema Repetitivo 118/STJ',
+        precedenteChave: 'STJ — Tema Repetitivo 118 (REsp 1.111.164/BA) e Súmula 213/STJ',
+        modeloArgumentacao:
+          'Nos termos da Súmula 213/STJ e do Tema 118/STJ, para fins de declaração do direito à compensação tributária via Mandado de Segurança, basta a prova documental da condição de credor tributário, apurando-se o quantum na via administrativa.',
+        totalUsos: 3,
+        ultimoProcessoAplicado: '5000001-05.2023.4.03.6100',
+        atualizadoEmUtc: new Date().toISOString()
+      },
+      {
+        id: 'tese-execucao-sisbajud-menor-onerosidade',
+        tenantId: 'escritorio-ferreira',
+        titulo: 'Desbloqueio de Ativos SISBAJUD — Proteção do Capital de Giro Essencial e Menor Onerosidade (Art. 805 CPC)',
+        areaDireito: 'Execução Civil / Empresarial',
+        eventosGatilho: ['SISBAJUD', 'Penhora', 'Bloqueio', 'Execução', 'Cumprimento de Sentença', 'Art. 805'],
+        fundamentacaoLegal: 'Art. 805, parágrafo único, Art. 835, § 2º, e Art. 854, § 3º, do CPC/2015',
+        precedenteChave: 'STJ — Corte Especial (EREsp 1.874.222/DF): Proteção do capital de giro indispensável à continuidade empresarial',
+        modeloArgumentacao:
+          'Requer-se o desbloqueio imediato do excesso via SISBAJUD (Art. 854, § 3º, CPC) ou substituição por seguro garantia judicial acrescido de 30% (Art. 835, § 2º, CPC), preservando-se a folha de pagamento e a operação.',
+        totalUsos: 5,
+        ultimoProcessoAplicado: '1006805-85.2025.8.26.0224',
+        atualizadoEmUtc: new Date().toISOString()
+      }
+    ];
   }
 
   private hidratarContingenciaLocalTenant(tenantId: string) {
@@ -772,6 +979,12 @@ export class App implements OnInit {
         this.suspensoesLocais.set(parsed.suspensoesLocais || []);
         this.tarefasKanban.set(parsed.tarefasKanban || []);
         this.itensRadar.set(parsed.itensRadar || []);
+        if (parsed.tesesJuridicas && parsed.tesesJuridicas.length > 0) {
+          this.tesesJuridicas.set(parsed.tesesJuridicas);
+        } else if (tenantId === 'escritorio-ferreira') {
+          this.tesesJuridicas.set(this.obterTesesPadraoDemo());
+        }
+        this.historicoAplicacoesTeses.set(parsed.historicoAplicacoesTeses || []);
         if (parsed.nomeEscritorio) this.nomeEscritorioAtivo.set(parsed.nomeEscritorio);
         return;
       }
@@ -830,6 +1043,22 @@ export class App implements OnInit {
       ]);
       this.suspensoesLocais.set([]);
       this.notasJuizoTenant.set({});
+      this.tesesJuridicas.set(this.obterTesesPadraoDemo());
+      this.historicoAplicacoesTeses.set([
+        {
+          id: 'aplic-demo-001',
+          tenantId: 'escritorio-ferreira',
+          teseId: 'tese-possessoria-requisitos-561-cpc',
+          tituloTese:
+            'Tutela Possessória de Urgência — Requisitos Cumulativos do Art. 561 do CPC e Periculum in Mora Inverso',
+          numeroProcesso: '2101760-84.2025.8.26.0000',
+          eventoContexto: 'Julgamento Colegiado na 24ª Câmara de Direito Privado do TJSP',
+          resultadoEsperadoOuObtido:
+            'Tese acolhida no Acórdão de 2º Grau — Recurso da parte adversa improvido por unanimidade',
+          responsavel: 'Dr. Fabio Ferreira (OAB/SP 238.470)',
+          aplicadaEmUtc: '2025-10-15T14:00:00Z'
+        }
+      ]);
     } else {
       // Qualquer outro tenant inicia completamente limpo e isolado
       this.watchlist.set([]);
@@ -837,6 +1066,8 @@ export class App implements OnInit {
       this.itensRadar.set([]);
       this.suspensoesLocais.set([]);
       this.notasJuizoTenant.set({});
+      this.tesesJuridicas.set([]);
+      this.historicoAplicacoesTeses.set([]);
     }
   }
 
@@ -848,7 +1079,9 @@ export class App implements OnInit {
         notasJuizo: this.notasJuizoTenant(),
         suspensoesLocais: this.suspensoesLocais(),
         tarefasKanban: this.tarefasKanban(),
-        itensRadar: this.itensRadar()
+        itensRadar: this.itensRadar(),
+        tesesJuridicas: this.tesesJuridicas(),
+        historicoAplicacoesTeses: this.historicoAplicacoesTeses()
       };
       localStorage.setItem(this.obterChaveLocalTenant('estado', tenantId), JSON.stringify(payload));
     } catch {}
@@ -1109,6 +1342,229 @@ export class App implements OnInit {
   }
 
   // ============================================================================
+  // BANCO DE TESES JURÍDICAS MULTI-TENANT & MOTOR DE RECOMENDAÇÃO TÁTICA
+  // ============================================================================
+  salvarNovaTeseJuridica() {
+    const titulo = this.novaTeseTituloInput().trim();
+    if (!titulo) return;
+
+    const tenant = this.tenantIdAtivo();
+    const gatilhos = this.novaTeseGatilhosInput()
+      .split(/[,;]/)
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+
+    const nova: TeseJuridicaTenant = {
+      id: `tese-${Date.now()}`,
+      tenantId: tenant,
+      titulo,
+      areaDireito: this.novaTeseAreaInput().trim() || 'Contencioso Cível',
+      eventosGatilho: gatilhos.length > 0 ? gatilhos : ['Manifestação', 'Recurso'],
+      fundamentacaoLegal: this.novaTeseFundamentacaoInput().trim() || 'CPC/2015',
+      precedenteChave: this.novaTesePrecedenteInput().trim() || 'Jurisprudência Dominante STJ',
+      modeloArgumentacao:
+        this.novaTeseModeloInput().trim() ||
+        'Requer-se o acolhimento da tese com base nos precedentes vinculantes invocados.',
+      totalUsos: 0,
+      ultimoProcessoAplicado: null,
+      atualizadoEmUtc: new Date().toISOString()
+    };
+
+    this.tesesJuridicas.set([nova, ...this.tesesJuridicas()]);
+    this.novaTeseTituloInput.set('');
+    this.novaTeseFundamentacaoInput.set('');
+    this.novaTesePrecedenteInput.set('');
+    this.novaTeseModeloInput.set('');
+    this.formNovaTeseAberto.set(false);
+    this.persistirContingenciaLocalTenant(tenant);
+
+    this.processoService
+      .salvarTeseJuridica(tenant, {
+        id: nova.id,
+        titulo: nova.titulo,
+        areaDireito: nova.areaDireito,
+        eventosGatilho: nova.eventosGatilho,
+        fundamentacaoLegal: nova.fundamentacaoLegal,
+        precedenteChave: nova.precedenteChave,
+        modeloArgumentacao: nova.modeloArgumentacao
+      })
+      .subscribe({
+        next: (salva) => {
+          this.tesesJuridicas.set(
+            this.tesesJuridicas().map((t) => (t.id === nova.id ? salva : t))
+          );
+          this.persistirContingenciaLocalTenant(tenant);
+        },
+        error: () => {}
+      });
+  }
+
+  removerTeseJuridica(teseId: string) {
+    const tenant = this.tenantIdAtivo();
+    this.tesesJuridicas.set(this.tesesJuridicas().filter((t) => t.id !== teseId));
+    this.persistirContingenciaLocalTenant(tenant);
+    this.processoService.removerTeseJuridica(tenant, teseId).subscribe({ error: () => {} });
+  }
+
+  copiarModeloArgumentacaoTese(tese: TeseJuridicaTenant) {
+    const proc = this.processoAtual();
+    const cabecalho = proc
+      ? `PROCESSO CNJ: ${proc.numeroCnjFormatado} (${proc.orgaoJulgador || proc.tribunal})\n`
+      : '';
+    const texto = `${cabecalho}TESE: ${tese.titulo}\nFUNDAMENTAÇÃO LEGAL: ${tese.fundamentacaoLegal}\nPRECEDENTE-CHAVE: ${tese.precedenteChave}\n\nMINUTA DE ARGUMENTAÇÃO:\n${tese.modeloArgumentacao}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(texto);
+    }
+    this.teseCopiadaId.set(tese.id);
+    setTimeout(() => this.teseCopiadaId.set(null), 2500);
+  }
+
+  aplicarTeseNoProcessoAtual(tese: TeseJuridicaTenant, criarNoKanban = true) {
+    const proc = this.processoAtual();
+    const tenant = this.tenantIdAtivo();
+    const numeroProc = proc?.numeroCnjFormatado || this.numeroProcessoInput() || '2101760-84.2025.8.26.0000';
+    const ultMov = proc?.movimentacoes?.[0]?.titulo || 'Manifestação Processual';
+    const calculo = this.termoFatalCalculado();
+    const partes = (calculo?.dataTermoFatal || '18/11/2026').split('/');
+    const prazoIso =
+      partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : '2026-11-18';
+
+    // Copia automaticamente o modelo da tese para o clipboard do advogado
+    this.copiarModeloArgumentacaoTese(tese);
+
+    const novaAplic: AplicacaoTeseProcesso = {
+      id: `aplic-${Date.now()}`,
+      tenantId: tenant,
+      teseId: tese.id,
+      tituloTese: tese.titulo,
+      numeroProcesso: numeroProc,
+      eventoContexto: `Aplicada diante do andamento: ${ultMov}`,
+      resultadoEsperadoOuObtido: criarNoKanban
+        ? 'Vinculada ao Quadro Kanban em Elaboração'
+        : 'Registrada no histórico estratégico dos autos',
+      responsavel: this.novaTarefaResponsavelInput() || 'Dr. Fabio Ferreira',
+      aplicadaEmUtc: new Date().toISOString()
+    };
+
+    this.historicoAplicacoesTeses.set([novaAplic, ...this.historicoAplicacoesTeses()]);
+    this.tesesJuridicas.set(
+      this.tesesJuridicas().map((t) =>
+        t.id === tese.id
+          ? {
+              ...t,
+              totalUsos: t.totalUsos + 1,
+              ultimoProcessoAplicado: numeroProc,
+              atualizadoEmUtc: new Date().toISOString()
+            }
+          : t
+      )
+    );
+
+    if (criarNoKanban) {
+      const novaTarefa: TarefaProcessual = {
+        id: `tese-task-${Date.now()}`,
+        tenantId: tenant,
+        numeroProcesso: numeroProc,
+        titulo: `Peticionar com Tese: ${tese.titulo}`,
+        descricao: `Fundamentação: ${tese.fundamentacaoLegal} | Precedente: ${tese.precedenteChave}`,
+        responsavel: novaAplic.responsavel,
+        coluna: 1,
+        prioridade: 3,
+        prazoFatal: prazoIso,
+        diasPrazo: calculo?.diasUteisTotal || 15,
+        prazoEmDobro: calculo?.prazoEmDobro || false,
+        numeroProtocolo: null,
+        criadoEmUtc: new Date().toISOString(),
+        atualizadoEmUtc: new Date().toISOString()
+      };
+      this.tarefasKanban.set([novaTarefa, ...this.tarefasKanban()]);
+    }
+
+    this.persistirContingenciaLocalTenant(tenant);
+    this.teseAplicadaFeedback.set(
+      `Tese "${tese.titulo}" vinculada ao processo ${numeroProc} (argumentação copiada para a área de transferência${criarNoKanban ? ' + card criado no Kanban' : ''})!`
+    );
+    setTimeout(() => this.teseAplicadaFeedback.set(null), 4500);
+
+    this.processoService
+      .aplicarTeseNoProcesso(tenant, {
+        teseId: tese.id,
+        numeroProcesso: numeroProc,
+        eventoContexto: novaAplic.eventoContexto,
+        resultadoEsperadoOuObtido: novaAplic.resultadoEsperadoOuObtido,
+        responsavel: novaAplic.responsavel,
+        criarTarefaKanban: criarNoKanban,
+        prazoFatalIso: prazoIso
+      })
+      .subscribe({
+        next: (res) => {
+          if (res.teses?.length) this.tesesJuridicas.set(res.teses);
+          this.persistirContingenciaLocalTenant(tenant);
+        },
+        error: () => {}
+      });
+  }
+
+  // ============================================================================
+  // FICHA PATRIMONIAL / QSA DA PARTE ADVERSA + FERIADOS OFICIAIS (BRASILAPI + QUERIDO DIÁRIO)
+  // ============================================================================
+  abrirFichaPatrimonialParte(nomeOuCnpj?: string) {
+    const proc = this.processoAtual();
+    const termo = (nomeOuCnpj || this.cnpjCustomInput() || proc?.envolvidos?.[0]?.nome || '').trim();
+    if (!termo) return;
+
+    this.fichaPatrimonialAberta.set(true);
+    this.carregandoFichaPatrimonial.set(true);
+    const tenant = this.tenantIdAtivo();
+
+    this.processoService
+      .consultarFichaPatrimonialParte(tenant, termo, proc?.comarca || proc?.foro)
+      .subscribe({
+        next: (ficha) => {
+          this.carregandoFichaPatrimonial.set(false);
+          this.fichaPatrimonialSelecionada.set(ficha);
+        },
+        error: () => {
+          this.carregandoFichaPatrimonial.set(false);
+          this.fichaPatrimonialSelecionada.set({
+            termoConsultado: termo,
+            cnpjFormatado: null,
+            razaoSocial: termo,
+            nomeFantasia: termo,
+            situacaoCadastral: 'Consulta offline — informe o CNPJ de 14 dígitos ou tente novamente',
+            capitalSocial: 0,
+            porteEmpresa: 'Informar CNPJ para extração QSA',
+            naturezaJuridica: 'Parte Processual',
+            atividadePrincipalCnae: 'Consulte com a API ativa para extrair QSA na Receita Federal via BrasilAPI.',
+            enderecoDiligenciaCitacao: proc?.comarca || proc?.foro || 'Ver autos',
+            municipioUf: proc?.tribunal || 'SP',
+            quadroSocietario: [],
+            mencoesDiariosMunicipais: [],
+            fonteDados: 'Contingência Local',
+            consultadoEmUtc: new Date().toISOString()
+          });
+        }
+      });
+  }
+
+  sincronizarFeriadosForensesOficiais() {
+    const tenant = this.tenantIdAtivo();
+    const trib = this.processoAtual()?.tribunal || 'TJSP';
+    this.sincronizandoFeriadosOficiais.set(true);
+
+    this.processoService.sincronizarFeriadosOficiais(tenant, 2026, trib).subscribe({
+      next: (res) => {
+        this.sincronizandoFeriadosOficiais.set(false);
+        this.suspensoesLocais.set(res.suspensoesLocais || []);
+        this.persistirContingenciaLocalTenant(tenant);
+      },
+      error: () => {
+        this.sincronizandoFeriadosOficiais.set(false);
+      }
+    });
+  }
+
+  // ============================================================================
   // RADAR PROATIVO DIÁRIO DJEN & DISPARO DE WEBHOOK / TELEGRAM
   // ============================================================================
   sincronizarRadarDjenAgora() {
@@ -1302,9 +1758,10 @@ export class App implements OnInit {
   abrirDossieMagistrado(nome: string) {
     const proc = this.processoAtual();
     const nomeLimpo = (nome || proc?.relator || proc?.orgaoJulgador || 'Juízo Competente').trim();
+    const trib = proc?.tribunal || 'TJSP';
     this.carregarNotaEscritorio(nomeLimpo);
 
-    this.processoService.obterMagistradoPorNome(nomeLimpo).subscribe({
+    this.processoService.obterMagistradoPorNome(nomeLimpo, trib).subscribe({
       next: (mag) => {
         this.magistradoSelecionado.set(mag);
         this.magistradoModalAberto.set(true);

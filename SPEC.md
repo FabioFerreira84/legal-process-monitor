@@ -8,8 +8,10 @@
 | `deadline-suspensions-ics` | Suspensões locais/avulsas de expediente forense (provimentos/portarias locais por comarca/escritório) integradas à Calculadora CPC/2015 + Exportador RFC 5545 (`.ics`) com alarmes D-2 e D-1 | `tenant-workspace-persistence` |
 | `kanban-legal-tasks` | Quadro Kanban de Tarefas e Prazos Processuais (`Intimação Recebida` → `Em Elaboração` → `Em Revisão` → `Protocolado`) vinculado a CNJ, responsável, prazo fatal e número de protocolo | `tenant-workspace-persistence`, `deadline-suspensions-ics` |
 | `djen-radar-alerts` | Radar Proativo Diário do DJEN por OAB do Escritório + Despacho de Alertas via Webhook (Telegram / Slack / Webhook Corporativo) para novas intimações | `tenant-workspace-persistence` |
+| `multi-state-scrapers-intel` | Expansão nacional de 91 tribunais CNJ + Multi-Estado e-SAJ (`TJSP`, `TJSC`, `TJMS`, `TJCE`, `TJAM`, `TJAL`, `TJAC`), Scraper de Jurisprudência ao Vivo por Magistrado (`cjsg` + `DJEN`), Ficha Societária/Patrimonial de Partes (`BrasilAPI` + `Querido Diário`) e Importador de Feriados/Suspensões | `tenant-workspace-persistence`, `deadline-suspensions-ics` |
+| `legal-theses-recommendation` | **Banco de Teses Jurídicas Multi-Tenant** (persistência SQLite WAL de teses utilizadas pelo escritório, argumentos, precedentes e histórico de aplicação) + **Motor Tático de Recomendação de Teses** (`MotorRecomendacaoTese`) que cruza o contexto real do processo (classe, assunto, último andamento/intimação e perfil do juízo) com a tese ideal a ser peticionada | `tenant-workspace-persistence`, `multi-state-scrapers-intel` |
 
-**Build order:** `tenant-workspace-persistence` → `deadline-suspensions-ics` → `kanban-legal-tasks` → `djen-radar-alerts`
+**Build order:** `tenant-workspace-persistence` → `deadline-suspensions-ics` → `kanban-legal-tasks` → `djen-radar-alerts` → `multi-state-scrapers-intel` → `legal-theses-recommendation`
 
 ---
 

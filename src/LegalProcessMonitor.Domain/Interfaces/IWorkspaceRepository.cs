@@ -35,6 +35,32 @@ public interface IWorkspaceRepository
     Task<int> SalvarItensRadarLoteAsync(string tenantId, IEnumerable<ItemRadarDjen> itens, CancellationToken ct = default);
     Task<bool> MarcarItemRadarLidoAsync(string tenantId, string itemId, bool convertidaEmTarefa = false, CancellationToken ct = default);
     Task<IReadOnlyList<ItemRadarDjen>> ListarItensRadarAsync(string tenantId, CancellationToken ct = default);
+
+    // Banco de Teses Jurídicas Multi-Tenant & Histórico de Aplicações nos Autos
+    Task<TeseJuridicaTenant> SalvarTeseJuridicaAsync(TeseJuridicaTenant tese, CancellationToken ct = default);
+    Task<bool> RemoverTeseJuridicaAsync(string tenantId, string teseId, CancellationToken ct = default);
+    Task<IReadOnlyList<TeseJuridicaTenant>> ListarTesesJuridicasAsync(string tenantId, CancellationToken ct = default);
+    Task<AplicacaoTeseProcesso> RegistrarAplicacaoTeseAsync(AplicacaoTeseProcesso aplicacao, CancellationToken ct = default);
+    Task<IReadOnlyList<AplicacaoTeseProcesso>> ListarAplicacoesTesesAsync(string tenantId, string? numeroProcesso = null, CancellationToken ct = default);
+}
+
+public interface IInteligenciaPublicaConnector
+{
+    Task<IReadOnlyList<JulgamentoRealMagistrado>> BuscarJulgamentosReaisMagistradoAsync(
+        string nomeMagistrado,
+        string siglaTribunal = "TJSP",
+        CancellationToken ct = default);
+
+    Task<FichaPatrimonialParte> ConsultarFichaPatrimonialParteAsync(
+        string cnpjOuNomeEmpresa,
+        string? municipioComarca = null,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<SuspensaoForenseLocal>> ObterFeriadosOficiaisAnoAsync(
+        string tenantId,
+        int ano,
+        string siglaTribunal = "TJSP",
+        CancellationToken ct = default);
 }
 
 public sealed record ResultadoDisparoAlerta(

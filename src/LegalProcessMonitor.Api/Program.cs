@@ -7,6 +7,7 @@ using LegalProcessMonitor.Infrastructure.Connectors.Alerts;
 using LegalProcessMonitor.Infrastructure.Connectors.DataJud;
 using LegalProcessMonitor.Infrastructure.Connectors.Djen;
 using LegalProcessMonitor.Infrastructure.Connectors.Esaj;
+using LegalProcessMonitor.Infrastructure.Connectors.Inteligencia;
 using LegalProcessMonitor.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -75,6 +76,12 @@ builder.Services.AddHttpClient<IDjenComunicacaoConnector, DjenComunicacaoConnect
 builder.Services.AddSingleton<ITribunalDocumentScraper, EsajDocumentScraper>();
 builder.Services.AddSingleton<IEsajOabScraper, EsajOabScraper>();
 builder.Services.AddSingleton<IMagistradoRepository, InMemoryMagistradoRepository>();
+builder.Services.AddHttpClient<IInteligenciaPublicaConnector, InteligenciaPublicaConnector>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(12);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.DefaultRequestHeaders.Add("User-Agent", "LegalProcessMonitor/2.5 (+https://github.com/FabioFerreira84/legal-process-monitor)");
+});
 builder.Services.AddHttpClient<IWebhookAlertDispatcher, WebhookAlertDispatcher>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(8);

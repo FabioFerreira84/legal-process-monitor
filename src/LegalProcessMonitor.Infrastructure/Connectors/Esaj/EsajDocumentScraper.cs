@@ -17,7 +17,22 @@ public class EsajDocumentScraper : ITribunalDocumentScraper
 {
     private readonly ILogger<EsajDocumentScraper> _logger;
 
-    public string NomeTribunal => "TJSP_eSAJ_Crawler";
+    private static readonly IReadOnlyDictionary<string, (string BaseHost, string CpoPgPath, string CpoSgPath)> PortaisEsajPorTribunal =
+        new Dictionary<string, (string BaseHost, string CpoPgPath, string CpoSgPath)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TJSP"] = ("https://esaj.tjsp.jus.br", "cpopg", "cposg"),
+            ["TJSC"] = ("https://esaj.tjsc.jus.br", "cpopg", "cposg"),
+            ["TJMS"] = ("https://esaj.tjms.jus.br", "cpopg5", "cposg5"),
+            ["TJCE"] = ("https://esaj.tjce.jus.br", "cpopg", "cposg"),
+            ["TJAM"] = ("https://consultasaj.tjam.jus.br", "cpopg", "cposg"),
+            ["TJAL"] = ("https://www2.tjal.jus.br", "cpopg", "cposg5"),
+            ["TJAC"] = ("https://esaj.tjac.jus.br", "cpopg", "cposg5")
+        };
+
+    public static IReadOnlyDictionary<string, (string BaseHost, string CpoPgPath, string CpoSgPath)> ObterPortaisMapeados()
+        => PortaisEsajPorTribunal;
+
+    public string NomeTribunal => "MultiState_eSAJ_Crawler";
 
     public EsajDocumentScraper(ILogger<EsajDocumentScraper> logger)
     {
@@ -26,7 +41,7 @@ public class EsajDocumentScraper : ITribunalDocumentScraper
 
     public bool SuportaTribunal(NumeroProcessoCnj numeroProcesso)
     {
-        return numeroProcesso.SiglaTribunal == "TJSP";
+        return PortaisEsajPorTribunal.ContainsKey(numeroProcesso.SiglaTribunal);
     }
 
     public async Task<IReadOnlyList<DocumentoProcessual>> ObterDocumentosPublicosAsync(NumeroProcessoCnj numeroProcesso, CancellationToken ct = default)
@@ -53,26 +68,31 @@ public class EsajDocumentScraper : ITribunalDocumentScraper
             };
             client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-            // 1. Inicializa sessão no e-SAJ 2º Grau
-            var openUrl = "https://esaj.tjsp.jus.br/cposg/open.do";
+            if (!PortaisEsajPorTribunal.TryGetValue(numeroProcesso.SiglaTribunal, out var portal))
+            {
+                portal = PortaisEsajPorTribunal["TJSP"];
+            }
+
+            // 1. Inicializa sessão no e-SAJ 2º Grau do Tribunal correspondente
+            var openUrl = $"{portal.BaseHost}/{portal.CpoSgPath}/open.do";
             await client.GetAsync(openUrl, ct);
 
             // 2. Executa busca do processo
-            var searchUrl = $"https://esaj.tjsp.jus.br/cposg/search.do?conversationId=&paginaConsulta=0&cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={Uri.EscapeDataString(numeroProcesso.NumeroFormatado)}";
+            var searchUrl = $"{portal.BaseHost}/{portal.CpoSgPath}/search.do?conversationId=&paginaConsulta=0&cbPesquisa=NUMPROC&tipoNuProcesso=UNIFICADO&dePesquisaNuUnificado={Uri.EscapeDataString(numeroProcesso.NumeroFormatado)}";
             var searchResponse = await client.GetStringAsync(searchUrl, ct);
 
             // 3. Extrai o ID interno do processo (processoSelecionado)
             var matchCodigo = Regex.Match(searchResponse, @"id=""processoSelecionado""[^>]*value=""([^""]+)""", RegexOptions.IgnoreCase);
             if (!matchCodigo.Success)
             {
-                _logger.LogInformation("Nenhum código de processo e-SAJ encontrado para {Numero}", numeroProcesso.NumeroFormatado);
+                _logger.LogInformation("Nenhum código de processo e-SAJ encontrado em {Tribunal} para {Numero}", numeroProcesso.SiglaTribunal, numeroProcesso.NumeroFormatado);
                 return;
             }
 
             var codigoProcesso = matchCodigo.Groups[1].Value;
 
             // 4. Acessa a página de detalhe
-            var detailUrl = $"https://esaj.tjsp.jus.br/cposg/show.do?processo.codigo={codigoProcesso}";
+            var detailUrl = $"{portal.BaseHost}/{portal.CpoSgPath}/show.do?processo.codigo={codigoProcesso}";
             var detailHtml = await client.GetStringAsync(detailUrl, ct);
 
             // 5. Extrai Magistrado Relator

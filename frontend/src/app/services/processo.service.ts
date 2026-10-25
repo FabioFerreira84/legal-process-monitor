@@ -13,7 +13,11 @@ import {
   StatusTarefaColuna,
   PrioridadeTarefa,
   ItemRadarDjen,
-  ResultadoDisparoAlerta
+  ResultadoDisparoAlerta,
+  TeseJuridicaTenant,
+  AplicacaoTeseProcesso,
+  RecomendacaoTeseResult,
+  FichaPatrimonialParte
 } from '../models/processo.model';
 
 @Injectable({
@@ -44,8 +48,8 @@ export class ProcessoService {
     return this.http.get<AdvogadoCarteira>(url);
   }
 
-  obterMagistradoPorNome(nome: string): Observable<PerfilMagistrado> {
-    const url = `${this.baseUrl}/magistrados/busca?nome=${encodeURIComponent(nome)}`;
+  obterMagistradoPorNome(nome: string, tribunal = 'TJSP'): Observable<PerfilMagistrado> {
+    const url = `${this.baseUrl}/magistrados/busca?nome=${encodeURIComponent(nome)}&tribunal=${encodeURIComponent(tribunal)}`;
     return this.http.get<PerfilMagistrado>(url);
   }
 
@@ -206,6 +210,95 @@ export class ProcessoService {
     return this.http.post<{ tarefa: TarefaProcessual }>(
       `${this.baseUrl}/workspaces/radar/${encodeURIComponent(itemId)}/converter-tarefa`,
       payload,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  // ============================================================================
+  // BANCO DE TESES JURÍDICAS & RECOMENDAÇÃO + FICHA PATRIMONIAL + FERIADOS
+  // ============================================================================
+  salvarTeseJuridica(
+    tenantId: string,
+    payload: {
+      id?: string;
+      titulo: string;
+      areaDireito: string;
+      eventosGatilho: string[];
+      fundamentacaoLegal: string;
+      precedenteChave: string;
+      modeloArgumentacao: string;
+      totalUsos?: number;
+      ultimoProcessoAplicado?: string | null;
+    }
+  ): Observable<TeseJuridicaTenant> {
+    return this.http.post<TeseJuridicaTenant>(
+      `${this.baseUrl}/workspaces/teses`,
+      payload,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  removerTeseJuridica(tenantId: string, teseId: string): Observable<{ removido: boolean }> {
+    return this.http.delete<{ removido: boolean }>(
+      `${this.baseUrl}/workspaces/teses/${encodeURIComponent(teseId)}`,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  aplicarTeseNoProcesso(
+    tenantId: string,
+    payload: {
+      teseId: string;
+      numeroProcesso: string;
+      eventoContexto?: string;
+      resultadoEsperadoOuObtido?: string;
+      responsavel?: string;
+      criarTarefaKanban?: boolean;
+      prazoFatalIso?: string;
+    }
+  ): Observable<{
+    aplicacao: AplicacaoTeseProcesso;
+    tarefaKanban?: TarefaProcessual;
+    teses: TeseJuridicaTenant[];
+  }> {
+    return this.http.post<{
+      aplicacao: AplicacaoTeseProcesso;
+      tarefaKanban?: TarefaProcessual;
+      teses: TeseJuridicaTenant[];
+    }>(`${this.baseUrl}/workspaces/teses/aplicar`, payload, this.headersTenant(tenantId));
+  }
+
+  recomendarTesesParaProcesso(
+    tenantId: string,
+    numeroProcesso: string
+  ): Observable<RecomendacaoTeseResult[]> {
+    return this.http.get<RecomendacaoTeseResult[]>(
+      `${this.baseUrl}/workspaces/teses/recomendar/${encodeURIComponent(numeroProcesso)}`,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  consultarFichaPatrimonialParte(
+    tenantId: string,
+    termo: string,
+    comarca?: string
+  ): Observable<FichaPatrimonialParte> {
+    const q = new URLSearchParams({ termo });
+    if (comarca) q.set('comarca', comarca);
+    return this.http.get<FichaPatrimonialParte>(
+      `${this.baseUrl}/workspaces/partes/ficha-patrimonial?${q.toString()}`,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  sincronizarFeriadosOficiais(
+    tenantId: string,
+    ano = 2026,
+    siglaTribunal = 'TJSP'
+  ): Observable<{ sincronizados: number; suspensoesLocais: SuspensaoForenseLocal[] }> {
+    return this.http.post<{ sincronizados: number; suspensoesLocais: SuspensaoForenseLocal[] }>(
+      `${this.baseUrl}/workspaces/suspensoes/sincronizar-oficiais`,
+      { ano, siglaTribunal },
       this.headersTenant(tenantId)
     );
   }

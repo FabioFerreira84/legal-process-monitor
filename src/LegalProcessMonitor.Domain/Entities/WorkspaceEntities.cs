@@ -103,6 +103,67 @@ public sealed record ItemRadarDjen(
     bool ConvertidaEmTarefa,
     DateTime CapturadoEmUtc);
 
+public sealed record TeseJuridicaTenant(
+    string Id,
+    string TenantId,
+    string Titulo,
+    string AreaDireito,
+    IReadOnlyList<string> EventosGatilho,
+    string FundamentacaoLegal,
+    string PrecedenteChave,
+    string ModeloArgumentacao,
+    int TotalUsos,
+    string? UltimoProcessoAplicado,
+    DateTime AtualizadoEmUtc);
+
+public sealed record AplicacaoTeseProcesso(
+    string Id,
+    string TenantId,
+    string TeseId,
+    string TituloTese,
+    string NumeroProcesso,
+    string EventoContexto,
+    string ResultadoEsperadoOuObtido,
+    string Responsavel,
+    DateTime AplicadaEmUtc);
+
+public sealed record RecomendacaoTeseResult(
+    TeseJuridicaTenant Tese,
+    int ScoreAderencia,
+    string NivelAderencia,
+    string MotivoEnquadramento,
+    IReadOnlyList<string> TermosDetectadosNoProcesso,
+    bool JaUtilizadaNesteProcesso);
+
+public sealed record SocioEmpresaQsa(
+    string Nome,
+    string Qualificacao,
+    string FaixaEtaria);
+
+public sealed record PublicacaoDiarioMunicipal(
+    string Municipio,
+    string Uf,
+    string DataPublicacao,
+    string ExcertoTexto,
+    string UrlDiario);
+
+public sealed record FichaPatrimonialParte(
+    string TermoConsultado,
+    string? CnpjFormatado,
+    string RazaoSocial,
+    string NomeFantasia,
+    string SituacaoCadastral,
+    decimal CapitalSocial,
+    string PorteEmpresa,
+    string NaturezaJuridica,
+    string AtividadePrincipalCnae,
+    string EnderecoDiligenciaCitacao,
+    string MunicipioUf,
+    IReadOnlyList<SocioEmpresaQsa> QuadroSocietario,
+    IReadOnlyList<PublicacaoDiarioMunicipal> MencoesDiariosMunicipais,
+    string FonteDados,
+    DateTime ConsultadoEmUtc);
+
 public sealed record EstadoWorkspaceTenant(
     string TenantId,
     ConfigRadarOab Configuracao,
@@ -110,4 +171,6 @@ public sealed record EstadoWorkspaceTenant(
     IReadOnlyDictionary<string, string> NotasJuizo,
     IReadOnlyList<SuspensaoForenseLocal> SuspensoesLocais,
     IReadOnlyList<TarefaProcessual> TarefasKanban,
-    IReadOnlyList<ItemRadarDjen> ItensRadar);
+    IReadOnlyList<ItemRadarDjen> ItensRadar,
+    IReadOnlyList<TeseJuridicaTenant>? TesesJuridicas = null,
+    IReadOnlyList<AplicacaoTeseProcesso>? HistoricoAplicacoesTeses = null);

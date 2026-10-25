@@ -24,4 +24,15 @@ public class PerfilMagistrado
     public string TendenciaHonorarios { get; set; } = string.Empty;
     public List<string> DicasPeticionamento { get; set; } = new();
     public string? PrecedenteMarcante { get; set; }
+    public List<JulgamentoRealMagistrado> JulgamentosReaisRecentes { get; set; } = new();
 }
+
+public sealed record JulgamentoRealMagistrado(
+    string NumeroProcesso,
+    string Tribunal,
+    string Classe,
+    string OrgaoJulgador,
+    string DataPublicacao,
+    string EmentaResumo,
+    string FonteOficial,
+    string UrlOrigem);
