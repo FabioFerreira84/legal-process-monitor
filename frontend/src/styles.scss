@@ -1,24 +1,44 @@
 :root {
-  --bg-app: #080C14;
-  --bg-surface: #0E1422;
-  --bg-surface-elevated: #141C30;
-  --bg-surface-hover: #1A253E;
+  --bg-app: #050811;
+  --bg-surface: #0A0F1D;
+  --bg-surface-elevated: #10172A;
+  --bg-surface-hover: #172038;
+  --bg-glass: rgba(10, 15, 29, 0.82);
   
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --border-glow: rgba(99, 102, 241, 0.35);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(99, 102, 241, 0.28);
+  --border-focus: rgba(99, 102, 241, 0.55);
 
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
+  --text-dim: #475569;
 
   --accent-gold: #F59E0B;
-  --accent-gold-soft: rgba(245, 158, 11, 0.12);
+  --accent-gold-soft: rgba(245, 158, 11, 0.08);
   --accent-indigo: #6366F1;
-  --accent-indigo-soft: rgba(99, 102, 241, 0.12);
+  --accent-indigo-soft: rgba(99, 102, 241, 0.08);
+  --accent-indigo-glow: rgba(99, 102, 241, 0.2);
   --accent-emerald: #10B981;
-  --accent-emerald-soft: rgba(16, 185, 129, 0.12);
+  --accent-emerald-soft: rgba(16, 185, 129, 0.08);
   --accent-rose: #F43F5E;
+  --accent-rose-soft: rgba(244, 63, 94, 0.08);
+  --accent-sky: #0EA5E9;
+  --accent-sky-soft: rgba(14, 165, 233, 0.08);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 28px -4px rgba(0, 0, 0, 0.55), 0 4px 8px -2px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 24px -4px rgba(99, 102, 241, 0.18);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
 
   --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;

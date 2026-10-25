@@ -21,115 +21,116 @@
               <stop offset="100%" stop-color="#4F46E5"/>
             </linearGradient>
           </defs>
-          <rect width="44" height="44" rx="12" fill="#0E1422" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
-          <!-- Base Balança -->
+          <rect width="44" height="44" rx="12" fill="#0A0F1D" stroke="rgba(255,255,255,0.12)" stroke-width="1.2"/>
           <path d="M22 10V33M15 33H29" stroke="url(#goldGrad)" stroke-width="2.2" stroke-linecap="round"/>
-          <!-- Braço Superior -->
           <path d="M11 16H33" stroke="url(#goldGrad)" stroke-width="2.2" stroke-linecap="round"/>
-          <!-- Prato Esquerdo com estilização FF -->
           <path d="M11 16L7 24H15L11 16Z" fill="url(#indigoGrad)" fill-opacity="0.25" stroke="url(#indigoGrad)" stroke-width="1.6" stroke-linejoin="round"/>
-          <!-- Prato Direito -->
           <path d="M33 16L29 24H37L33 16Z" fill="url(#indigoGrad)" fill-opacity="0.25" stroke="url(#indigoGrad)" stroke-width="1.6" stroke-linejoin="round"/>
-          <!-- Monograma FF Central -->
           <text x="22" y="30" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="800" fill="#F8FAFC" text-anchor="middle">FF</text>
         </svg>
       </div>
 
       <div class="brand-text">
         <div class="brand-title-row">
-          <h1 class="brand-title">LexFerreira <span class="brand-highlight">LegalMonitor</span></h1>
-          <span class="version-tag">v2.5 Pro</span>
+          <h1 class="brand-title">LexFerreira <span class="brand-highlight">LegalOps</span></h1>
+          <span class="version-tag">v2.5 Enterprise</span>
         </div>
         <p class="brand-subtitle">
-          Auditoria Judicial e Análise Forense • 
-          <a href="https://github.com/FabioFerreira84" target="_blank" rel="noopener" class="author-badge">
-            Por <strong>Fabio Ferreira</strong> (.NET 9 / Angular 21)
-          </a>
+          Auditoria Judicial Forense & Inteligência Oficial CNJ
         </p>
       </div>
+
+      <!-- SELETOR DE ESCRITÓRIO / WORKSPACE (DROPDOWN EXECUTIVO) -->
+      <button
+        class="nav-workspace-trigger"
+        (click)="modalWorkspaceAberto.set(true)"
+        title="Gerenciar Escritório / Workspace (Isolamento Multi-Tenant SQLite WAL)"
+      >
+        <span class="workspace-avatar">🏢</span>
+        <span class="workspace-info">
+          <span class="workspace-title">{{ nomeEscritorioAtivo() }}</span>
+          <span class="workspace-tenant-pill">{{ tenantIdAtivo() }}</span>
+        </span>
+        <svg class="chevron-icon" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
     </div>
 
-    <div class="header-right">
-      <!-- SELETOR MULTI-TENANT SaaS (ESCRITÓRIO / WORKSPACE ISOLADO) -->
+    <!-- NAVEGAÇÃO SEGMENTADA CENTRAL EXECUTIVA -->
+    <nav class="nav-segmented-group">
       <button
-        class="watchlist-btn"
-        (click)="modalWorkspaceAberto.set(true)"
-        title="Alternar Escritório (Isolamento Multi-Tenant SQLite) e Configurar Alertas"
-        style="border-color: rgba(99, 102, 241, 0.45); background: rgba(99, 102, 241, 0.14);"
+        class="nav-segment-btn"
+        [class.active]="abaAtiva() === 'capa' && !radarDjenPainelAberto() && !watchlistPainelAberto()"
+        (click)="abaAtiva.set('capa'); radarDjenPainelAberto.set(false); watchlistPainelAberto.set(false)"
       >
-        <span>🏢 {{ nomeEscritorioAtivo() }}</span>
-        <span class="watchlist-counter" style="background: #4f46e5;">{{ tenantIdAtivo() }}</span>
+        <span>🏛️ Dossiê</span>
       </button>
 
-      <!-- RADAR PROATIVO DIÁRIO DJEN -->
       <button
-        class="watchlist-btn"
+        class="nav-segment-btn"
+        [class.active]="radarDjenPainelAberto()"
         (click)="radarDjenPainelAberto.set(!radarDjenPainelAberto())"
-        title="Abrir Radar Diário de Publicações DJEN por OAB do Escritório"
-        style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.12);"
       >
         <span>📡 Radar DJEN</span>
         @if (itensRadar().length > 0) {
-          <span class="watchlist-counter" style="background: #059669;">{{ itensRadar().length }}</span>
+          <span class="nav-count-badge green">{{ itensRadar().length }}</span>
         }
       </button>
 
-      <!-- ATALHO DIRETO KANBAN LEGALOPS -->
       <button
-        class="watchlist-btn"
-        (click)="abaAtiva.set('kanban')"
-        title="Ir direto para o Quadro Kanban de Tarefas Processuais"
-        style="border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.14);"
+        class="nav-segment-btn"
+        [class.active]="abaAtiva() === 'kanban'"
+        (click)="abaAtiva.set('kanban'); radarDjenPainelAberto.set(false); watchlistPainelAberto.set(false)"
       >
-        <span>📌 Kanban LegalOps</span>
-        <span class="watchlist-counter" style="background: #d97706;">{{ tarefasKanban().length }}</span>
-      </button>
-
-      <!-- ATALHO DIRETO BANCO DE TESES & RECOMENDAÇÃO -->
-      <button
-        class="watchlist-btn"
-        (click)="abaAtiva.set('teses')"
-        title="Abrir Banco de Teses Jurídicas e Motor de Recomendação Tática"
-        style="border-color: rgba(139, 92, 246, 0.45); background: rgba(139, 92, 246, 0.14);"
-      >
-        <span>⚖️ Banco de Teses</span>
-        <span class="watchlist-counter" style="background: #7c3aed;">{{ tesesJuridicas().length }}</span>
-      </button>
-
-      <!-- STATUS DA NUVEM / PING -->
-      <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'">
-        <span class="status-pulse-dot"></span>
-        @if (statusNuvem() === 'online') {
-          <span>SQLite WAL • {{ tempoLatenciaNuvem() ? tempoLatenciaNuvem() + 'ms' : 'Ativo' }}</span>
-        } @else {
-          <span>Sincronizando...</span>
+        <span>📌 Kanban</span>
+        @if (tarefasKanban().length > 0) {
+          <span class="nav-count-badge amber">{{ tarefasKanban().length }}</span>
         }
-      </div>
+      </button>
 
-      <!-- WATCHLIST BUTTON -->
-      <button class="watchlist-btn" (click)="watchlistPainelAberto.set(!watchlistPainelAberto())" title="Abrir Processos Salvos na Watchlist do Escritório">
+      <button
+        class="nav-segment-btn"
+        [class.active]="abaAtiva() === 'teses'"
+        (click)="abaAtiva.set('teses'); radarDjenPainelAberto.set(false); watchlistPainelAberto.set(false)"
+      >
+        <span>⚖️ Teses</span>
+        @if (tesesJuridicas().length > 0) {
+          <span class="nav-count-badge purple">{{ tesesJuridicas().length }}</span>
+        }
+      </button>
+
+      <button
+        class="nav-segment-btn"
+        [class.active]="watchlistPainelAberto()"
+        (click)="watchlistPainelAberto.set(!watchlistPainelAberto())"
+      >
         <span>📋 Watchlist</span>
         @if (watchlist().length > 0) {
-          <span class="watchlist-counter">{{ watchlist().length }}</span>
+          <span class="nav-count-badge">{{ watchlist().length }}</span>
         }
       </button>
+    </nav>
 
-      <!-- SPOTLIGHT QUICK BUTTON -->
-      <button class="spotlight-trigger-btn" (click)="abrirSpotlight()" title="Atalho global Ctrl+K">
-        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="2">
+    <!-- UTILITÁRIOS DA DIREITA -->
+    <div class="header-right">
+      <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'" title="Sincronização Relacional Multi-Tenant">
+        <span class="status-pulse-dot"></span>
+        <span>{{ statusNuvem() === 'online' ? (tempoLatenciaNuvem() ? tempoLatenciaNuvem() + 'ms' : 'Online') : 'Sincronizando' }}</span>
+      </div>
+
+      <button class="spotlight-trigger-btn" (click)="abrirSpotlight()" title="Atalho global Ctrl+K / Cmd+K">
+        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <span class="trigger-label">Buscar</span>
         <kbd class="key-badge">Ctrl K</kbd>
       </button>
 
-      <!-- GITHUB LINK -->
-      <a href="https://github.com/FabioFerreira84/legal-process-monitor" target="_blank" rel="noopener" class="github-pill">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <a href="https://github.com/FabioFerreira84/legal-process-monitor" target="_blank" rel="noopener" class="github-pill" title="Código Fonte no GitHub">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
           <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
         </svg>
-        <span>Repositório</span>
       </a>
     </div>
   </header>
@@ -139,194 +140,99 @@
     <section class="search-hero">
       <div class="search-badge">
         <span class="sparkle">✦</span>
-        <span>Pesquisa Unificada e Extração de Autos Judiciais</span>
+        <span>Inteligência Forense & Auditoria Processual Oficial</span>
       </div>
 
       <h2 class="hero-title">Auditoria Forense de Processos</h2>
       <p class="hero-description">
-        Validação matemática do Módulo 97 do CNJ, sincronização instantânea do <strong>DataJud</strong> e extração de <strong>Decisões e Capa dos Autos no e-SAJ (TJSP)</strong>.
+        Varredura unificada no <strong>DJEN Oficial</strong>, sincronização instantânea do <strong>DataJud</strong> e auditoria completa de carteiras da advocacia fluminense e paulista (TJRJ, TJSP, TRF2, TRT1).
       </p>
 
-      <!-- SEARCH MODE SELECTOR TABS -->
-      <div class="search-mode-selector">
-        <button class="mode-tab" [class.active]="modoBusca() === 'cnj'" (click)="modoBusca.set('cnj')" type="button">
-          <span>⚖️ Por Número CNJ</span>
-        </button>
-        <button class="mode-tab" [class.active]="modoBusca() === 'oab'" (click)="modoBusca.set('oab')" type="button">
-          <span>💼 Carteira por OAB (Advogado)</span>
-          <span class="mode-badge-new">Crawler e-SAJ</span>
-        </button>
-      </div>
-
-      <!-- SEARCH INPUT FORM: MODO CNJ -->
-      @if (modoBusca() === 'cnj') {
-        <div class="search-box-wrapper animate-fade-in">
-          <div class="search-input-field">
-            <svg class="search-lens" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
-              type="text"
-              [value]="numeroProcessoInput()"
-              (input)="formatarEntrada($event)"
-              (keyup.enter)="buscarProcesso()"
-              placeholder="Digite o número CNJ (ex: 2101760-84.2025.8.26.0000)"
-              class="cnj-input"
-            />
-            <button class="spotlight-hint-pill" (click)="abrirSpotlight()" type="button" title="Abrir Busca Avançada">
-              <span>Spotlight</span>
-              <kbd>Ctrl+K</kbd>
-            </button>
+      <!-- OMNIBOX UNIFICADA INTELIGENTE COM AUTO-DETECÇÃO -->
+      <div class="omnibox-wrapper animate-fade-in">
+        <div class="omnibox-input-container">
+          <div class="omnibox-detector-tag" [class.oab]="tipoEntradaDetectada() === 'oab'">
+            @if (tipoEntradaDetectada() === 'oab') {
+              <span>💼 OAB</span>
+            } @else {
+              <span>⚖️ CNJ</span>
+            }
           </div>
 
-          <button class="primary-search-button" (click)="buscarProcesso()" [disabled]="carregando()">
-            @if (carregando()) {
+          <input
+            type="text"
+            [value]="pesquisaUnificadaInput()"
+            (input)="formatarEntradaUnificada($event)"
+            (keyup.enter)="executarPesquisaUnificada()"
+            placeholder="Cole o número CNJ (ex: 0814314-72... ou 2101760...) ou OAB com UF (ex: 252088RJ, 238470SP)..."
+            class="omnibox-main-input"
+            spellcheck="false"
+            autocomplete="off"
+          />
+
+          @if (pesquisaUnificadaInput().length > 0) {
+            <button class="omnibox-clear-btn" (click)="pesquisaUnificadaInput.set(''); numeroProcessoInput.set(''); termoOabInput.set('')" title="Limpar pesquisa">
+              ✕
+            </button>
+          }
+
+          <button class="omnibox-action-btn" (click)="executarPesquisaUnificada()" [disabled]="carregando() || buscandoOab()">
+            @if (carregando() || buscandoOab()) {
               <span class="button-spinner"></span>
               <span>Varrendo...</span>
             } @else {
-              <span>Consultar Autos</span>
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+              <span>{{ tipoEntradaDetectada() === 'oab' ? 'Extrair Carteira' : 'Consultar Autos' }}</span>
+              <svg viewBox="0 0 20 20" width="15" height="15" fill="currentColor">
                 <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
             }
           </button>
         </div>
 
-        <!-- PRESET TAGS CNJ -->
-        <div class="preset-chips-row">
-          <span class="preset-label">Casos Paradigmáticos:</span>
-          <button class="preset-tag tjsp" (click)="selecionarDoHistorico('2101760-84.2025.8.26.0000')" type="button">
-            <span class="tag-code">TJSP</span>
-            <span>2101760-84.2025.8.26.0000 (Agravo c/ Acórdão e 74 Movimentações)</span>
+        <!-- PRESET CHIPS REFINADOS (CASOS PARADIGMÁTICOS & OABS) -->
+        <div class="omnibox-presets-bar">
+          <span class="preset-label">Atalhos Verificados:</span>
+          <button class="preset-pill tjsp" (click)="selecionarPresetUnificado('2101760-84.2025.8.26.0000')" type="button">
+            <span class="court-tag">TJSP</span>
+            <span>2101760-84.2025 (Acórdão)</span>
           </button>
-          <button class="preset-tag trf3" (click)="selecionarDoHistorico('5000001-05.2023.4.03.6100')" type="button">
-            <span class="tag-code">TRF3</span>
-            <span>5000001-05.2023.4.03.6100 (Mandado de Segurança • Justiça Federal)</span>
+          <button class="preset-pill tjrj" (click)="selecionarPresetUnificado('0814314-72.2026.8.19.0204')" type="button">
+            <span class="court-tag">TJRJ</span>
+            <span>0814314-72.2026 (Bangu/DJEN)</span>
           </button>
-        </div>
-      } @else {
-        <!-- SEARCH INPUT FORM: MODO OAB -->
-        <div class="search-box-wrapper oab-mode animate-fade-in">
-          <div class="search-input-field">
-            <span class="oab-prefix-badge">OAB /</span>
-            <input
-              type="text"
-              [value]="termoOabInput()"
-              (input)="termoOabInput.set($any($event.target).value)"
-              (keyup.enter)="buscarCarteiraOab()"
-              placeholder="Digite o número e UF da OAB (ex: 238470SP)"
-              class="cnj-input"
-            />
-          </div>
-
-          <button class="primary-search-button oab" (click)="buscarCarteiraOab()" [disabled]="buscandoOab()">
-            @if (buscandoOab()) {
-              <span class="button-spinner"></span>
-              <span>Varrendo e-SAJ...</span>
-            } @else {
-              <span>Extrair Carteira</span>
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-              </svg>
-            }
+          <button class="preset-pill trf3" (click)="selecionarPresetUnificado('5000001-05.2023.4.03.6100')" type="button">
+            <span class="court-tag">TRF3</span>
+            <span>5000001-05.2023 (Mand. Seg.)</span>
+          </button>
+          <button class="preset-pill oab-rj" (click)="selecionarPresetUnificado('252088RJ')" type="button">
+            <span class="court-tag">OAB/RJ</span>
+            <span>252088 (Dra. Geice • TJRJ/TRT1/TRF2)</span>
+          </button>
+          <button class="preset-pill oab-sp" (click)="selecionarPresetUnificado('238470SP')" type="button">
+            <span class="court-tag">OAB/SP</span>
+            <span>238470 (Dr. Fabio Ferreira)</span>
           </button>
         </div>
+      </div>
 
-        <!-- PRESET TAGS OAB -->
-        <div class="preset-chips-row">
-          <span class="preset-label">Exemplos Auditados:</span>
-          <button class="preset-tag oab" (click)="buscarCarteiraOab('238470SP')" type="button">
-            <span class="tag-code">OAB/SP 238.470</span>
-            <span>Dr. João Paulo Camacho (TRT2 + TJSP + STJ)</span>
-          </button>
-          <button class="preset-tag oab" (click)="buscarCarteiraOab('150000RJ')" type="button">
-            <span class="tag-code">OAB/RJ 150.000</span>
-            <span>TJRJ + TRF2 + TRT1 (Ecossistema RJ)</span>
-          </button>
-        </div>
-
-        <!-- RESULTADOS DA CARTEIRA OAB -->
-        @if (advogadoCarteira(); as cart) {
-          <div class="oab-portfolio-sheet animate-slide-up">
-            <div class="portfolio-header">
-              <div class="portfolio-lawyer-info">
-                <div class="portfolio-avatar">⚖️</div>
-                <div>
-                  <h4 class="lawyer-name">{{ cart.nomeAdvogado || 'Advogado(a) Identificado(a) na Base Pública' }}</h4>
-                  <span class="lawyer-meta">
-                    Inscrição OAB: <strong>{{ cart.numeroOab }}</strong> • Fontes: <strong>{{ cart.fontesConsultadas?.join(' + ') || cart.tribunal }}</strong>
-                    @if (cart.totalComunicacoesDjen) {
-                      • <strong>{{ cart.totalComunicacoesDjen }} comunicações oficiais no DJEN/CNJ</strong>
-                    }
-                  </span>
-                </div>
-              </div>
-              <div class="portfolio-counter-badge">
-                <strong class="count-num">{{ cart.totalProcessos }}</strong>
-                <span>Processos Únicos Localizados</span>
-              </div>
-            </div>
-
-            @if (cart.avisosOuErros && cart.avisosOuErros.length > 0) {
-              <div style="margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fcd34d; font-size: 0.85rem;">
-                ⚠️ {{ cart.avisosOuErros.join(' | ') }}
-              </div>
-            }
-
-            <div class="portfolio-cases-grid">
-              @for (item of cart.processos; track item.numeroCnjLimpo) {
-                <div class="portfolio-case-card">
-                  <div class="case-card-header">
-                    <span class="case-grau-pill" [class.grau2]="item.grau >= 2">
-                      {{ item.tribunal }} • {{ item.grau === 3 ? 'Tribunal Superior' : (item.grau === 2 ? '2º Grau' : '1ª Instância') }}
-                    </span>
-                    <span class="case-vara-text">{{ item.fonteDados || item.vara || 'Índice Público' }}</span>
-                  </div>
-                  <strong class="case-cnj-title">{{ item.numeroCnjFormatado }}</strong>
-                  <p class="case-classe-desc">{{ item.classe }}</p>
-                  @if (item.vara) {
-                    <p style="font-size: 0.78rem; color: #94a3b8; margin: 4px 0 10px;">📍 {{ item.vara }}</p>
-                  }
-                  <button class="btn-audit-case" (click)="abrirProcessoDaCarteira(item)">
-                    Auditar este Processo →
-                  </button>
-                </div>
-              }
-            </div>
-          </div>
-        }
-      }
-
-      <!-- RADAR DE CONSULTA EM ETAPAS (FEEDBACK TÉCNICO) -->
+      <!-- RADAR PROGRESS BAR ANIMADA -->
       @if (radarAtivo()) {
-        <div class="radar-card animate-fade-in">
-          <div class="radar-header">
-            <div class="radar-pulse-icon">
-              <span class="ping-circle"></span>
-              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6v6l4 2"></path>
-              </svg>
-            </div>
-            <div class="radar-info">
-              <span class="radar-title">Radar de Consulta Forense em Andamento</span>
-              <span class="radar-subtitle">{{ radarEtapaTexto() }}</span>
+        <div class="radar-scan-card animate-fade-in">
+          <div class="radar-scan-header">
+            <div class="radar-radar-spinner"></div>
+            <div>
+              <strong class="radar-status-title">{{ radarEtapaTexto() }}</strong>
+              <span class="radar-status-sub">Varredura de Barramentos Oficiais (CNJ & Tribunais)</span>
             </div>
           </div>
-
-          <div class="radar-progress-bar">
-            <div class="radar-fill" [style.width.%]="radarEtapa() * 25"></div>
-          </div>
-
-          <div class="radar-steps-grid">
+          <div class="radar-stepper">
             <div class="radar-step" [class.completed]="radarEtapa() >= 1" [class.active]="radarEtapa() === 1">
               <span class="step-num">1</span>
-              <span>Módulo 97 CNJ</span>
+              <span>Módulo 97</span>
             </div>
             <div class="radar-step" [class.completed]="radarEtapa() >= 2" [class.active]="radarEtapa() === 2">
               <span class="step-num">2</span>
-              <span>Cluster .NET 9</span>
+              <span>DJEN / PJe</span>
             </div>
             <div class="radar-step" [class.completed]="radarEtapa() >= 3" [class.active]="radarEtapa() === 3">
               <span class="step-num">3</span>
@@ -340,16 +246,85 @@
         </div>
       }
 
-      <!-- ERROR BANNER COM FALLBACK RESILIENTE -->
+      <!-- DIAGNOSTIC / ALERT CARD REFINADO -->
       @if (erro()) {
-        <div class="error-banner animate-fade-in">
-          <div class="error-icon">⚠️</div>
-          <div class="error-message">
-            <strong>Aviso de Comunicação:</strong> {{ erro() }}
+        <div class="diagnostic-card animate-fade-in">
+          <div class="diagnostic-main-row">
+            <div class="diagnostic-badge">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div class="diagnostic-text-col">
+              <strong class="diagnostic-title">Comunicação e Indexação Forense</strong>
+              <p class="diagnostic-desc">{{ erro() }}</p>
+            </div>
           </div>
-          <button class="fallback-demo-btn" (click)="carregarSnapshotDemonstracao()" type="button">
-            Carregar Snapshot Instantâneo
-          </button>
+          <div class="diagnostic-actions-row">
+            <button class="diagnostic-btn primary" (click)="carregarSnapshotDemonstracao()" type="button">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>Reconsultar via DJEN Oficial</span>
+            </button>
+            <button class="diagnostic-btn secondary" (click)="selecionarPresetUnificado('2101760-84.2025.8.26.0000')" type="button">
+              <span>Carregar Dossiê Demonstrativo (TJSP)</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- RESULTADOS DA CARTEIRA OAB -->
+      @if (advogadoCarteira(); as cart) {
+        <div class="oab-portfolio-sheet animate-slide-up">
+          <div class="portfolio-header">
+            <div class="portfolio-lawyer-info">
+              <div class="portfolio-avatar">⚖️</div>
+              <div>
+                <h4 class="lawyer-name">{{ cart.nomeAdvogado || 'Advogado(a) Identificado(a) na Base Pública' }}</h4>
+                <span class="lawyer-meta">
+                  Inscrição OAB: <strong>{{ cart.numeroOab }}</strong> • Fontes: <strong>{{ cart.fontesConsultadas?.join(' + ') || cart.tribunal }}</strong>
+                  @if (cart.totalComunicacoesDjen) {
+                    • <strong>{{ cart.totalComunicacoesDjen }} comunicações oficiais no DJEN/CNJ</strong>
+                  }
+                </span>
+              </div>
+            </div>
+            <div class="portfolio-counter-badge">
+              <strong class="count-num">{{ cart.totalProcessos }}</strong>
+              <span>Processos Localizados</span>
+            </div>
+          </div>
+
+          @if (cart.avisosOuErros && cart.avisosOuErros.length > 0) {
+            <div class="portfolio-notice">
+              <span>⚠️</span>
+              <span>{{ cart.avisosOuErros.join(' | ') }}</span>
+            </div>
+          }
+
+          <div class="portfolio-cases-grid">
+            @for (item of cart.processos; track item.numeroCnjLimpo) {
+              <div class="portfolio-case-card">
+                <div class="case-card-header">
+                  <span class="case-grau-pill" [class.grau2]="item.grau >= 2">
+                    {{ item.tribunal }} • {{ item.grau === 3 ? 'Tribunal Superior' : (item.grau === 2 ? '2º Grau' : '1ª Instância') }}
+                  </span>
+                  <span class="case-vara-text">{{ item.fonteDados || item.vara || 'Índice Público' }}</span>
+                </div>
+                <strong class="case-cnj-title">{{ item.numeroCnjFormatado }}</strong>
+                <p class="case-classe-desc">{{ item.classe }}</p>
+                @if (item.vara) {
+                  <p class="case-vara-detail">📍 {{ item.vara }}</p>
+                }
+                <button class="btn-audit-case" (click)="abrirProcessoDaCarteira(item)">
+                  Auditar este Processo →
+                </button>
+              </div>
+            }
+          </div>
         </div>
       }
     </section>

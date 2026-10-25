@@ -60,6 +60,23 @@ export class App implements OnInit {
   // Modo de Busca: CNJ ou OAB
   modoBusca = signal<'cnj' | 'oab'>('cnj');
 
+  // Busca Omnibox Unificada Inteligente
+  pesquisaUnificadaInput = signal('0814314-72.2026.8.19.0204');
+
+  tipoEntradaDetectada = computed<'cnj' | 'oab'>(() => {
+    const val = this.pesquisaUnificadaInput().trim();
+    const limpo = val.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const digitos = val.replace(/\D/g, '');
+
+    if (/^[0-9]{2,8}[A-Z]{2}$/.test(limpo) || /^[A-Z]{2}[0-9]{2,8}$/.test(limpo) || val.toLowerCase().includes('oab')) {
+      return 'oab';
+    }
+    if (digitos.length >= 15 || (val.includes('.') && val.includes('-'))) {
+      return 'cnj';
+    }
+    return this.modoBusca();
+  });
+
   // Estados principais
   numeroProcessoInput = signal('2101760-84.2025.8.26.0000');
   termoOabInput = signal('238470SP');
@@ -815,6 +832,7 @@ export class App implements OnInit {
   ngOnInit() {
     this.carregarTenantSalvo();
     this.carregarHistorico();
+    this.pesquisaUnificadaInput.set(this.numeroProcessoInput());
     this.carregarWorkspaceMultiTenant(this.tenantIdAtivo());
     this.executarSilentPing();
     this.buscarProcesso(false, true);
@@ -2399,6 +2417,35 @@ ${textoEditado
   formatarEntrada(event: Event) {
     const input = event.target as HTMLInputElement;
     this.numeroProcessoInput.set(input.value);
+    this.pesquisaUnificadaInput.set(input.value);
+  }
+
+  formatarEntradaUnificada(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.pesquisaUnificadaInput.set(input.value);
+    this.numeroProcessoInput.set(input.value);
+    this.termoOabInput.set(input.value);
+  }
+
+  executarPesquisaUnificada(forcar = false) {
+    const raw = this.pesquisaUnificadaInput().trim();
+    if (!raw) return;
+
+    const tipo = this.tipoEntradaDetectada();
+    if (tipo === 'oab') {
+      this.modoBusca.set('oab');
+      this.termoOabInput.set(raw);
+      this.buscarCarteiraOab(raw);
+    } else {
+      this.modoBusca.set('cnj');
+      this.numeroProcessoInput.set(raw);
+      this.buscarProcesso(forcar);
+    }
+  }
+
+  selecionarPresetUnificado(valor: string) {
+    this.pesquisaUnificadaInput.set(valor);
+    this.executarPesquisaUnificada(true);
   }
 
   formatarEntradaSpotlight(event: Event) {
