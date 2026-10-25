@@ -1,11 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { switchMap, map, catchError } from 'rxjs/operators';
 import {
   Processo,
   AdvogadoCarteira,
   ProcessoResumo,
+  Movimentacao,
+  Envolvido,
+  DocumentoProcessual,
   PerfilMagistrado,
   EstadoWorkspaceTenant,
   ConfigRadarOab,
@@ -44,7 +47,126 @@ export class ProcessoService {
 
   consultarProcesso(numeroProcesso: string, forcarAtualizacao = false): Observable<Processo> {
     const url = `${this.baseUrl}/processos/${encodeURIComponent(numeroProcesso)}?forcarAtualizacao=${forcarAtualizacao}`;
-    return this.http.get<Processo>(url);
+    return this.http.get<Processo>(url).pipe(
+      catchError(err => {
+        // Fallback inteligente: se o backend no Render falhar (ex: 404 por CloudFront geo-block no DJEN ou Cold Start),
+        // consulta diretamente a API oficial do DJEN/CNJ a partir do navegador do cliente (IP brasileiro)
+        return this.consultarProcessoDjenNavegador(numeroProcesso, err);
+      })
+    );
+  }
+
+  private consultarProcessoDjenNavegador(numeroProcesso: string, errOriginal: any): Observable<Processo> {
+    const limpo = (numeroProcesso || '').replace(/\D/g, '');
+    if (limpo.length !== 20) {
+      return throwError(() => errOriginal);
+    }
+
+    const formatado = `${limpo.substring(0, 7)}-${limpo.substring(7, 9)}.${limpo.substring(9, 13)}.${limpo.substring(13, 14)}.${limpo.substring(14, 16)}.${limpo.substring(16, 20)}`;
+    const jtr = `${limpo.substring(13, 14)}.${limpo.substring(14, 16)}`;
+
+    const mapaTribunais: Record<string, string> = {
+      '8.19': 'TJRJ', '8.26': 'TJSP', '8.21': 'TJRS', '8.13': 'TJMG', '8.16': 'TJPR',
+      '8.24': 'TJSC', '8.05': 'TJBA', '8.12': 'TJMS', '8.06': 'TJCE', '8.04': 'TJAM',
+      '4.01': 'TRF1', '4.02': 'TRF2', '4.03': 'TRF3', '4.04': 'TRF4', '4.05': 'TRF5', '4.06': 'TRF6',
+      '5.01': 'TRT1', '5.02': 'TRT2', '5.03': 'TRT3', '5.04': 'TRT4', '5.15': 'TRT15'
+    };
+    const siglaTribunal = mapaTribunais[jtr] || `Tribunal ${jtr}`;
+    const djenUrl = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${encodeURIComponent(limpo)}&itensPorPagina=30&pagina=1`;
+
+    return this.http.get<any>(djenUrl).pipe(
+      switchMap(res => {
+        const items: any[] = res?.items || [];
+        if (items.length === 0) {
+          return throwError(() => errOriginal);
+        }
+
+        const primeiro = items[0];
+        const tribunal = primeiro.siglaTribunal || siglaTribunal;
+        const nomeClasse = primeiro.nomeClasse || 'Procedimento Judicial';
+        const nomeOrgao = primeiro.nomeOrgao || `Unidade Julgadora (${tribunal})`;
+
+        const docs: DocumentoProcessual[] = [];
+        const movs: Movimentacao[] = [];
+        const envolvidos: Envolvido[] = [];
+
+        for (const item of items) {
+          const textoLimpo = (item.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const docTipo = item.tipoDocumento || 'Publicação DJEN';
+          const dataDisp = item.data_disponibilizacao || item.datadisponibilizacao || new Date().toISOString();
+          const idDoc = `djen-${item.id || Math.random().toString(36).substring(2, 9)}`;
+
+          docs.push({
+            id: idDoc,
+            tipo: `DJEN (${item.siglaTribunal || tribunal}) - ${docTipo}`,
+            data: dataDisp,
+            titulo: `${docTipo} — ${item.nomeClasse || 'DJEN'}`,
+            conteudoTexto: textoLimpo,
+            situacao: 'Publicado no DJEN/CNJ',
+            certidaoPublicacao: `Disponibilizado oficialmente no Diário de Justiça Eletrônico Nacional (DJEN/CNJ - ID ${item.id}) em ${dataDisp} pelo órgão '${item.nomeOrgao}'.`,
+            urlOrigem: item.link || 'https://comunica.pje.jus.br'
+          });
+
+          movs.push({
+            dataHora: dataDisp,
+            titulo: `Disponibilização no DJEN (${item.siglaTribunal || tribunal}) — ${docTipo}`,
+            descricao: textoLimpo.length > 350 ? textoLimpo.substring(0, 350) + '...' : textoLimpo
+          });
+
+          if (Array.isArray(item.destinatarios)) {
+            for (const dest of item.destinatarios) {
+              const nome = (dest.nome || '').replace(/^\d+\.\s*/, '').trim();
+              if (!nome) continue;
+              const polo = dest.polo === 'P' ? 'Passivo' : 'Ativo';
+
+              if (!envolvidos.some(e => e.nome.toLowerCase() === nome.toLowerCase())) {
+                const advs: string[] = [];
+                if (Array.isArray(item.destinatarioadvogados)) {
+                  for (const da of item.destinatarioadvogados) {
+                    if (da.advogado?.nome) {
+                      advs.push(`${da.advogado.nome} (OAB ${da.advogado.numero_oab || ''}/${da.advogado.uf_oab || ''})`);
+                    }
+                  }
+                }
+
+                envolvidos.push({
+                  nome,
+                  tipoPolo: polo,
+                  papel: polo === 'Ativo' ? 'Polo Ativo' : 'Polo Passivo',
+                  oab: advs.length > 0 ? Array.from(new Set(advs)).join('; ') : undefined
+                });
+              }
+            }
+          }
+        }
+
+        const grau = ['STJ', 'STF', 'TST'].includes(tribunal) ? 3 :
+          (limpo.endsWith('0000') || /câmara|turma/i.test(nomeOrgao) ? 2 : 1);
+
+        const proc: Processo = {
+          id: `proc-${limpo}`,
+          numeroCnjFormatado: formatado,
+          numeroCnjLimpo: limpo,
+          tribunal,
+          grau,
+          classe: nomeClasse,
+          assunto: nomeClasse,
+          orgaoJulgador: nomeOrgao,
+          comarca: nomeOrgao,
+          foro: `Foro Código CNJ ${limpo.substring(16, 20)}`,
+          status: 'Em Andamento (Ativo no DJEN)',
+          ultimaAtualizacao: docs[0]?.data || new Date().toISOString(),
+          movimentacoes: movs,
+          envolvidos: envolvidos.length > 0 ? envolvidos : [
+            { nome: 'Parte sob Consulta Pública', tipoPolo: 'Ativo', papel: 'Polo Ativo' }
+          ],
+          documentosPublicos: docs
+        };
+
+        return of(proc);
+      }),
+      catchError(() => throwError(() => errOriginal))
+    );
   }
 
   consultarCarteiraOab(numeroOab: string): Observable<AdvogadoCarteira> {

@@ -2560,7 +2560,15 @@ ${textoEditado
   }
 
   // Snapshot Offline fiel aos registros oficiais do DJEN/CNJ e DataJud (acionado apenas se o container Render estiver em cold start)
-  carregarSnapshotDemonstracao(limpo = '21017608420258260000') {
+  carregarSnapshotDemonstracao(alvo?: string) {
+    const raw = alvo || this.numeroProcessoInput();
+    const limpo = raw.replace(/\D/g, '') || '21017608420258260000';
+
+    if (limpo !== '21017608420258260000' && limpo !== '50000010520234036100') {
+      // Reconsulta o processo pesquisado com fallback direto via navegador
+      this.buscarProcesso(true);
+      return;
+    }
     if (limpo === '50000010520234036100') {
       const snapTrf3: Processo = {
         id: '8532880c-4e1f-4416-8550-49d3fe9930d4',
