@@ -52,7 +52,7 @@ public class ProcessosController : ControllerBase
     /// </summary>
     [HttpGet("calcular-prazo")]
     public async Task<ActionResult<CalculoPrazoForenseResult>> CalcularPrazo(
-        [FromQuery] string dataMarco,
+        [FromQuery] string? dataMarco = null,
         [FromQuery] int diasUteis = 15,
         [FromQuery] bool ehDisponibilizacaoDjen = true,
         [FromQuery] bool prazoEmDobro = false,
@@ -102,7 +102,7 @@ public class ProcessosController : ControllerBase
     [HttpGet("{numeroProcesso}/exportar-ics")]
     public async Task<IActionResult> ExportarCalendarioIcs(
         string numeroProcesso,
-        [FromQuery] string dataMarco,
+        [FromQuery] string? dataMarco = null,
         [FromQuery] int diasUteis = 15,
         [FromQuery] bool ehDisponibilizacaoDjen = true,
         [FromQuery] bool prazoEmDobro = false,
