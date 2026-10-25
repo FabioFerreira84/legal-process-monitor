@@ -5,7 +5,8 @@ import {
   extrairDataCivilSegura,
   calcularTermoFatalForense,
   gerarConteudoIcsPrazoFatal,
-  gerarLinkGoogleCalendarPrazoFatal
+  gerarLinkGoogleCalendarPrazoFatal,
+  calcularDigitoVerificadorCnj
 } from './calculadora-prazo.ts';
 
 describe('Calculadora de Prazo Forense (CPC/2015 + Lei 14.759/2023 + Res. CNJ 455/2022)', () => {
@@ -133,5 +134,19 @@ describe('Calculadora de Prazo Forense (CPC/2015 + Lei 14.759/2023 + Res. CNJ 45
 
     assert.match(gcal, /calendar\.google\.com\/calendar\/render\?action=TEMPLATE/);
     assert.match(gcal, /dates=20261118%2F20261119/);
+  });
+
+  it('deve validar corretamente o dígito verificador Módulo 97 do CNJ (98 - resto) nos casos paradigmáticos reais', () => {
+    const tjsp = calcularDigitoVerificadorCnj('2101760-84.2025.8.26.0000');
+    assert.equal(tjsp.valido, true);
+    assert.equal(tjsp.dvEsperado, '84');
+
+    const trf3 = calcularDigitoVerificadorCnj('5000001-05.2023.4.03.6100');
+    assert.equal(trf3.valido, true);
+    assert.equal(trf3.dvEsperado, '05');
+
+    const guarulhos = calcularDigitoVerificadorCnj('1006805-85.2025.8.26.0224');
+    assert.equal(guarulhos.valido, true);
+    assert.equal(guarulhos.dvEsperado, '85');
   });
 });

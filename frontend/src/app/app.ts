@@ -24,7 +24,8 @@ import {
   extrairDataCivilSegura,
   formatarDataBr,
   gerarConteudoIcsPrazoFatal,
-  gerarLinkGoogleCalendarPrazoFatal
+  gerarLinkGoogleCalendarPrazoFatal,
+  calcularDigitoVerificadorCnj
 } from './utils/calculadora-prazo';
 
 export interface CnjDecodificado {
@@ -1497,20 +1498,14 @@ export class App implements OnInit {
     else if (j === '4' && tr === '03') tribunalNome = 'Tribunal Regional Federal da 3ª Região (TRF3)';
     else if (j === '4' && tr === '01') tribunalNome = 'TRF 1ª Região (TRF1)';
 
-    const num1 = BigInt(nnnnnnn + aaaa + j + tr);
-    const resto1 = num1 % 97n;
-    const num2 = BigInt(resto1.toString() + oooo + '00');
-    const resto2 = num2 % 97n;
-    const dvEsperado = Number(97n - resto2);
-    const dvInformado = parseInt(dd, 10);
-
-    const valido = dvEsperado === dvInformado;
+    const checkDv = calcularDigitoVerificadorCnj(digitos);
+    const valido = checkDv.valido;
 
     return {
       valido,
       motivoErro: valido
         ? undefined
-        : `Dígito verificador inválido (${dd}). O algoritmo Módulo 97 do CNJ calculou que deveria ser ${dvEsperado.toString().padStart(2, '0')}.`,
+        : `Dígito verificador inválido (${dd}). O algoritmo Módulo 97 do CNJ calculou que deveria ser ${checkDv.dvEsperado}.`,
       sequencial: nnnnnnn,
       dv: dd,
       ano: aaaa,

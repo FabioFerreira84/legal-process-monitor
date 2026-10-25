@@ -74,6 +74,17 @@
         }
       </button>
 
+      <!-- ATALHO DIRETO KANBAN LEGALOPS -->
+      <button
+        class="watchlist-btn"
+        (click)="abaAtiva.set('kanban')"
+        title="Ir direto para o Quadro Kanban de Tarefas Processuais"
+        style="border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.14);"
+      >
+        <span>📌 Kanban LegalOps</span>
+        <span class="watchlist-counter" style="background: #d97706;">{{ tarefasKanban().length }}</span>
+      </button>
+
       <!-- STATUS DA NUVEM / PING -->
       <div class="cloud-status-badge" [class.online]="statusNuvem() === 'online'" [class.warming]="statusNuvem() === 'aquecendo'">
         <span class="status-pulse-dot"></span>

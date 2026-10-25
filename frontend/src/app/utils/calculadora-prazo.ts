@@ -443,3 +443,39 @@ export function gerarLinkGoogleCalendarPrazoFatal(params: {
   return `https://calendar.google.com/calendar/render?${query.toString()}`;
 }
 
+/**
+ * Calcula o dígito verificador Módulo 97 do CNJ segundo a Resolução CNJ nº 65/2008:
+ * DV = 98 - ((NNNNNNN * 10^13 + AAAA * 10^9 + JTR * 10^6 + OOOO * 10^2) mod 97)
+ */
+export function calcularDigitoVerificadorCnj(apenasDigitos20: string): {
+  valido: boolean;
+  dvInformado: string;
+  dvEsperado: string;
+} {
+  const digitos = (apenasDigitos20 || '').replace(/\D/g, '');
+  if (digitos.length !== 20) {
+    return { valido: false, dvInformado: '', dvEsperado: '' };
+  }
+
+  const nnnnnnn = digitos.substring(0, 7);
+  const dd = digitos.substring(7, 9);
+  const aaaa = digitos.substring(9, 13);
+  const j = digitos.substring(13, 14);
+  const tr = digitos.substring(14, 16);
+  const oooo = digitos.substring(16, 20);
+
+  const num1 = BigInt(nnnnnnn + aaaa + j + tr);
+  const resto1 = num1 % 97n;
+  const num2 = BigInt(resto1.toString() + oooo + '00');
+  const resto2 = num2 % 97n;
+  const dvCalc = Number(98n - resto2);
+  const dvEsperado = dvCalc.toString().padStart(2, '0');
+
+  return {
+    valido: dd === dvEsperado,
+    dvInformado: dd,
+    dvEsperado
+  };
+}
+
+
