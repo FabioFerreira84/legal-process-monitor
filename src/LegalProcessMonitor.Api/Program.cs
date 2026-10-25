@@ -71,8 +71,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient<ITribunalConnector, DataJudConnector>();
 builder.Services.AddHttpClient<IDjenComunicacaoConnector, DjenComunicacaoConnector>(client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(15);
+    client.Timeout = TimeSpan.FromSeconds(20);
     client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    client.DefaultRequestHeaders.Add("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7");
 });
 builder.Services.AddHttpClient<IRjTribunaisScraper, RjTribunaisScraper>(client =>
 {

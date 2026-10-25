@@ -32,7 +32,8 @@ public class DjenComunicacaoConnector : IDjenComunicacaoConnector
         try
         {
             var url = $"{BaseUrl}?numeroProcesso={Uri.EscapeDataString(numeroProcesso.ApenasDigitos)}&itensPorPagina=30&pagina=1";
-            using var response = await _httpClient.GetAsync(url, ct);
+            using var request = CriarRequisicao(url);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("API DJEN respondeu com {StatusCode} para o processo {Numero}", response.StatusCode, numeroProcesso.NumeroFormatado);
@@ -60,7 +61,8 @@ public class DjenComunicacaoConnector : IDjenComunicacaoConnector
                 return;
 
             var url = $"{BaseUrl}?numeroOab={Uri.EscapeDataString(numLimpo)}&ufOab={Uri.EscapeDataString(ufLimpa)}&itensPorPagina=100&pagina=1";
-            using var response = await _httpClient.GetAsync(url, ct);
+            using var request = CriarRequisicao(url);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 carteira.AvisosOuErros.Add($"DJEN/CNJ retornou HTTP {(int)response.StatusCode}.");
@@ -79,6 +81,18 @@ public class DjenComunicacaoConnector : IDjenComunicacaoConnector
             _logger.LogError(ex, "Erro ao consultar DJEN por OAB {Oab}/{Uf}", numeroInscricaoOab, ufOab);
             carteira.AvisosOuErros.Add($"Indisponibilidade temporária na consulta DJEN/CNJ: {ex.Message}");
         }
+    }
+
+    private HttpRequestMessage CriarRequisicao(string url)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("Accept", "application/json");
+        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        }
+        request.Headers.TryAddWithoutValidation("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7");
+        return request;
     }
 
     public static void AplicarJsonAoProcesso(string json, Processo processo)
