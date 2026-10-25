@@ -148,6 +148,27 @@
         Varredura unificada no <strong>DJEN Oficial</strong>, sincronização instantânea do <strong>DataJud</strong> e auditoria completa de carteiras da advocacia fluminense e paulista (TJRJ, TJSP, TRF2, TRT1).
       </p>
 
+      <!-- SEARCH MODE SELECTOR TABS -->
+      <div class="search-mode-selector">
+        <button
+          class="mode-tab"
+          [class.active]="modoBusca() === 'cnj'"
+          (click)="modoBusca.set('cnj'); pesquisaUnificadaInput.set(numeroProcessoInput())"
+          type="button"
+        >
+          <span>⚖️ Por Número CNJ</span>
+        </button>
+        <button
+          class="mode-tab"
+          [class.active]="modoBusca() === 'oab'"
+          (click)="modoBusca.set('oab'); pesquisaUnificadaInput.set(termoOabInput())"
+          type="button"
+        >
+          <span>💼 Carteira por OAB (Advogado)</span>
+          <span class="mode-badge-new">DJEN + e-SAJ</span>
+        </button>
+      </div>
+
       <!-- OMNIBOX UNIFICADA INTELIGENTE COM AUTO-DETECÇÃO -->
       <div class="omnibox-wrapper animate-fade-in">
         <div class="omnibox-input-container">
@@ -215,20 +236,31 @@
         </div>
       </div>
 
-      <!-- RADAR PROGRESS BAR ANIMADA -->
+      <!-- RADAR DE CONSULTA EM ETAPAS COM ANIMAÇÃO COMPLETA -->
       @if (radarAtivo()) {
-        <div class="radar-scan-card animate-fade-in">
-          <div class="radar-scan-header">
-            <div class="radar-radar-spinner"></div>
-            <div>
-              <strong class="radar-status-title">{{ radarEtapaTexto() }}</strong>
-              <span class="radar-status-sub">Varredura de Barramentos Oficiais (CNJ & Tribunais)</span>
+        <div class="radar-card animate-fade-in">
+          <div class="radar-header">
+            <div class="radar-pulse-icon">
+              <span class="ping-circle"></span>
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v6l4 2"></path>
+              </svg>
+            </div>
+            <div class="radar-info">
+              <span class="radar-title">Radar de Consulta Forense em Andamento</span>
+              <span class="radar-subtitle">{{ radarEtapaTexto() }}</span>
             </div>
           </div>
-          <div class="radar-stepper">
+
+          <div class="radar-progress-bar">
+            <div class="radar-fill" [style.width.%]="radarEtapa() * 25"></div>
+          </div>
+
+          <div class="radar-steps-grid">
             <div class="radar-step" [class.completed]="radarEtapa() >= 1" [class.active]="radarEtapa() === 1">
               <span class="step-num">1</span>
-              <span>Módulo 97</span>
+              <span>Módulo 97 CNJ</span>
             </div>
             <div class="radar-step" [class.completed]="radarEtapa() >= 2" [class.active]="radarEtapa() === 2">
               <span class="step-num">2</span>
