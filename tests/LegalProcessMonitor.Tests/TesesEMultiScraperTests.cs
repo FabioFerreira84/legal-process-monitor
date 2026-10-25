@@ -164,6 +164,98 @@ public sealed class TesesEMultiScraperTests : IDisposable
         ficha.EnderecoDiligenciaCitacao.Should().Contain("ADAMANTINA/SP");
     }
 
+    [Fact]
+    public async Task SqliteWorkspaceRepository_DeveExportarERestaurarSnapshotCompletoMultiTenant()
+    {
+        var repo = new SqliteWorkspaceRepository(_connString, semearDemoPadrao: true);
+        var snapshotOrigem = await repo.ObterEstadoWorkspaceAsync("escritorio-ferreira");
+        Assert.NotNull(snapshotOrigem.TesesJuridicas);
+        Assert.NotEmpty(snapshotOrigem.TesesJuridicas!);
+        Assert.NotNull(snapshotOrigem.HistoricoAplicacoesTeses);
+
+        // Restaurar para um novo tenant simulando recuperação de container cloud
+        var restaurado = await repo.RestaurarSnapshotWorkspaceAsync("escritorio-recuperado", snapshotOrigem, mesclarComExistente: true);
+
+        Assert.Equal("escritorio-recuperado", restaurado.TenantId);
+        Assert.NotEmpty(restaurado.Watchlist);
+        Assert.NotEmpty(restaurado.TarefasKanban);
+        Assert.NotNull(restaurado.TesesJuridicas);
+        Assert.True(restaurado.TesesJuridicas!.Count >= 4);
+    }
+
+    [Fact]
+    public void GeradorMinutaProcessualService_DeveGerarMinutaWordContextualizadaComEnderecamentoETempestividade()
+    {
+        var tese = new TeseJuridicaTenant(
+            Id: "tese-stj-s182-s7",
+            TenantId: "escritorio-ferreira",
+            Titulo: "Impugnação Específica aos Fundamentos da Inadmissão (Distinguishing Súmulas 7 e 182/STJ)",
+            AreaDireito: "Processo Civil / Tribunais Superiores",
+            EventosGatilho: new[] { "AREsp", "Recurso Especial", "Presidência do STJ" },
+            FundamentacaoLegal: "Art. 1.029 e Art. 932, III, do CPC/2015.",
+            PrecedenteChave: "Súmula 182/STJ e EAREsp 746.775/PR (Corte Especial do STJ).",
+            ModeloArgumentacao: "A pretensão recursal cinge-se à revaloração jurídica de fatos incontroversos.",
+            TotalUsos: 5,
+            UltimoProcessoAplicado: "2101760-84.2025.8.26.0000",
+            AtualizadoEmUtc: DateTime.UtcNow);
+
+        var config = new ConfigRadarOab(
+            TenantId: "escritorio-ferreira",
+            NomeEscritorio: "Ferreira & Associados Advocacia Empresarial",
+            InscricoesOab: new[] { "238470/SP" },
+            WebhookUrl: null,
+            TelegramBotToken: null,
+            TelegramChatId: null,
+            Ativo: true,
+            UltimaSincronizacaoUtc: DateTime.UtcNow);
+
+        var minuta = GeradorMinutaProcessualService.GerarMinutaContextualizada(
+            tenantId: "escritorio-ferreira",
+            numeroProcesso: "2101760-84.2025.8.26.0000",
+            classeProcessual: "Agravo de Instrumento / AREsp 3319477/SP",
+            assuntoPrincipal: "Contratos Bancários / Cédula de Crédito",
+            orgaoJulgador: "Presidência do STJ — Min. Antonio Carlos Ferreira",
+            poloAtivo: "Cooperativa Agrícola Mista de Adamantina",
+            poloPassivo: "Banco Bradesco S.A.",
+            ultimoAndamento: "Intimação de Distribuição (AREsp 3319477/SP) disponibilizada no DJEN em 23/10/2026",
+            dataDisponibilizacaoDjen: new DateOnly(2026, 10, 23),
+            diasPrazo: 15,
+            tese: tese,
+            configEscritorio: config);
+
+        Assert.Contains("SUPERIOR TRIBUNAL DE JUSTIÇA", minuta.EnderecamentoOficial, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2101760-84.2025.8.26.0000", minuta.EpigrafeQualificacao);
+        Assert.Contains("TEMPESTIVIDADE", minuta.TopicoTempestividade, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("18/11/2026", minuta.TopicoTempestividade);
+        Assert.Contains("Súmula 182/STJ", minuta.TopicoMeritoDireito);
+        Assert.Contains("application/msword", minuta.ConteudoHtmlWordDoc, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(".doc", minuta.NomeArquivoSugerido, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CalculadoraFinanceiraForense_DeveCalcularIpcaESelicLei14905ComHonorariosEMultaArt523()
+    {
+        using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        var connector = new LegalProcessMonitor.Infrastructure.Connectors.Inteligencia.InteligenciaPublicaConnector(
+            httpClient,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LegalProcessMonitor.Infrastructure.Connectors.Inteligencia.InteligenciaPublicaConnector>.Instance);
+
+        var resultado = await connector.CalcularAtualizacaoFinanceiraBacenAsync(
+            numeroProcesso: "2101760-84.2025.8.26.0000",
+            valorOriginal: 157882.05m,
+            dataBase: new DateOnly(2025, 4, 1),
+            dataFinal: new DateOnly(2026, 10, 1));
+
+        Assert.Equal("2101760-84.2025.8.26.0000", resultado.NumeroProcesso);
+        Assert.Equal(157882.05m, resultado.ValorOriginalCausa);
+        Assert.True(resultado.ValorCorrigidoIpca > resultado.ValorOriginalCausa);
+        Assert.True(resultado.ValorTotalAtualizado > resultado.ValorCorrigidoIpca);
+        Assert.True(resultado.HonorariosSucumbencia10Porcento > 0);
+        Assert.True(resultado.TotalCondenacaoCumprimentoSentenca > resultado.ValorTotalAtualizado);
+        Assert.NotEmpty(resultado.MemoriaCalculoMensal);
+        Assert.Contains("14.905/2024", resultado.RegimeJuridicoAplicado);
+    }
+
     public void Dispose()
     {
         try

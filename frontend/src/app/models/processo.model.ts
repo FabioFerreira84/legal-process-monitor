@@ -280,6 +280,58 @@ export interface FichaPatrimonialParte {
   consultadoEmUtc: string;
 }
 
+export interface MinutaProcessualGerada {
+  id: string;
+  tenantId: string;
+  numeroProcesso: string;
+  teseId: string;
+  tituloPeca: string;
+  enderecamentoOficial: string;
+  epigrafeQualificacao: string;
+  topicoTempestividade: string;
+  topicoSinteseFatica: string;
+  topicoMeritoDireito: string;
+  topicoPedidosConclusivos: string;
+  fechoAssinatura: string;
+  textoIntegralFormatado: string;
+  conteudoHtmlWordDoc: string;
+  nomeArquivoSugerido: string;
+  geradoEmUtc: string;
+}
+
+export interface IndiceMensalBacen {
+  competenciaMesAno: string;
+  taxaIpcaPercentual: number;
+  taxaSelicPercentual: number;
+  taxaJurosLegalAplicadaPercentual: number;
+  valorCorrigidoParcial: number;
+  jurosAcumuladosParcial: number;
+  subtotalMes: number;
+}
+
+export interface ResultadoCalculoFinanceiroProcesso {
+  numeroProcesso: string;
+  valorOriginalCausa: number;
+  dataBaseCalculo: string;
+  dataFinalCalculo: string;
+  quantidadeMeses: number;
+  ipcaAcumuladoPercentual: number;
+  jurosLegaisAcumuladosPercentual: number;
+  valorCorrigidoIpca: number;
+  valorJurosMoraLei14905: number;
+  valorTotalAtualizado: number;
+  honorariosSucumbencia10Porcento: number;
+  honorariosSucumbencia15Porcento: number;
+  honorariosSucumbencia20Porcento: number;
+  multaArt523Cpc10Porcento: number;
+  honorariosArt523Cpc10Porcento: number;
+  totalCondenacaoCumprimentoSentenca: number;
+  regimeJuridicoAplicado: string;
+  fonteIndices: string;
+  memoriaCalculoMensal: IndiceMensalBacen[];
+  calculadoEmUtc: string;
+}
+
 export interface EstadoWorkspaceTenant {
   tenantId: string;
   configuracao: ConfigRadarOab;

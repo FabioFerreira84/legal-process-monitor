@@ -17,7 +17,9 @@ import {
   TeseJuridicaTenant,
   AplicacaoTeseProcesso,
   RecomendacaoTeseResult,
-  FichaPatrimonialParte
+  FichaPatrimonialParte,
+  MinutaProcessualGerada,
+  ResultadoCalculoFinanceiroProcesso
 } from '../models/processo.model';
 
 @Injectable({
@@ -299,6 +301,66 @@ export class ProcessoService {
     return this.http.post<{ sincronizados: number; suspensoesLocais: SuspensaoForenseLocal[] }>(
       `${this.baseUrl}/workspaces/suspensoes/sincronizar-oficiais`,
       { ano, siglaTribunal },
+      this.headersTenant(tenantId)
+    );
+  }
+
+  exportarBackupWorkspace(tenantId: string): Observable<EstadoWorkspaceTenant> {
+    return this.http.get<EstadoWorkspaceTenant>(
+      `${this.baseUrl}/workspaces/backup`,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  restaurarBackupWorkspace(
+    tenantId: string,
+    snapshot: EstadoWorkspaceTenant,
+    mesclarComExistente = true
+  ): Observable<EstadoWorkspaceTenant> {
+    return this.http.post<EstadoWorkspaceTenant>(
+      `${this.baseUrl}/workspaces/restore`,
+      { snapshot, mesclarComExistente },
+      this.headersTenant(tenantId)
+    );
+  }
+
+  gerarMinutaProcessual(
+    tenantId: string,
+    payload: {
+      teseId: string;
+      numeroProcesso: string;
+      classeProcessual?: string;
+      assuntoPrincipal?: string;
+      orgaoJulgador?: string;
+      poloAtivo?: string;
+      poloPassivo?: string;
+      ultimoAndamento?: string;
+      dataDisponibilizacaoIso?: string;
+      diasPrazo?: number;
+    }
+  ): Observable<MinutaProcessualGerada> {
+    return this.http.post<MinutaProcessualGerada>(
+      `${this.baseUrl}/workspaces/teses/gerar-minuta`,
+      payload,
+      this.headersTenant(tenantId)
+    );
+  }
+
+  calcularAtualizacaoFinanceiraProcesso(
+    tenantId: string,
+    numeroProcesso: string,
+    valorOriginal: number,
+    dataBaseIso?: string,
+    dataFinalIso?: string
+  ): Observable<ResultadoCalculoFinanceiroProcesso> {
+    const q = new URLSearchParams({
+      numeroProcesso,
+      valorOriginal: String(valorOriginal || 157882.05)
+    });
+    if (dataBaseIso) q.set('dataBaseIso', dataBaseIso);
+    if (dataFinalIso) q.set('dataFinalIso', dataFinalIso);
+    return this.http.get<ResultadoCalculoFinanceiroProcesso>(
+      `${this.baseUrl}/workspaces/processos/calculo-financeiro?${q.toString()}`,
       this.headersTenant(tenantId)
     );
   }

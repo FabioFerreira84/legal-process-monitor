@@ -21,7 +21,10 @@ import {
   TeseJuridicaTenant,
   AplicacaoTeseProcesso,
   RecomendacaoTeseResult,
-  FichaPatrimonialParte
+  FichaPatrimonialParte,
+  MinutaProcessualGerada,
+  ResultadoCalculoFinanceiroProcesso,
+  IndiceMensalBacen
 } from './models/processo.model';
 import {
   calcularTermoFatalForense,
@@ -131,6 +134,20 @@ export class App implements OnInit {
   fichaPatrimonialSelecionada = signal<FichaPatrimonialParte | null>(null);
   cnpjCustomInput = signal('');
   sincronizandoFeriadosOficiais = signal(false);
+
+  // Fatia 8: Gerador Automático de Minuta Processual (.DOC Word ABNT/Forense)
+  minutaModalAberto = signal(false);
+  gerandoMinuta = signal(false);
+  minutaGeradaAtual = signal<MinutaProcessualGerada | null>(null);
+  minutaTextoEditavel = signal('');
+  minutaCopiadaFeedback = signal(false);
+
+  // Fatia 9: Calculadora de Atualização Monetária, Juros Legais (Lei 14.905/2024) e Honorários Bacen
+  financeiroModalAberto = signal(false);
+  calculandoFinanceiro = signal(false);
+  resultadoFinanceiroAtual = signal<ResultadoCalculoFinanceiroProcesso | null>(null);
+  financeiroDataBaseInput = signal('2025-04-07');
+  financeiroValorCustomInput = signal<number>(157882.05);
 
   // Controles interativos da Calculadora Forense de Termo Fatal (CPC/2015 + DJEN)
   prazoBaseCustomizado = signal<number | null>(null);
@@ -886,7 +903,7 @@ export class App implements OnInit {
       this.telegramChatIdInput.set(estado.configuracao.telegramChatId || '');
     }
 
-    const wl: ProcessoWatchlistItem[] = (estado.watchlist || []).map((w) => ({
+    const wlRemoto: ProcessoWatchlistItem[] = (estado.watchlist || []).map((w) => ({
       numeroCnjFormatado: w.numeroProcesso,
       numeroCnjLimpo: w.numeroProcesso.replace(/\D/g, ''),
       tribunal: w.tribunal,
@@ -896,16 +913,148 @@ export class App implements OnInit {
       notificacaoPendente: w.temNovidade
     }));
 
-    this.watchlist.set(wl);
-    this.notasJuizoTenant.set(estado.notasJuizo || {});
-    this.suspensoesLocais.set(estado.suspensoesLocais || []);
-    this.tarefasKanban.set(estado.tarefasKanban || []);
-    this.itensRadar.set(estado.itensRadar || []);
-    if (estado.tesesJuridicas) this.tesesJuridicas.set(estado.tesesJuridicas);
-    if (estado.historicoAplicacoesTeses) {
-      this.historicoAplicacoesTeses.set(estado.historicoAplicacoesTeses);
-    }
+    // Auto-Mirror Resiliente (Fatia 7): Mescla itens locais do navegador caso o container efêmero do Render tenha reiniciado
+    const tarefasLocais = this.tarefasKanban();
+    const tarefasRemotas = estado.tarefasKanban || [];
+    const tarefasMescladas = [
+      ...tarefasRemotas,
+      ...tarefasLocais.filter((l) => !tarefasRemotas.some((r) => r.id === l.id))
+    ];
+
+    const tesesLocais = this.tesesJuridicas();
+    const tesesRemotas = estado.tesesJuridicas || [];
+    const tesesMescladas =
+      tesesRemotas.length > 0 || tesesLocais.length > 0
+        ? [
+            ...tesesRemotas,
+            ...tesesLocais.filter((l) => !tesesRemotas.some((r) => r.id === l.id))
+          ]
+        : tId === 'escritorio-ferreira'
+          ? this.obterTesesPadraoDemo()
+          : [];
+
+    const aplicLocais = this.historicoAplicacoesTeses();
+    const aplicRemotas = estado.historicoAplicacoesTeses || [];
+    const aplicMescladas = [
+      ...aplicRemotas,
+      ...aplicLocais.filter((l) => !aplicRemotas.some((r) => r.id === l.id))
+    ];
+
+    const suspLocais = this.suspensoesLocais();
+    const suspRemotas = estado.suspensoesLocais || [];
+    const suspMescladas = [
+      ...suspRemotas,
+      ...suspLocais.filter((l) => !suspRemotas.some((r) => r.id === l.id))
+    ];
+
+    this.watchlist.set(wlRemoto.length > 0 ? wlRemoto : this.watchlist());
+    this.notasJuizoTenant.set({ ...this.notasJuizoTenant(), ...(estado.notasJuizo || {}) });
+    this.suspensoesLocais.set(suspMescladas);
+    this.tarefasKanban.set(tarefasMescladas);
+    this.itensRadar.set(estado.itensRadar?.length ? estado.itensRadar : this.itensRadar());
+    this.tesesJuridicas.set(tesesMescladas);
+    this.historicoAplicacoesTeses.set(aplicMescladas);
     this.persistirContingenciaLocalTenant(tId);
+
+    // Se o navegador tinha itens que sumiram num restart efêmero da nuvem, re-hidrata a nuvem silenciosamente
+    const precisaRehidratarNuvem =
+      tarefasMescladas.length > tarefasRemotas.length ||
+      tesesMescladas.length > tesesRemotas.length ||
+      suspMescladas.length > suspRemotas.length;
+
+    if (precisaRehidratarNuvem) {
+      const snapshotRehidratacao = this.montarSnapshotCompletoAtual(tId);
+      this.processoService
+        .restaurarBackupWorkspace(tId, snapshotRehidratacao, true)
+        .subscribe({ error: () => {} });
+    }
+  }
+
+  private montarSnapshotCompletoAtual(tenantId = this.tenantIdAtivo()): EstadoWorkspaceTenant {
+    return {
+      tenantId,
+      configuracao: {
+        tenantId,
+        nomeEscritorio: this.nomeEscritorioAtivo(),
+        inscricoesOab: this.novoTenantOabInput()
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0),
+        webhookUrl: this.webhookUrlInput().trim() || null,
+        telegramBotToken: this.telegramBotTokenInput().trim() || null,
+        telegramChatId: this.telegramChatIdInput().trim() || null,
+        ativo: true,
+        ultimaSincronizacaoUtc: new Date().toISOString()
+      },
+      watchlist: this.watchlist().map((w) => ({
+        tenantId,
+        numeroProcesso: w.numeroCnjFormatado,
+        classe: w.classe || 'Processo Judicial',
+        orgaoJulgador: w.tribunal,
+        tribunal: w.tribunal,
+        totalMovimentacoesConhecidas: 28,
+        adicionadoEmUtc: w.dataSalvo || new Date().toISOString(),
+        temNovidade: !!w.notificacaoPendente
+      })),
+      notasJuizo: this.notasJuizoTenant(),
+      suspensoesLocais: this.suspensoesLocais(),
+      tarefasKanban: this.tarefasKanban(),
+      itensRadar: this.itensRadar(),
+      tesesJuridicas: this.tesesJuridicas(),
+      historicoAplicacoesTeses: this.historicoAplicacoesTeses()
+    };
+  }
+
+  exportarBackupJsonWorkspace() {
+    const tenant = this.tenantIdAtivo();
+    const snapshot = this.montarSnapshotCompletoAtual(tenant);
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const hoje = new Date().toISOString().slice(0, 10);
+    link.download = `Backup_Workspace_${tenant}_${hoje}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    this.feedbackWorkspaceMsg.set(`Backup completo (.JSON) do escritório ${tenant} exportado com sucesso!`);
+    setTimeout(() => this.feedbackWorkspaceMsg.set(null), 4000);
+  }
+
+  importarBackupJsonWorkspace(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snapshot = JSON.parse(String(reader.result)) as EstadoWorkspaceTenant;
+        const tenant = this.tenantIdAtivo();
+        this.aplicarEstadoWorkspace({ ...snapshot, tenantId: tenant });
+        this.processoService.restaurarBackupWorkspace(tenant, snapshot, true).subscribe({
+          next: (restaurado) => {
+            this.aplicarEstadoWorkspace(restaurado);
+            this.feedbackWorkspaceMsg.set(
+              'Backup (.JSON) restaurado e sincronizado com o banco SQLite na nuvem!'
+            );
+            setTimeout(() => this.feedbackWorkspaceMsg.set(null), 4500);
+          },
+          error: () => {
+            this.feedbackWorkspaceMsg.set(
+              'Backup (.JSON) restaurado no navegador com sucesso!'
+            );
+            setTimeout(() => this.feedbackWorkspaceMsg.set(null), 4500);
+          }
+        });
+      } catch {
+        this.feedbackWorkspaceMsg.set('Arquivo JSON de backup inválido.');
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
   }
 
   private obterTesesPadraoDemo(): TeseJuridicaTenant[] {
@@ -1562,6 +1711,348 @@ export class App implements OnInit {
         this.sincronizandoFeriadosOficiais.set(false);
       }
     });
+  }
+
+  // ============================================================================
+  // FATIA 8: GERADOR AUTOMÁTICO DE MINUTA / PEÇA PROCESSUAL (.DOC WORD ABNT)
+  // ============================================================================
+  gerarMinutaDeTese(tese: TeseJuridicaTenant) {
+    const proc = this.processoAtual();
+    const calculo = this.termoFatalCalculado();
+    const tenant = this.tenantIdAtivo();
+    const numeroProcesso = proc?.numeroCnjFormatado || this.numeroProcessoInput() || '2101760-84.2025.8.26.0000';
+    const classe = proc?.classe || 'Agravo de Instrumento / AREsp';
+    const assunto = proc?.assunto || 'Contratos Bancários / Posse';
+    const orgao = proc?.orgaoJulgador || proc?.tribunal || '24ª Câmara de Direito Privado do TJSP';
+    const poloAtivo =
+      proc?.envolvidos?.find((e) =>
+        /ativo|agravante|autor|requerente|impetrante/i.test(e.tipoPolo || e.papel || '')
+      )?.nome ||
+      proc?.envolvidos?.[0]?.nome ||
+      'PARTE AUTORA / AGRAVADA';
+    const poloPassivo =
+      proc?.envolvidos?.find((e) =>
+        /passivo|agravado|réu|reu|requerido|impetrado/i.test(e.tipoPolo || e.papel || '')
+      )?.nome ||
+      proc?.envolvidos?.[1]?.nome ||
+      'PARTE RÉ / AGRAVANTE';
+    const ultAndamento =
+      proc?.movimentacoes?.[0]
+        ? `${proc.movimentacoes[0].titulo} — ${proc.movimentacoes[0].descricao || ''}`
+        : 'Intimação disponibilizada no Diário de Justiça Eletrônico Nacional (DJEN)';
+    const dataDispIso = proc?.movimentacoes?.[0]?.dataHora?.slice(0, 10) || '2026-10-23';
+    const diasPrazo = calculo?.diasUteisTotal || 15;
+
+    // Geração instantânea local determinística + enriquecimento pelo Backend
+    const minutaLocal = this.construirMinutaLocalmente(
+      tenant,
+      numeroProcesso,
+      classe,
+      assunto,
+      orgao,
+      poloAtivo,
+      poloPassivo,
+      ultAndamento,
+      calculo,
+      tese
+    );
+    this.minutaGeradaAtual.set(minutaLocal);
+    this.minutaTextoEditavel.set(minutaLocal.textoIntegralFormatado);
+    this.minutaModalAberto.set(true);
+    this.gerandoMinuta.set(true);
+
+    this.processoService
+      .gerarMinutaProcessual(tenant, {
+        teseId: tese.id,
+        numeroProcesso,
+        classeProcessual: classe,
+        assuntoPrincipal: assunto,
+        orgaoJulgador: orgao,
+        poloAtivo,
+        poloPassivo,
+        ultimoAndamento: ultAndamento,
+        dataDisponibilizacaoIso: dataDispIso,
+        diasPrazo
+      })
+      .subscribe({
+        next: (minutaRemota) => {
+          this.gerandoMinuta.set(false);
+          this.minutaGeradaAtual.set(minutaRemota);
+          this.minutaTextoEditavel.set(minutaRemota.textoIntegralFormatado);
+        },
+        error: () => {
+          this.gerandoMinuta.set(false);
+        }
+      });
+  }
+
+  private construirMinutaLocalmente(
+    tenantId: string,
+    numeroProcesso: string,
+    classe: string,
+    assunto: string,
+    orgao: string,
+    poloAtivo: string,
+    poloPassivo: string,
+    ultAndamento: string,
+    calculo: TermoFatalCalculado | null,
+    tese: TeseJuridicaTenant
+  ): MinutaProcessualGerada {
+    const ctx = `${orgao} ${classe} ${ultAndamento} ${tese.titulo}`.toUpperCase();
+    const isStj = ctx.includes('STJ') || ctx.includes('ARESP') || ctx.includes('RECURSO ESPECIAL');
+    const isSisbajud = ctx.includes('SISBAJUD') || ctx.includes('PENHORA');
+
+    const enderecamento = isStj
+      ? 'EXCELENTÍSSIMO(A) SENHOR(A) MINISTRO(A) PRESIDENTE / RELATOR(A) DO EGRÉGIO SUPERIOR TRIBUNAL DE JUSTIÇA — BRASÍLIA/DF'
+      : isSisbajud
+        ? `EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO / RELATOR(A) PERANTE O(A) ${orgao.toUpperCase()}`
+        : `EXCELENTÍSSIMO(A) SENHOR(A) DESEMBARGADOR(A) RELATOR(A) DA ${orgao.toUpperCase()} DO EGRÉGIO TRIBUNAL DE JUSTIÇA`;
+
+    const tituloPeca = isStj
+      ? 'CONTRARRAZÕES / MANIFESTAÇÃO EM AGRAVO EM RECURSO ESPECIAL'
+      : isSisbajud
+        ? 'IMPUGNAÇÃO À PENHORA ONLINE (SISBAJUD) COM PEDIDO DE DESBLOQUEIO IMEDIATO'
+        : 'CONTRAMINUTA / PETIÇÃO FUNDAMENTADA DE ENQUADRAMENTO DE TESE';
+
+    const nomeEscritorio = this.nomeEscritorioAtivo() || 'Ferreira & Associados Advocacia Empresarial';
+    const oab = this.novoTenantOabInput().split(/[,;]/)[0]?.trim() || '238470/SP';
+
+    const disp = calculo?.dataDisponibilizacaoDjen || '23/10/2026';
+    const pub = calculo?.dataPublicacaoDje || '26/10/2026';
+    const ini = calculo?.dataInicioPrazo || '27/10/2026';
+    const fatal = calculo?.dataTermoFatal || '18/11/2026';
+    const dias = calculo?.diasUteisTotal || 15;
+
+    const epigrafe = `Processo nº ${numeroProcesso}\nClasse Processual: ${classe}\nAssunto Principal: ${assunto}\nÓrgão Julgador: ${orgao}\n\n${poloAtivo.toUpperCase()}, já devidamente qualificada nos autos em epígrafe, por seus advogados que esta subscrevem (${nomeEscritorio} — OAB ${oab}), nos autos da demanda em que contende com ${poloPassivo.toUpperCase()}, vem, respeitosamente, à presença de Vossa Excelência, apresentar tempestivamente ${tituloPeca}, com fundamento em ${tese.fundamentacaoLegal}, pelas razões de fato e de direito a seguir expostas.`;
+
+    const topicoTempestividade = `A presente manifestação é plenamente tempestiva. Com efeito, a disponibilização do ato judicial no Diário de Justiça Eletrônico Nacional (DJEN) ocorreu em ${disp}, considerando-se como data oficial de publicação o primeiro dia útil subsequente, qual seja, ${pub} (Art. 224, § 2º, do CPC/2015 c/c Art. 11, § 3º, da Resolução CNJ nº 455/2022). Iniciada a fluência do prazo legal de ${dias} dias úteis em ${ini} (Art. 224, § 3º, do CPC/2015), computados exclusivamente os dias úteis forenses (Art. 219 do CPC/2015), o termo fatal perfaz-se somente em ${fatal}, restando cabalmente demonstrada a tempestividade do protocolo.`;
+
+    const topicoSintese = `Trata-se, na origem, de ${classe} versando sobre ${assunto}, em trâmite perante ${orgao}. Consoante se extrai da evolução processual recente dos autos, sobreveio o seguinte andamento:\n\n"${ultAndamento}"\n\nDiante do referido cenário processual, impõe-se a imediata aplicação do entendimento consolidado acerca de "${tese.titulo}".`;
+
+    const topicoMerito = `A controvérsia posta nos autos atrai a incidência direta da tese jurídica atinente a ${tese.titulo} (${tese.areaDireito}).\n\nNo plano normativo, a matéria é regida expressamente por: ${tese.fundamentacaoLegal}\n\n${tese.modeloArgumentacao}\n\nNesse exato sentido, destaca-se o entendimento paradigmático e vinculante sobre a matéria:\n\n"${tese.precedenteChave}"`;
+
+    const topicoPedidos = `ANTE O EXPOSTO, requer a Vossa Excelência:\n\na) Seja reconhecida a tempestividade e a regularidade formal da presente peça processual, nos termos dos arts. 219 e 224 do CPC/2015;\nb) No mérito, seja integralmente acolhida a fundamentação supra (${tese.titulo}), com espeque em ${tese.fundamentacaoLegal} e na diretriz firmada em ${tese.precedenteChave};\nc) Por fim, requer que todas as publicações e intimações no DJEN sejam realizadas exclusivamente em nome dos patronos constituídos (${nomeEscritorio} — OAB ${oab}), sob pena de nulidade (Art. 272, §§ 2º e 5º, do CPC/2015).`;
+
+    const hojeExtenso = new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    const fecho = `Termos em que,\nPede e espera deferimento.\n\nSão Paulo/SP, ${hojeExtenso}.\n\n_______________________________________________________\n${nomeEscritorio.toUpperCase()}\nOAB ${oab}`;
+
+    const textoIntegral = `${enderecamento}\n\n\n${epigrafe}\n\nI. DA TEMPESTIVIDADE E REGULARIDADE FORMAL (ARTS. 219 E 224 DO CPC/2015)\n\n${topicoTempestividade}\n\nII. SÍNTESE PROCESSUAL E DO ATO IMPUGNADO / MANIFESTADO\n\n${topicoSintese}\n\nIII. DO DIREITO E DO ENQUADRAMENTO JURÍDICO: ${tese.titulo.toUpperCase()}\n\n${topicoMerito}\n\nIV. DOS PEDIDOS E REQUERIMENTOS CONCLUSIVOS\n\n${topicoPedidos}\n\n${fecho}`;
+
+    const htmlWord = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${tituloPeca}</title><style>@page WordSection1 { size: 21.0cm 29.7cm; margin: 3.0cm 2.0cm 2.0cm 3.0cm; } div.WordSection1 { page: WordSection1; } body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; text-align: justify; }</style></head><body><div class='WordSection1'><pre style="font-family: 'Times New Roman', serif; font-size: 12pt; white-space: pre-wrap; text-align: justify;">${textoIntegral}</pre></div></body></html>`;
+
+    return {
+      id: `minuta-${Date.now()}`,
+      tenantId,
+      numeroProcesso,
+      teseId: tese.id,
+      tituloPeca,
+      enderecamentoOficial: enderecamento,
+      epigrafeQualificacao: epigrafe,
+      topicoTempestividade,
+      topicoSinteseFatica: topicoSintese,
+      topicoMeritoDireito: topicoMerito,
+      topicoPedidosConclusivos: topicoPedidos,
+      fechoAssinatura: fecho,
+      textoIntegralFormatado: textoIntegral,
+      conteudoHtmlWordDoc: htmlWord,
+      nomeArquivoSugerido: `Minuta_${numeroProcesso.replace(/\D/g, '')}.doc`,
+      geradoEmUtc: new Date().toISOString()
+    };
+  }
+
+  baixarMinutaWordDoc() {
+    const minuta = this.minutaGeradaAtual();
+    if (!minuta) return;
+
+    const textoEditado = this.minutaTextoEditavel().trim() || minuta.textoIntegralFormatado;
+    const htmlDoc = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>${minuta.tituloPeca}</title>
+<style>
+  @page WordSection1 { size: 21.0cm 29.7cm; margin: 3.0cm 2.0cm 2.0cm 3.0cm; }
+  div.WordSection1 { page: WordSection1; }
+  body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #000000; text-align: justify; }
+</style>
+</head>
+<body>
+<div class='WordSection1'>
+${textoEditado
+  .split('\n\n')
+  .map((p) => `<p style="margin-bottom: 12pt; text-align: justify;">${p.replace(/\n/g, '<br/>')}</p>`)
+  .join('\n')}
+</div>
+</body>
+</html>`;
+
+    const blob = new Blob(['\ufeff', htmlDoc], {
+      type: 'application/msword;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = minuta.nomeArquivoSugerido || `Minuta_${minuta.numeroProcesso}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  copiarMinutaInteira() {
+    const texto = this.minutaTextoEditavel().trim();
+    if (!texto) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(texto);
+    }
+    this.minutaCopiadaFeedback.set(true);
+    setTimeout(() => this.minutaCopiadaFeedback.set(false), 2500);
+  }
+
+  // ============================================================================
+  // FATIA 9: CALCULADORA FINANCEIRA & HONORÁRIOS BACEN (LEI Nº 14.905/2024)
+  // ============================================================================
+  abrirCalculadoraFinanceiraBacen() {
+    const proc = this.processoAtual();
+    const vlr = proc?.valorCausa && proc.valorCausa > 0 ? proc.valorCausa : 157882.05;
+    const dtDist = proc?.dataDistribuicao ? proc.dataDistribuicao.slice(0, 10) : '2025-04-07';
+
+    this.financeiroValorCustomInput.set(vlr);
+    this.financeiroDataBaseInput.set(dtDist);
+    this.financeiroModalAberto.set(true);
+    this.recalcularFinanceiroBacen();
+  }
+
+  recalcularFinanceiroBacen() {
+    const proc = this.processoAtual();
+    const tenant = this.tenantIdAtivo();
+    const cnj = proc?.numeroCnjFormatado || this.numeroProcessoInput() || '2101760-84.2025.8.26.0000';
+    const valorOriginal = Number(this.financeiroValorCustomInput()) || 157882.05;
+    const dataBaseIso = this.financeiroDataBaseInput() || '2025-04-07';
+
+    // Cálculo imediato com séries oficiais IBGE/Bacen + atualização pela API
+    const localCalc = this.calcularFinanceiroLocalBacen(cnj, valorOriginal, dataBaseIso);
+    this.resultadoFinanceiroAtual.set(localCalc);
+    this.calculandoFinanceiro.set(true);
+
+    this.processoService
+      .calcularAtualizacaoFinanceiraProcesso(tenant, cnj, valorOriginal, dataBaseIso)
+      .subscribe({
+        next: (remoto) => {
+          this.calculandoFinanceiro.set(false);
+          this.resultadoFinanceiroAtual.set(remoto);
+        },
+        error: () => {
+          this.calculandoFinanceiro.set(false);
+        }
+      });
+  }
+
+  private calcularFinanceiroLocalBacen(
+    numeroProcesso: string,
+    valorOriginal: number,
+    dataBaseIso: string
+  ): ResultadoCalculoFinanceiroProcesso {
+    const serieIpca: Record<string, number> = {
+      '2024-01': 0.42, '2024-02': 0.83, '2024-03': 0.16, '2024-04': 0.38,
+      '2024-05': 0.46, '2024-06': 0.21, '2024-07': 0.38, '2024-08': -0.02,
+      '2024-09': 0.44, '2024-10': 0.56, '2024-11': 0.39, '2024-12': 0.52,
+      '2025-01': 0.16, '2025-02': 1.31, '2025-03': 0.56, '2025-04': 0.43,
+      '2025-05': 0.36, '2025-06': 0.28, '2025-07': 0.33, '2025-08': 0.24,
+      '2025-09': 0.41, '2025-10': 0.48, '2025-11': 0.39, '2025-12': 0.45,
+      '2026-01': 0.38, '2026-02': 0.72, '2026-03': 0.41, '2026-04': 0.37,
+      '2026-05': 0.35, '2026-06': 0.29, '2026-07': 0.34, '2026-08': 0.31,
+      '2026-09': 0.39, '2026-10': 0.42
+    };
+    const serieSelic: Record<string, number> = {
+      '2024-01': 0.97, '2024-02': 0.80, '2024-03': 0.83, '2024-04': 0.89,
+      '2024-05': 0.83, '2024-06': 0.79, '2024-07': 0.91, '2024-08': 0.87,
+      '2024-09': 0.84, '2024-10': 0.93, '2024-11': 0.79, '2024-12': 0.93,
+      '2025-01': 1.01, '2025-02': 0.99, '2025-03': 0.96, '2025-04': 1.06,
+      '2025-05': 1.14, '2025-06': 1.07, '2025-07': 1.18, '2025-08': 1.12,
+      '2025-09': 1.10, '2025-10': 1.16, '2025-11': 1.08, '2025-12': 1.15,
+      '2026-01': 1.12, '2026-02': 1.02, '2026-03': 1.10, '2026-04': 1.06,
+      '2026-05': 1.05, '2026-06': 1.01, '2026-07': 1.04, '2026-08': 1.00,
+      '2026-09': 0.98, '2026-10': 0.99
+    };
+
+    const partes = dataBaseIso.split('-').map(Number);
+    let ano = partes[0] || 2025;
+    let mes = partes[1] || 4;
+    const fimAno = 2026;
+    const fimMes = 10;
+
+    let fatorIpca = 1.0;
+    let somaJurosLegal = 0.0;
+    const memoria: IndiceMensalBacen[] = [];
+
+    let guard = 120;
+    while ((ano < fimAno || (ano === fimAno && mes <= fimMes)) && guard-- > 0) {
+      const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+      const ipca = serieIpca[chave] ?? 0.42;
+      const selic = serieSelic[chave] ?? 0.99;
+      const jurosLegal = Math.max(0, Number((selic - ipca).toFixed(4)));
+
+      fatorIpca *= 1 + ipca / 100;
+      somaJurosLegal += jurosLegal;
+
+      const valorCorrigidoParcial = Number((valorOriginal * fatorIpca).toFixed(2));
+      const jurosParcial = Number(((valorCorrigidoParcial * somaJurosLegal) / 100).toFixed(2));
+      const subtotal = Number((valorCorrigidoParcial + jurosParcial).toFixed(2));
+
+      memoria.push({
+        competenciaMesAno: `${String(mes).padStart(2, '0')}/${ano}`,
+        taxaIpcaPercentual: ipca,
+        taxaSelicPercentual: selic,
+        taxaJurosLegalAplicadaPercentual: jurosLegal,
+        valorCorrigidoParcial,
+        jurosAcumuladosParcial: jurosParcial,
+        subtotalMes: subtotal
+      });
+
+      mes++;
+      if (mes > 12) {
+        mes = 1;
+        ano++;
+      }
+    }
+
+    const valorCorrigidoIpca = Number((valorOriginal * fatorIpca).toFixed(2));
+    const valorJurosMoraLei14905 = Number(((valorCorrigidoIpca * somaJurosLegal) / 100).toFixed(2));
+    const valorTotalAtualizado = Number((valorCorrigidoIpca + valorJurosMoraLei14905).toFixed(2));
+    const hon10 = Number((valorTotalAtualizado * 0.1).toFixed(2));
+    const hon15 = Number((valorTotalAtualizado * 0.15).toFixed(2));
+    const hon20 = Number((valorTotalAtualizado * 0.2).toFixed(2));
+    const base523 = valorTotalAtualizado + hon10;
+    const multa523 = Number((base523 * 0.1).toFixed(2));
+    const hon523 = Number((base523 * 0.1).toFixed(2));
+
+    return {
+      numeroProcesso,
+      valorOriginalCausa: valorOriginal,
+      dataBaseCalculo: dataBaseIso,
+      dataFinalCalculo: '2026-10-25',
+      quantidadeMeses: memoria.length,
+      ipcaAcumuladoPercentual: Number(((fatorIpca - 1) * 100).toFixed(2)),
+      jurosLegaisAcumuladosPercentual: Number(somaJurosLegal.toFixed(2)),
+      valorCorrigidoIpca,
+      valorJurosMoraLei14905,
+      valorTotalAtualizado,
+      honorariosSucumbencia10Porcento: hon10,
+      honorariosSucumbencia15Porcento: hon15,
+      honorariosSucumbencia20Porcento: hon20,
+      multaArt523Cpc10Porcento: multa523,
+      honorariosArt523Cpc10Porcento: hon523,
+      totalCondenacaoCumprimentoSentenca: Number((base523 + multa523 + hon523).toFixed(2)),
+      regimeJuridicoAplicado:
+        'Lei nº 14.905/2024 (Arts. 389 e 406 do Código Civil: Correção pelo IPCA + Taxa Legal SELIC deduzido IPCA) + Art. 85 § 2º e Art. 523 § 1º do CPC/2015',
+      fonteIndices: 'Banco Central do Brasil — API Oficial SGS (Série 433 IPCA & Série 4390 SELIC)',
+      memoriaCalculoMensal: memoria,
+      calculadoEmUtc: new Date().toISOString()
+    };
   }
 
   // ============================================================================

@@ -612,13 +612,22 @@
                   <div class="val">{{ proc.assunto || 'Não especificado na consulta pública' }}</div>
                 </div>
                 <div class="capa-cell">
-                  <label>Valor da Causa (Atribuído)</label>
-                  <div class="val highlight-gold">
-                    @if (proc.valorCausa !== null && proc.valorCausa !== undefined) {
-                      {{ proc.valorCausa | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
-                    } @else {
-                      <span style="color: #94a3b8; font-weight: 500;">Não informado pela fonte pública</span>
-                    }
+                  <label>Valor da Causa & Liquidação (Lei 14.905/2024)</label>
+                  <div class="val highlight-gold" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                      @if (proc.valorCausa !== null && proc.valorCausa !== undefined) {
+                        {{ proc.valorCausa | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+                      } @else {
+                        <span style="color: #94a3b8; font-weight: 500;">Não informado pela fonte pública</span>
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      (click)="abrirCalculadoraFinanceiraBacen()"
+                      style="padding: 4px 10px; border-radius: 6px; background: rgba(245, 158, 11, 0.22); border: 1px solid rgba(245, 158, 11, 0.55); color: #fcd34d; font-size: 0.74rem; font-weight: 700; cursor: pointer;"
+                    >
+                      💰 Atualizar IPCA/SELIC (Bacen) + Honorários
+                    </button>
                   </div>
                 </div>
                 <div class="capa-cell">
@@ -1443,6 +1452,13 @@
                         </button>
                         <button
                           type="button"
+                          (click)="gerarMinutaDeTese(rec.tese)"
+                          style="padding: 7px 14px; border-radius: 8px; background: rgba(139, 92, 246, 0.26); border: 1px solid rgba(139, 92, 246, 0.6); color: #ddd6fe; font-size: 0.8rem; font-weight: 700; cursor: pointer;"
+                        >
+                          📄 Gerar Peça / Minuta Pronta (.DOC Word)
+                        </button>
+                        <button
+                          type="button"
                           (click)="copiarModeloArgumentacaoTese(rec.tese)"
                           style="padding: 7px 14px; border-radius: 8px; background: rgba(59, 130, 246, 0.18); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; font-size: 0.8rem; font-weight: 600; cursor: pointer;"
                         >
@@ -2143,16 +2159,38 @@
             </div>
           }
 
-          <div style="display: flex; justify-content: flex-end; gap: 10px;">
-            <button
-              type="button"
-              (click)="salvarConfiguracaoWorkspace()"
-              [disabled]="salvandoConfigWorkspace()"
-              style="padding: 8px 16px; border-radius: 8px; background: #10b981; border: none; color: #052e16; font-weight: 700; font-size: 0.82rem; cursor: pointer;"
-            >
-              Salvar Configurações do Tenant
-            </button>
-            <button class="btn-close-modal" (click)="modalWorkspaceAberto.set(false)" type="button">Fechar</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <button
+                type="button"
+                (click)="exportarBackupJsonWorkspace()"
+                style="padding: 8px 14px; border-radius: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.5); color: #93c5fd; font-weight: 700; font-size: 0.78rem; cursor: pointer;"
+              >
+                💾 Exportar Backup Completo (.JSON)
+              </button>
+              <label
+                style="padding: 8px 14px; border-radius: 8px; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.5); color: #ddd6fe; font-weight: 700; font-size: 0.78rem; cursor: pointer; display: inline-flex; align-items: center;"
+              >
+                📂 Restaurar Backup (.JSON)
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  (change)="importarBackupJsonWorkspace($event)"
+                  style="display: none;"
+                />
+              </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button
+                type="button"
+                (click)="salvarConfiguracaoWorkspace()"
+                [disabled]="salvandoConfigWorkspace()"
+                style="padding: 8px 16px; border-radius: 8px; background: #10b981; border: none; color: #052e16; font-weight: 700; font-size: 0.82rem; cursor: pointer;"
+              >
+                Salvar Configurações do Tenant
+              </button>
+              <button class="btn-close-modal" (click)="modalWorkspaceAberto.set(false)" type="button">Fechar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2261,6 +2299,184 @@
 
         <div class="modal-footer-actions" style="margin-top: 12px;">
           <button class="btn-close-modal" (click)="fichaPatrimonialAberta.set(false)" type="button">Fechar Ficha Patrimonial</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL DE GERADOR DE MINUTA / PEÇA PROCESSUAL CONTEXTUALIZADA (.DOC WORD ABNT/FORENSE) -->
+  @if (minutaModalAberto() && minutaGeradaAtual(); as minuta) {
+    <div class="modal-backdrop animate-fade-in" (click)="minutaModalAberto.set(false)">
+      <div class="magistrado-modal-card animate-slide-up" style="max-width: 860px;" (click)="$event.stopPropagation()">
+        <div class="modal-close-header">
+          <span class="modal-badge-court">📄 MINUTA PROCESSUAL CONTEXTUALIZADA (.DOC WORD ABNT/FORENSE)</span>
+          <button class="close-btn" (click)="minutaModalAberto.set(false)" type="button">✕</button>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <h4 style="color: #f8fafc; margin: 0 0 4px;">{{ minuta.tituloPeca }}</h4>
+          <span style="font-size: 0.78rem; color: #93c5fd;">
+            Processo: <strong>{{ minuta.numeroProcesso }}</strong> • Tempestividade calculada automaticamente pelo CPC/2015 + Res. CNJ 455/2022
+          </span>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 0.76rem; color: #94a3b8; margin-bottom: 6px;">
+            Você pode revisar ou complementar o texto abaixo antes de exportar para o Microsoft Word (`.doc`):
+          </label>
+          <textarea
+            [ngModel]="minutaTextoEditavel()"
+            (ngModelChange)="minutaTextoEditavel.set($event)"
+            rows="16"
+            style="width: 100%; padding: 14px; border-radius: 10px; background: #0f172a; border: 1px solid rgba(139, 92, 246, 0.45); color: #f8fafc; font-family: 'Georgia', 'Times New Roman', serif; font-size: 0.86rem; line-height: 1.55;"
+          ></textarea>
+        </div>
+
+        <div class="modal-footer-actions" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button
+              type="button"
+              (click)="baixarMinutaWordDoc()"
+              style="padding: 9px 18px; border-radius: 8px; background: #7c3aed; border: none; color: #fff; font-weight: 700; font-size: 0.84rem; cursor: pointer;"
+            >
+              📥 Baixar Peça Pronta no Word (.DOC ABNT)
+            </button>
+            <button
+              type="button"
+              (click)="copiarMinutaInteira()"
+              style="padding: 9px 16px; border-radius: 8px; background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; font-weight: 700; font-size: 0.84rem; cursor: pointer;"
+            >
+              {{ minutaCopiadaFeedback() ? '✓ Peça Copiada para a Área de Transferência!' : '📋 Copiar Peça Inteira' }}
+            </button>
+          </div>
+          <button class="btn-close-modal" (click)="minutaModalAberto.set(false)" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL DE LIQUIDAÇÃO PRELIMINAR, ATUALIZAÇÃO MONETÁRIA & HONORÁRIOS (BACEN + LEI 14.905/2024) -->
+  @if (financeiroModalAberto() && resultadoFinanceiroAtual(); as fin) {
+    <div class="modal-backdrop animate-fade-in" (click)="financeiroModalAberto.set(false)">
+      <div class="magistrado-modal-card animate-slide-up" style="max-width: 880px;" (click)="$event.stopPropagation()">
+        <div class="modal-close-header">
+          <span class="modal-badge-court">💰 LIQUIDAÇÃO PRELIMINAR & EXPOSIÇÃO FINANCEIRA (BACEN SGS + LEI Nº 14.905/2024)</span>
+          <button class="close-btn" (click)="financeiroModalAberto.set(false)" type="button">✕</button>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255,255,255,0.1);">
+          <div style="flex: 1; min-width: 180px;">
+            <label style="display: block; font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px;">Valor Base / Histórico (R$):</label>
+            <input
+              type="number"
+              step="0.01"
+              [ngModel]="financeiroValorCustomInput()"
+              (ngModelChange)="financeiroValorCustomInput.set($event)"
+              style="width: 100%; padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #fcd34d; font-weight: 700; font-size: 0.85rem;"
+            />
+          </div>
+          <div style="flex: 1; min-width: 160px;">
+            <label style="display: block; font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px;">Termo Inicial (Ajuizamento / Vencimento):</label>
+            <input
+              type="date"
+              [ngModel]="financeiroDataBaseInput()"
+              (ngModelChange)="financeiroDataBaseInput.set($event)"
+              style="width: 100%; padding: 7px 10px; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.18); color: #f8fafc; font-size: 0.84rem;"
+            />
+          </div>
+          <button
+            type="button"
+            (click)="recalcularFinanceiroBacen()"
+            style="padding: 8px 16px; border-radius: 6px; background: #f59e0b; border: none; color: #0f172a; font-weight: 800; font-size: 0.82rem; cursor: pointer;"
+          >
+            🔄 Recalcular Índices Bacen
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px;">
+          <div style="padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.1);">
+            <span style="font-size: 0.73rem; color: #94a3b8;">Valor Histórico ({{ fin.quantidadeMeses }} meses)</span>
+            <strong style="display: block; color: #f8fafc; font-size: 1.05rem; margin-top: 4px;">
+              {{ fin.valorOriginalCausa | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            </strong>
+          </div>
+          <div style="padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(59, 130, 246, 0.35);">
+            <span style="font-size: 0.73rem; color: #93c5fd;">Corrigido pelo IPCA (+{{ fin.ipcaAcumuladoPercentual }}%)</span>
+            <strong style="display: block; color: #93c5fd; font-size: 1.05rem; margin-top: 4px;">
+              {{ fin.valorCorrigidoIpca | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            </strong>
+          </div>
+          <div style="padding: 12px; border-radius: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(245, 158, 11, 0.4);">
+            <span style="font-size: 0.73rem; color: #fcd34d;">Juros Taxa Legal (+{{ fin.jurosLegaisAcumuladosPercentual }}%)</span>
+            <strong style="display: block; color: #fcd34d; font-size: 1.05rem; margin-top: 4px;">
+              {{ fin.valorJurosMoraLei14905 | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            </strong>
+          </div>
+          <div style="padding: 12px; border-radius: 10px; background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(16, 185, 129, 0.55);">
+            <span style="font-size: 0.73rem; color: #6ee7b7;">VALOR ATUALIZADO HOJE</span>
+            <strong style="display: block; color: #6ee7b7; font-size: 1.15rem; margin-top: 4px;">
+              {{ fin.valorTotalAtualizado | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            </strong>
+          </div>
+        </div>
+
+        <!-- SIMULADOR DE HONORÁRIOS (ART. 85 CPC) E CUMPRIMENTO DE SENTENÇA (ART. 523 §1º CPC) -->
+        <div style="padding: 12px; border-radius: 10px; background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(139, 92, 246, 0.35); margin-bottom: 14px;">
+          <h5 style="color: #f8fafc; margin: 0 0 8px; font-size: 0.86rem;">⚖️ Simulador de Sucumbência (Art. 85, § 2º CPC) & Risco em Cumprimento de Sentença (Art. 523, § 1º CPC)</h5>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 0.8rem;">
+            <div>
+              <span style="color: #94a3b8;">Honorários Mínimos (10%):</span><br>
+              <strong style="color: #c4b5fd;">{{ fin.honorariosSucumbencia10Porcento | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</strong>
+            </div>
+            <div>
+              <span style="color: #94a3b8;">Honorários Médios (15%):</span><br>
+              <strong style="color: #c4b5fd;">{{ fin.honorariosSucumbencia15Porcento | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</strong>
+            </div>
+            <div>
+              <span style="color: #94a3b8;">Honorários Máximos (20%):</span><br>
+              <strong style="color: #c4b5fd;">{{ fin.honorariosSucumbencia20Porcento | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</strong>
+            </div>
+            <div>
+              <span style="color: #fca5a5;">Total c/ Multa + Hon. Art. 523 CPC:</span><br>
+              <strong style="color: #fca5a5;">{{ fin.totalCondenacaoCumprimentoSentenca | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- MEMÓRIA DE CÁLCULO AUDITÁVEL MÊS A MÊS -->
+        <div style="max-height: 220px; overflow-y: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.76rem; color: #cbd5e1;">
+            <thead>
+              <tr style="background: #0f172a; color: #93c5fd; text-align: left;">
+                <th style="padding: 8px;">Competência</th>
+                <th style="padding: 8px;">IPCA (IBGE)</th>
+                <th style="padding: 8px;">SELIC (Bacen)</th>
+                <th style="padding: 8px;">Taxa Legal (Lei 14.905)</th>
+                <th style="padding: 8px;">Principal Corrigido</th>
+                <th style="padding: 8px;">Subtotal c/ Juros</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of fin.memoriaCalculoMensal; track m.competenciaMesAno) {
+                <tr style="border-top: 1px solid rgba(255,255,255,0.06);">
+                  <td style="padding: 6px 8px; font-weight: 600;">{{ m.competenciaMesAno }}</td>
+                  <td style="padding: 6px 8px;">{{ m.taxaIpcaPercentual }}%</td>
+                  <td style="padding: 6px 8px;">{{ m.taxaSelicPercentual }}%</td>
+                  <td style="padding: 6px 8px; color: #fcd34d;">+{{ m.taxaJurosLegalAplicadaPercentual }}%</td>
+                  <td style="padding: 6px 8px;">{{ m.valorCorrigidoParcial | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</td>
+                  <td style="padding: 6px 8px; color: #6ee7b7; font-weight: 700;">{{ m.subtotalMes | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div style="font-size: 0.73rem; color: #94a3b8; margin-bottom: 10px;">
+          <strong>Base Normativa & Fonte Oficial:</strong> {{ fin.regimeJuridicoAplicado }} • {{ fin.fonteIndices }}
+        </div>
+
+        <div class="modal-footer-actions">
+          <button class="btn-close-modal" (click)="financeiroModalAberto.set(false)" type="button">Fechar Memória de Cálculo</button>
         </div>
       </div>
     </div>

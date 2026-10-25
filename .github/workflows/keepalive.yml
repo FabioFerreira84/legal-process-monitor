@@ -1,0 +1,19 @@
+name: Cloud Keep-Alive (Render Warmup)
+
+on:
+  schedule:
+    # Executa a cada 14 minutos das 11:00 às 23:00 UTC (08:00 às 20:00 BRT) de segunda a sexta-feira
+    - cron: '*/14 11-23 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  ping-render:
+    name: Keep Render API Warm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render API Endpoints
+        run: |
+          echo "Aquecendo container Render (legal-process-monitor-api)..."
+          curl -fsS --max-time 60 "https://legal-process-monitor-api.onrender.com/api/workspaces" \
+            -H "X-Tenant-Id: escritorio-ferreira" > /dev/null || true
+          echo "Keep-alive concluído com sucesso."

@@ -164,6 +164,55 @@ public sealed record FichaPatrimonialParte(
     string FonteDados,
     DateTime ConsultadoEmUtc);
 
+public sealed record MinutaProcessualGerada(
+    string Id,
+    string TenantId,
+    string NumeroProcesso,
+    string TeseId,
+    string TituloPeca,
+    string EnderecamentoOficial,
+    string EpigrafeQualificacao,
+    string TopicoTempestividade,
+    string TopicoSinteseFatica,
+    string TopicoMeritoDireito,
+    string TopicoPedidosConclusivos,
+    string FechoAssinatura,
+    string TextoIntegralFormatado,
+    string ConteudoHtmlWordDoc,
+    string NomeArquivoSugerido,
+    DateTime GeradoEmUtc);
+
+public sealed record IndiceMensalBacen(
+    string CompetenciaMesAno,
+    decimal TaxaIpcaPercentual,
+    decimal TaxaSelicPercentual,
+    decimal TaxaJurosLegalAplicadaPercentual,
+    decimal ValorCorrigidoParcial,
+    decimal JurosAcumuladosParcial,
+    decimal SubtotalMes);
+
+public sealed record ResultadoCalculoFinanceiroProcesso(
+    string NumeroProcesso,
+    decimal ValorOriginalCausa,
+    DateOnly DataBaseCalculo,
+    DateOnly DataFinalCalculo,
+    int QuantidadeMeses,
+    decimal IpcaAcumuladoPercentual,
+    decimal JurosLegaisAcumuladosPercentual,
+    decimal ValorCorrigidoIpca,
+    decimal ValorJurosMoraLei14905,
+    decimal ValorTotalAtualizado,
+    decimal HonorariosSucumbencia10Porcento,
+    decimal HonorariosSucumbencia15Porcento,
+    decimal HonorariosSucumbencia20Porcento,
+    decimal MultaArt523Cpc10Porcento,
+    decimal HonorariosArt523Cpc10Porcento,
+    decimal TotalCondenacaoCumprimentoSentenca,
+    string RegimeJuridicoAplicado,
+    string FonteIndices,
+    IReadOnlyList<IndiceMensalBacen> MemoriaCalculoMensal,
+    DateTime CalculadoEmUtc);
+
 public sealed record EstadoWorkspaceTenant(
     string TenantId,
     ConfigRadarOab Configuracao,

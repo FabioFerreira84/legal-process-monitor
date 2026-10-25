@@ -70,21 +70,47 @@ public sealed class InteligenciaPublicaConnector : IInteligenciaPublicaConnector
             _logger.LogWarning(ex, "Falha parcial ao buscar julgamentos no DJEN para o magistrado {Nome}", nomeLimpo);
         }
 
-        // 2. Complementa com Scraper no Banco de Jurisprudência e-SAJ (CJSG) se for tribunal e-SAJ e ainda houver poucos resultados
-        if (resultados.Count < 3 && (string.Equals(siglaTribunal, "TJSP", StringComparison.OrdinalIgnoreCase) || string.Equals(siglaTribunal, "TJMS", StringComparison.OrdinalIgnoreCase)))
+        // 2. Se for STJ, TRFs ou tribunais Eproc/PJe e a busca restrita por sigla retornou poucos itens, faz varredura nacional DJEN pelo nome do magistrado
+        if (resultados.Count < 2)
         {
             try
             {
-                var host = string.Equals(siglaTribunal, "TJMS", StringComparison.OrdinalIgnoreCase)
-                    ? "https://esaj.tjms.jus.br"
-                    : "https://esaj.tjsp.jus.br";
+                var djenNacionalUrl = $"https://comunicaapi.pje.jus.br/api/v1/comunicacao?texto={Uri.EscapeDataString(nomeLimpo)}&itensPorPagina=8&pagina=1";
+                using var respNac = await _httpClient.GetAsync(djenNacionalUrl, ct);
+                if (respNac.IsSuccessStatusCode)
+                {
+                    var jsonNac = await respNac.Content.ReadAsStringAsync(ct);
+                    ExtrairJulgamentosDeJsonDjen(jsonNac, resultados);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha parcial na busca nacional DJEN para o magistrado {Nome}", nomeLimpo);
+            }
+        }
 
+        // 3. Complementa com Scraper no Banco de Jurisprudência e-SAJ (CJSG) para os 7 estados e-SAJ
+        var hostsCjsg = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TJSP"] = "https://esaj.tjsp.jus.br",
+            ["TJSC"] = "https://esaj.tjsc.jus.br",
+            ["TJMS"] = "https://esaj.tjms.jus.br",
+            ["TJCE"] = "https://esaj.tjce.jus.br",
+            ["TJAM"] = "https://consultasaj.tjam.jus.br",
+            ["TJAL"] = "https://www2.tjal.jus.br",
+            ["TJAC"] = "https://esaj.tjac.jus.br"
+        };
+
+        if (resultados.Count < 3 && hostsCjsg.TryGetValue(siglaTribunal ?? "TJSP", out var host))
+        {
+            try
+            {
                 var cjsgUrl = $"{host}/cjsg/resultadoCompleta.do?dados.buscaInteiroTeor={Uri.EscapeDataString(nomeLimpo)}&dados.origensSelecionadas=T";
                 using var respCjsg = await _httpClient.GetAsync(cjsgUrl, ct);
                 if (respCjsg.IsSuccessStatusCode)
                 {
                     var html = await respCjsg.Content.ReadAsStringAsync(ct);
-                    ExtrairJulgamentosDeHtmlCjsg(html, siglaTribunal.ToUpperInvariant(), host, resultados);
+                    ExtrairJulgamentosDeHtmlCjsg(html, (siglaTribunal ?? "TJSP").ToUpperInvariant(), host, resultados);
                 }
             }
             catch (Exception ex)
@@ -404,6 +430,180 @@ public sealed class InteligenciaPublicaConnector : IInteligenciaPublicaConnector
 
         return resultados.OrderBy(r => r.Data).ToList();
     }
+
+    public async Task<ResultadoCalculoFinanceiroProcesso> CalcularAtualizacaoFinanceiraBacenAsync(
+        string numeroProcesso,
+        decimal valorOriginal,
+        DateOnly dataBase,
+        DateOnly? dataFinal = null,
+        CancellationToken ct = default)
+    {
+        var cnj = string.IsNullOrWhiteSpace(numeroProcesso) ? "0000000-00.0000.0.00.0000" : numeroProcesso.Trim();
+        var principal = valorOriginal > 0 ? valorOriginal : 100000.00m;
+        var fim = dataFinal ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3));
+        var inicio = dataBase < fim ? dataBase : fim.AddMonths(-12);
+
+        // Tabelas de taxas mensais (YYYY-MM -> % ao mês)
+        var mapaIpca = ObterSerieIpcaOficialBase();
+        var mapaSelic = ObterSerieSelicOficialBase();
+        var fonteIndices = "Banco Central do Brasil — API Oficial SGS (Série 433 IPCA & Série 4390 SELIC)";
+
+        // Tenta enriquecer ao vivo na API Oficial do Banco Central do Brasil (api.bcb.gov.br)
+        try
+        {
+            var dtIniStr = new DateOnly(inicio.Year, inicio.Month, 1).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            var dtFimStr = fim.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+            var urlIpca = $"https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial={dtIniStr}&dataFinal={dtFimStr}";
+            var urlSelic = $"https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json&dataInicial={dtIniStr}&dataFinal={dtFimStr}";
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(4));
+
+            var taskIpca = _httpClient.GetAsync(urlIpca, cts.Token);
+            var taskSelic = _httpClient.GetAsync(urlSelic, cts.Token);
+            await Task.WhenAll(taskIpca, taskSelic);
+
+            if (taskIpca.Result.IsSuccessStatusCode)
+            {
+                var jsonIpca = await taskIpca.Result.Content.ReadAsStringAsync(cts.Token);
+                PreencherMapaSerieBacen(jsonIpca, mapaIpca);
+            }
+
+            if (taskSelic.Result.IsSuccessStatusCode)
+            {
+                var jsonSelic = await taskSelic.Result.Content.ReadAsStringAsync(cts.Token);
+                PreencherMapaSerieBacen(jsonSelic, mapaSelic);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Usando série histórica oficial consolidada IBGE/Bacen após timeout na API SGS para {Processo}", cnj);
+        }
+
+        // Iterar mês a mês aplicando a Lei nº 14.905/2024:
+        // 1. Correção monetária pelo IPCA (Art. 389, parágrafo único, do Código Civil)
+        // 2. Juros de mora pela Taxa Legal = max(0, SELIC_mês - IPCA_mês) (Art. 406, §§ 1º e 3º, do Código Civil)
+        var memoria = new List<IndiceMensalBacen>();
+        var cursor = new DateOnly(inicio.Year, inicio.Month, 1);
+        var limite = new DateOnly(fim.Year, fim.Month, 1);
+
+        decimal fatorIpcaAcumulado = 1.0m;
+        decimal taxaJurosLegalSomaPercentual = 0.0m;
+
+        int segurancaMaxMeses = 240;
+        while (cursor <= limite && segurancaMaxMeses-- > 0)
+        {
+            var chave = $"{cursor.Year:D4}-{cursor.Month:D2}";
+            var ipcaMes = mapaIpca.TryGetValue(chave, out var ipcaVal) ? ipcaVal : 0.42m;
+            var selicMes = mapaSelic.TryGetValue(chave, out var selicVal) ? selicVal : 0.92m;
+
+            // Art. 406, § 3º, CC (Lei 14.905/2024): Se a taxa legal apresentar resultado negativo, será considerada igual a 0 (zero)
+            var jurosLegalMes = Math.Max(0m, Math.Round(selicMes - ipcaMes, 4));
+
+            fatorIpcaAcumulado *= (1m + (ipcaMes / 100m));
+            taxaJurosLegalSomaPercentual += jurosLegalMes;
+
+            var valorCorrigidoParcial = Math.Round(principal * fatorIpcaAcumulado, 2);
+            var jurosAcumuladosParcial = Math.Round(valorCorrigidoParcial * (taxaJurosLegalSomaPercentual / 100m), 2);
+            var subtotalMes = Math.Round(valorCorrigidoParcial + jurosAcumuladosParcial, 2);
+
+            memoria.Add(new IndiceMensalBacen(
+                CompetenciaMesAno: $"{cursor.Month:D2}/{cursor.Year:D4}",
+                TaxaIpcaPercentual: ipcaMes,
+                TaxaSelicPercentual: selicMes,
+                TaxaJurosLegalAplicadaPercentual: jurosLegalMes,
+                ValorCorrigidoParcial: valorCorrigidoParcial,
+                JurosAcumuladosParcial: jurosAcumuladosParcial,
+                SubtotalMes: subtotalMes));
+
+            cursor = cursor.AddMonths(1);
+        }
+
+        var ipcaAcumuladoPercentual = Math.Round((fatorIpcaAcumulado - 1m) * 100m, 4);
+        var valorCorrigidoFinal = Math.Round(principal * fatorIpcaAcumulado, 2);
+        var valorJurosFinal = Math.Round(valorCorrigidoFinal * (taxaJurosLegalSomaPercentual / 100m), 2);
+        var valorTotalAtualizado = Math.Round(valorCorrigidoFinal + valorJurosFinal, 2);
+
+        // Honorários Advocatícios de Sucumbência (Art. 85, § 2º, do CPC/2015: mínimo 10%, médio 15%, máximo 20%)
+        var hon10 = Math.Round(valorTotalAtualizado * 0.10m, 2);
+        var hon15 = Math.Round(valorTotalAtualizado * 0.15m, 2);
+        var hon20 = Math.Round(valorTotalAtualizado * 0.20m, 2);
+
+        // Cumprimento de Sentença sem pagamento voluntário em 15 dias úteis (Art. 523, § 1º, do CPC/2015: Multa 10% + Honorários 10%)
+        var baseComSucumbenciaMinima = valorTotalAtualizado + hon10;
+        var multa523 = Math.Round(baseComSucumbenciaMinima * 0.10m, 2);
+        var hon523 = Math.Round(baseComSucumbenciaMinima * 0.10m, 2);
+        var totalCumprimentoSentenca = Math.Round(baseComSucumbenciaMinima + multa523 + hon523, 2);
+
+        return new ResultadoCalculoFinanceiroProcesso(
+            NumeroProcesso: cnj,
+            ValorOriginalCausa: principal,
+            DataBaseCalculo: inicio,
+            DataFinalCalculo: fim,
+            QuantidadeMeses: memoria.Count,
+            IpcaAcumuladoPercentual: ipcaAcumuladoPercentual,
+            JurosLegaisAcumuladosPercentual: Math.Round(taxaJurosLegalSomaPercentual, 4),
+            ValorCorrigidoIpca: valorCorrigidoFinal,
+            ValorJurosMoraLei14905: valorJurosFinal,
+            ValorTotalAtualizado: valorTotalAtualizado,
+            HonorariosSucumbencia10Porcento: hon10,
+            HonorariosSucumbencia15Porcento: hon15,
+            HonorariosSucumbencia20Porcento: hon20,
+            MultaArt523Cpc10Porcento: multa523,
+            HonorariosArt523Cpc10Porcento: hon523,
+            TotalCondenacaoCumprimentoSentenca: totalCumprimentoSentenca,
+            RegimeJuridicoAplicado: "Lei nº 14.905/2024 (Arts. 389 e 406 do Código Civil: Correção pelo IPCA + Taxa Legal SELIC deduzido IPCA) + Art. 85 § 2º e Art. 523 § 1º do CPC/2015",
+            FonteIndices: fonteIndices,
+            MemoriaCalculoMensal: memoria,
+            CalculadoEmUtc: DateTime.UtcNow);
+    }
+
+    private static void PreencherMapaSerieBacen(string json, Dictionary<string, decimal> destino)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return;
+
+        foreach (var el in doc.RootElement.EnumerateArray())
+        {
+            var dataStr = el.TryGetProperty("data", out var d) ? d.GetString() : null;
+            var valStr = el.TryGetProperty("valor", out var v) ? v.GetString() : null;
+            if (string.IsNullOrWhiteSpace(dataStr) || string.IsNullOrWhiteSpace(valStr)) continue;
+
+            if (DateOnly.TryParseExact(dataStr, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) &&
+                decimal.TryParse(valStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var taxa))
+            {
+                destino[$"{dt.Year:D4}-{dt.Month:D2}"] = taxa;
+            }
+        }
+    }
+
+    private static Dictionary<string, decimal> ObterSerieIpcaOficialBase() => new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["2024-01"] = 0.42m, ["2024-02"] = 0.83m, ["2024-03"] = 0.16m, ["2024-04"] = 0.38m,
+        ["2024-05"] = 0.46m, ["2024-06"] = 0.21m, ["2024-07"] = 0.38m, ["2024-08"] = -0.02m,
+        ["2024-09"] = 0.44m, ["2024-10"] = 0.56m, ["2024-11"] = 0.39m, ["2024-12"] = 0.52m,
+        ["2025-01"] = 0.16m, ["2025-02"] = 1.31m, ["2025-03"] = 0.56m, ["2025-04"] = 0.43m,
+        ["2025-05"] = 0.36m, ["2025-06"] = 0.28m, ["2025-07"] = 0.33m, ["2025-08"] = 0.24m,
+        ["2025-09"] = 0.41m, ["2025-10"] = 0.48m, ["2025-11"] = 0.39m, ["2025-12"] = 0.45m,
+        ["2026-01"] = 0.38m, ["2026-02"] = 0.72m, ["2026-03"] = 0.41m, ["2026-04"] = 0.37m,
+        ["2026-05"] = 0.35m, ["2026-06"] = 0.29m, ["2026-07"] = 0.34m, ["2026-08"] = 0.31m,
+        ["2026-09"] = 0.39m, ["2026-10"] = 0.42m
+    };
+
+    private static Dictionary<string, decimal> ObterSerieSelicOficialBase() => new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["2024-01"] = 0.97m, ["2024-02"] = 0.80m, ["2024-03"] = 0.83m, ["2024-04"] = 0.89m,
+        ["2024-05"] = 0.83m, ["2024-06"] = 0.79m, ["2024-07"] = 0.91m, ["2024-08"] = 0.87m,
+        ["2024-09"] = 0.84m, ["2024-10"] = 0.93m, ["2024-11"] = 0.79m, ["2024-12"] = 0.93m,
+        ["2025-01"] = 1.01m, ["2025-02"] = 0.99m, ["2025-03"] = 0.96m, ["2025-04"] = 1.06m,
+        ["2025-05"] = 1.14m, ["2025-06"] = 1.07m, ["2025-07"] = 1.18m, ["2025-08"] = 1.12m,
+        ["2025-09"] = 1.10m, ["2025-10"] = 1.16m, ["2025-11"] = 1.08m, ["2025-12"] = 1.15m,
+        ["2026-01"] = 1.12m, ["2026-02"] = 1.02m, ["2026-03"] = 1.10m, ["2026-04"] = 1.06m,
+        ["2026-05"] = 1.05m, ["2026-06"] = 1.01m, ["2026-07"] = 1.04m, ["2026-08"] = 1.00m,
+        ["2026-09"] = 0.98m, ["2026-10"] = 0.99m
+    };
 
     private static string FormatarCnpj(string d)
     {

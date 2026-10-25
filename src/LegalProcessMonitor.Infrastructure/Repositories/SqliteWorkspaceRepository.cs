@@ -965,4 +965,90 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
 
         return lista;
     }
+
+    public async Task<EstadoWorkspaceTenant> RestaurarSnapshotWorkspaceAsync(
+        string tenantId,
+        EstadoWorkspaceTenant snapshot,
+        bool mesclarComExistente = true,
+        CancellationToken ct = default)
+    {
+        var tenant = TenantValidador.NormalizarEValidar(tenantId);
+
+        if (!mesclarComExistente)
+        {
+            await using var conn = new SqliteConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                DELETE FROM workspace_watchlist WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_notas_juizo WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_suspensoes_locais WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_tarefas_kanban WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_radar_djen WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_teses_juridicas WHERE tenant_id = $tenantId;
+                DELETE FROM workspace_teses_aplicadas WHERE tenant_id = $tenantId;";
+            cmd.Parameters.AddWithValue("$tenantId", tenant);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        if (snapshot.Configuracao is not null)
+        {
+            await SalvarConfigRadarAsync(snapshot.Configuracao with { TenantId = tenant }, ct);
+        }
+
+        if (snapshot.Watchlist is not null)
+        {
+            foreach (var item in snapshot.Watchlist)
+            {
+                await SalvarItemWatchlistAsync(item with { TenantId = tenant }, ct);
+            }
+        }
+
+        if (snapshot.NotasJuizo is not null)
+        {
+            foreach (var kv in snapshot.NotasJuizo)
+            {
+                await SalvarNotaJuizoAsync(new NotaJuizoTenant(tenant, kv.Key, kv.Value, DateTime.UtcNow), ct);
+            }
+        }
+
+        if (snapshot.SuspensoesLocais is not null)
+        {
+            foreach (var susp in snapshot.SuspensoesLocais)
+            {
+                await AdicionarSuspensaoLocalAsync(susp with { TenantId = tenant }, ct);
+            }
+        }
+
+        if (snapshot.TarefasKanban is not null)
+        {
+            foreach (var tarefa in snapshot.TarefasKanban)
+            {
+                await SalvarTarefaAsync(tarefa with { TenantId = tenant }, ct);
+            }
+        }
+
+        if (snapshot.ItensRadar is not null && snapshot.ItensRadar.Count > 0)
+        {
+            await SalvarItensRadarLoteAsync(tenant, snapshot.ItensRadar.Select(r => r with { TenantId = tenant }), ct);
+        }
+
+        if (snapshot.TesesJuridicas is not null)
+        {
+            foreach (var tese in snapshot.TesesJuridicas)
+            {
+                await SalvarTeseJuridicaAsync(tese with { TenantId = tenant }, ct);
+            }
+        }
+
+        if (snapshot.HistoricoAplicacoesTeses is not null)
+        {
+            foreach (var ap in snapshot.HistoricoAplicacoesTeses)
+            {
+                await RegistrarAplicacaoTeseAsync(ap with { TenantId = tenant }, ct);
+            }
+        }
+
+        return await ObterEstadoWorkspaceAsync(tenant, ct);
+    }
 }

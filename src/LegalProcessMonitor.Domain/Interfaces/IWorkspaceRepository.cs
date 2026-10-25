@@ -42,6 +42,9 @@ public interface IWorkspaceRepository
     Task<IReadOnlyList<TeseJuridicaTenant>> ListarTesesJuridicasAsync(string tenantId, CancellationToken ct = default);
     Task<AplicacaoTeseProcesso> RegistrarAplicacaoTeseAsync(AplicacaoTeseProcesso aplicacao, CancellationToken ct = default);
     Task<IReadOnlyList<AplicacaoTeseProcesso>> ListarAplicacoesTesesAsync(string tenantId, string? numeroProcesso = null, CancellationToken ct = default);
+
+    // Backup & Restore Atômico Completo do Workspace Multi-Tenant
+    Task<EstadoWorkspaceTenant> RestaurarSnapshotWorkspaceAsync(string tenantId, EstadoWorkspaceTenant snapshot, bool mesclarComExistente = true, CancellationToken ct = default);
 }
 
 public interface IInteligenciaPublicaConnector
@@ -60,6 +63,13 @@ public interface IInteligenciaPublicaConnector
         string tenantId,
         int ano,
         string siglaTribunal = "TJSP",
+        CancellationToken ct = default);
+
+    Task<ResultadoCalculoFinanceiroProcesso> CalcularAtualizacaoFinanceiraBacenAsync(
+        string numeroProcesso,
+        decimal valorOriginal,
+        System.DateOnly dataBase,
+        System.DateOnly? dataFinal = null,
         CancellationToken ct = default);
 }
 

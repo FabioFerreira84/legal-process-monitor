@@ -704,4 +704,187 @@ public sealed class WorkspacesController : ControllerBase
             return BadRequest(new { mensagem = ex.Message });
         }
     }
+
+    // =========================================================================
+    // FATIA 7: BACKUP & RESTORE ATÔMICO MULTI-TENANT (CLOUD PERSISTENCE)
+    // =========================================================================
+    [HttpGet("backup")]
+    public async Task<IActionResult> ExportarBackupWorkspace(CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            var estado = await _workspaceRepository.ObterEstadoWorkspaceAsync(tenant, ct);
+            return Ok(estado);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    public sealed record RestaurarBackupRequest(
+        EstadoWorkspaceTenant Snapshot,
+        bool MesclarComExistente = true);
+
+    [HttpPost("restore")]
+    public async Task<IActionResult> RestaurarBackupWorkspace(
+        [FromBody] RestaurarBackupRequest req,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (req?.Snapshot is null)
+            {
+                return BadRequest(new { mensagem = "Payload de snapshot inválido para restauração." });
+            }
+
+            var estadoRestaurado = await _workspaceRepository.RestaurarSnapshotWorkspaceAsync(
+                tenant,
+                req.Snapshot,
+                req.MesclarComExistente,
+                ct);
+
+            return Ok(estadoRestaurado);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    // =========================================================================
+    // FATIA 8: GERADOR AUTOMÁTICO DE MINUTA / PEÇA PROCESSUAL (.DOC WORD)
+    // =========================================================================
+    public sealed record GerarMinutaProcessualRequest(
+        string TeseId,
+        string NumeroProcesso,
+        string? ClasseProcessual = null,
+        string? AssuntoPrincipal = null,
+        string? OrgaoJulgador = null,
+        string? PoloAtivo = null,
+        string? PoloPassivo = null,
+        string? UltimoAndamento = null,
+        string? DataDisponibilizacaoIso = null,
+        int DiasPrazo = 15);
+
+    [HttpPost("teses/gerar-minuta")]
+    public async Task<IActionResult> GerarMinutaProcessual(
+        [FromBody] GerarMinutaProcessualRequest req,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var tenant = ResolverTenantId();
+            if (string.IsNullOrWhiteSpace(req.TeseId) || string.IsNullOrWhiteSpace(req.NumeroProcesso))
+            {
+                return BadRequest(new { mensagem = "Informe a tese jurídica (TeseId) e o número do processo (NumeroProcesso)." });
+            }
+
+            var estado = await _workspaceRepository.ObterEstadoWorkspaceAsync(tenant, ct);
+            var teses = estado.TesesJuridicas ?? await _workspaceRepository.ListarTesesJuridicasAsync(tenant, ct);
+            var tese = teses.FirstOrDefault(t => t.Id == req.TeseId) ?? teses.FirstOrDefault();
+
+            if (tese is null)
+            {
+                return NotFound(new { mensagem = "Tese jurídica não encontrada neste workspace." });
+            }
+
+            // Enriquecer com dados reais do processo no repositório caso disponíveis
+            var digitos = Regex.Replace(req.NumeroProcesso, @"\D", "");
+            Processo? proc = null;
+            if (_processoRepository != null && !string.IsNullOrWhiteSpace(digitos))
+            {
+                proc = await _processoRepository.ObterPorNumeroAsync(digitos, ct);
+            }
+
+            var classe = !string.IsNullOrWhiteSpace(req.ClasseProcessual) ? req.ClasseProcessual : proc?.Classe;
+            var assunto = !string.IsNullOrWhiteSpace(req.AssuntoPrincipal) ? req.AssuntoPrincipal : proc?.Assuntos?.FirstOrDefault();
+            var orgao = !string.IsNullOrWhiteSpace(req.OrgaoJulgador) ? req.OrgaoJulgador : proc?.OrgaoJulgador;
+            var poloAtivo = !string.IsNullOrWhiteSpace(req.PoloAtivo)
+                ? req.PoloAtivo
+                : proc?.Partes?.FirstOrDefault(p => p.Polo.Contains("Ativo", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Agravante", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Autor", StringComparison.OrdinalIgnoreCase))?.Nome;
+            var poloPassivo = !string.IsNullOrWhiteSpace(req.PoloPassivo)
+                ? req.PoloPassivo
+                : proc?.Partes?.FirstOrDefault(p => p.Polo.Contains("Passivo", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Agravado", StringComparison.OrdinalIgnoreCase) || p.Polo.Contains("Réu", StringComparison.OrdinalIgnoreCase))?.Nome;
+            var ultAndamento = !string.IsNullOrWhiteSpace(req.UltimoAndamento)
+                ? req.UltimoAndamento
+                : proc?.Movimentacoes?.OrderByDescending(m => m.DataHora).FirstOrDefault()?.Descricao;
+
+            DateOnly? dataDisp = null;
+            if (!string.IsNullOrWhiteSpace(req.DataDisponibilizacaoIso) &&
+                DateOnly.TryParse(req.DataDisponibilizacaoIso[..Math.Min(10, req.DataDisponibilizacaoIso.Length)], CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtParsed))
+            {
+                dataDisp = dtParsed;
+            }
+            else if (proc?.Movimentacoes?.Count > 0)
+            {
+                dataDisp = DateOnly.FromDateTime(proc.Movimentacoes.OrderByDescending(m => m.DataHora).First().DataHora);
+            }
+
+            var feriadosLocais = estado.SuspensoesLocais.Select(s => new FeriadoOuSuspensao(s.Data, s.Descricao)).ToList();
+
+            var minuta = GeradorMinutaProcessualService.GerarMinutaContextualizada(
+                tenantId: tenant,
+                numeroProcesso: req.NumeroProcesso,
+                classeProcessual: classe,
+                assuntoPrincipal: assunto,
+                orgaoJulgador: orgao,
+                poloAtivo: poloAtivo,
+                poloPassivo: poloPassivo,
+                ultimoAndamento: ultAndamento,
+                dataDisponibilizacaoDjen: dataDisp,
+                diasPrazo: req.DiasPrazo > 0 ? req.DiasPrazo : 15,
+                tese: tese,
+                configEscritorio: estado.Configuracao,
+                suspensoesLocais: feriadosLocais);
+
+            return Ok(minuta);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    // =========================================================================
+    // FATIA 9: CALCULADORA FINANCEIRA & HONORÁRIOS BACEN (LEI 14.905/2024)
+    // =========================================================================
+    [HttpGet("processos/calculo-financeiro")]
+    public async Task<IActionResult> CalcularAtualizacaoFinanceiraProcesso(
+        [FromQuery] string numeroProcesso,
+        [FromQuery] decimal valorOriginal = 157882.05m,
+        [FromQuery] string? dataBaseIso = null,
+        [FromQuery] string? dataFinalIso = null,
+        CancellationToken ct = default)
+    {
+        if (_inteligenciaConnector is null)
+        {
+            return StatusCode(503, new { mensagem = "Conector de inteligência pública não configurado." });
+        }
+
+        var dtBase = new DateOnly(2025, 4, 1);
+        if (!string.IsNullOrWhiteSpace(dataBaseIso) &&
+            DateOnly.TryParse(dataBaseIso[..Math.Min(10, dataBaseIso.Length)], CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedBase))
+        {
+            dtBase = parsedBase;
+        }
+
+        DateOnly? dtFim = null;
+        if (!string.IsNullOrWhiteSpace(dataFinalIso) &&
+            DateOnly.TryParse(dataFinalIso[..Math.Min(10, dataFinalIso.Length)], CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedFim))
+        {
+            dtFim = parsedFim;
+        }
+
+        var resultado = await _inteligenciaConnector.CalcularAtualizacaoFinanceiraBacenAsync(
+            numeroProcesso ?? "0000000-00.0000.0.00.0000",
+            valorOriginal,
+            dtBase,
+            dtFim,
+            ct);
+
+        return Ok(resultado);
+    }
 }
